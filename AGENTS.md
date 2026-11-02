@@ -25,9 +25,10 @@
 4. No change to the public `.motionpack` contract without versioning, migration/compatibility consideration, fixtures and architect review.
 5. Do not silently overwrite source assets or remove their provenance. Do not introduce gameplay terms into the format/runtime.
 
-## Initial repository status
-- At bootstrap PR #1 only governance and agent configuration are tracked. The v0.2-alpha runtime, examples and executable tests have not yet been imported. Do not run or require baseline commands until the implementation-import PR lands.
-- Documents on format and architecture that are not yet in the repository are pending import; do not mistake missing files for approved specifications.
+## Repository baseline
+- PR #1 established governance and development-agent definitions.
+- PR #3 adds experimental v0.1/v0.2 runtime, examples, validation, build tools, and executable CI. Follow the commands in README when these files are present.
+- Treat documentation as current only for its stated supported subset. Production-ready untrusted package import, complete SVG sanitization, visual regression baselines and automatic asset authoring remain future work (Issues #4 and #5).
 
 ## Test and evidence
 - Baseline (as provided by v0.2-alpha):

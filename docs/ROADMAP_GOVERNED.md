@@ -1,30 +1,18 @@
-# Governed development roadmap (working draft)
+# Governed MotionPack roadmap
 
-## Bootstrap — now
-- Public repository and governance / role definitions in draft PR.
-- Establish least-privileged GitHub Actions, templates, and review practices.
-- Import reviewed v0.2-alpha code and examples; enable functional validation in CI.
-- Define a license before releasing redistributable packages.
+Targets are exploratory, not release commitments.
 
-## v0.3 — image-to-editable-asset vertical slice
-- Preserve source image, isolate editable visual parts and background.
-- Provide editable manual corrections to segmentation and rigging.
-- Attach 2-bone IK and three demonstrable clips: idle, aim and beam.
-- Render offline and re-open the same asset package; regression and security tests.
+## v0.2 repository baseline (Issue #2 / PR #3)
+Import portable format 0.1 and 0.2 demonstrations, browser runtime, two-bone IK, offline packager, functional and negative tests.
 
-## v0.4 — natural motion and transformation
-- Weighted meshes and skeletal blending, more joints and constraints.
-- Motion blending, visual effect composition and form transitions.
-- Objective functional checks + visual examples and measured performance.
+## v0.3: image to editable asset
+Experimentally evaluate layer segmentation, occluded detail reconstruction, manually correctable masks, rigging, original-source preservation and provenance.
 
-## v0.5 — authoring automation
-- Independent deterministic tools first, AI skills/agents later.
-- Natural-language commands translate to editable, reviewable changes.
-- Authoring AI remains optional; runtime never requires an AI service.
+## v0.4: richer animation
+Add weighted mesh deformation, clips blending and transformation effects, accompanied by reproducible visual baselines.
 
-## Towards v1.0
-- Stable spec/versioning, compatibility suite, hardened parser and security review.
-- Lightweight browser runtime and documented adapters where implemented.
-- Separate packaging/release of format spec, runtime, tool CLI and optional authoring skills.
+## v0.5: authoring tools
+Stabilize programmatic import, edit, validate and preview operations. Only after this should optional consumer-facing AI authoring skills and agents be designed.
 
-Milestone dates are intentionally unspecified; scope and measured acceptance criteria govern readiness.
+## v1.0: publishing
+Stable versioned spec, compatibility tests, safe reader for untrusted packs, license, performance/visual/security gates, documentation and maintainer sign-off.

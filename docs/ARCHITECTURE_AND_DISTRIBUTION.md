@@ -1,18 +1,14 @@
-# Architecture and distribution boundaries
+# Architecture and distribution
 
-## Core components
-1. **Format**: versioned inspectable manifest and source layers, masks, rig nodes, clips, effects and variants; independent of gameplay.
-2. **Runtime**: deterministic offline render/player, no required cloud API.
-3. **Tools**: validation, pack/unpack, preview/export, non-destructive asset editing.
-4. **Authoring skills**: optional natural-language orchestration over validated tools.
-5. **Optional agents**: compose tasks and audits, but are not part of the asset playback requirement.
+MotionPack consists of independent pieces:
+- data format spec and editable source archives
+- offline runtime and adapters (currently browser Canvas only)
+- command-line authoring, validation and conversion tools
+- optional end-user AI authoring skill later
+- optional multi-step authoring agents later
 
-## Design boundaries
-- Parse untrusted packages with limits and explicit feature allow-lists.
-- Define animation coordinate and timing conventions before external plugin commitments.
-- Avoid unreviewed arbitrary code/shaders/network URLs embedded in manifests.
-- Keep original assets addressable and editable after publication/export.
-- Product skills for creating animations are distinct from project-development agent skills.
+The eleven Codex subagents in .codex/agents are **development** roles, not consumer authoring agents.
 
-## State
-The v0.2-alpha local implementation has not yet been merged. This document is an architecture intent, not a claim of shipped SDK capabilities.
+The editable .motionpack ZIP does not play on its own without a compatible runtime. The generated preview.html is a single self-contained offline browser preview.
+
+No native engine adapters, full-body mesh skinning or reliable automatic image-to-rig conversion are currently available.
