@@ -1,17 +1,12 @@
-# Repository bootstrap status
+# Repository setup checklist
 
-- Repository: https://github.com/708san/motionpack
-- Visibility: Public
-- Default branch: main
-- Initial README commit: a9809d03b9367019f2e9e3e81596039243875fa6
-- Governance branch: chore/bootstrap-governance
-- Proposed governance: PR #1 (draft)
-- Current integration: GitHub file write was confirmed after repository access was updated.
+Public repository: https://github.com/708san/motionpack
 
-## Maintainer actions after PR review
-1. Confirm CI check results and review every added configuration; do not merge an untested configuration.
-2. Configure branch protection / rulesets: require PR, passing checks and prohibit force pushes; avoid setting impossible second-person approvals on a solo-maintained repository.
-3. Commit the reviewed v0.2-alpha implementation in a separate feature branch and activate functional CI.
-4. Define license and private security reporting route before broad external distribution.
+1. Confirm GitHub App permission and public visibility.
+2. Configure required CI checks and pull-request-only changes to main through GitHub rulesets.
+3. Review Actions permissions; use read-only access where possible.
+4. Enable dependency alerts and private vulnerability reporting where available.
+5. Decide licensing before calling the source reusable open-source software.
+6. Keep format changes versioned, tested and reviewed.
 
-Do not assume the GitHub connection has administration access to update branch rulesets automatically.
+Human-managed repository settings cannot be enforced merely by committing files.

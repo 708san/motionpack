@@ -1,0 +1,497 @@
+{
+  "format": "motionpack",
+  "version": "0.2",
+  "id": "two-bone-ik-rig-demo",
+  "canvas": {
+    "width": 800,
+    "height": 1000,
+    "background": "#0b1225"
+  },
+  "assets": {
+    "background": "assets/background.svg",
+    "torso": "assets/torso.svg",
+    "torso_power": "assets/torso_power.svg",
+    "head": "assets/head.svg",
+    "arm": "assets/arm.svg",
+    "upper_arm": "assets/upper_arm.svg",
+    "forearm": "assets/forearm.svg",
+    "gun": "assets/gun.svg",
+    "core": "assets/core.svg",
+    "core_power": "assets/core_power.svg"
+  },
+  "nodes": [
+    {
+      "id": "bg",
+      "asset": "background",
+      "x": 400,
+      "y": 500,
+      "width": 800,
+      "height": 1000,
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "z": 0
+    },
+    {
+      "id": "mech",
+      "x": 400,
+      "y": 620,
+      "z": 1
+    },
+    {
+      "id": "left_arm",
+      "parent": "mech",
+      "asset": "arm",
+      "x": -90,
+      "y": -88,
+      "width": 155,
+      "height": 88,
+      "anchor": [
+        0.07,
+        0.5
+      ],
+      "z": 2,
+      "rotation": 155
+    },
+    {
+      "id": "body",
+      "parent": "mech",
+      "asset": "torso",
+      "x": 0,
+      "y": 0,
+      "width": 240,
+      "height": 330,
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "z": 3
+    },
+    {
+      "id": "head",
+      "parent": "mech",
+      "asset": "head",
+      "x": 0,
+      "y": -181,
+      "width": 160,
+      "height": 110,
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "z": 4
+    },
+    {
+      "id": "core",
+      "parent": "mech",
+      "asset": "core",
+      "x": 0,
+      "y": -23,
+      "width": 94,
+      "height": 94,
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "z": 5,
+      "opacity": 0.65
+    },
+    {
+      "id": "right_upper",
+      "parent": "mech",
+      "asset": "upper_arm",
+      "x": 100,
+      "y": -88,
+      "width": 140,
+      "height": 76,
+      "anchor": [
+        0.12,
+        0.5
+      ],
+      "z": 6
+    },
+    {
+      "id": "right_lower",
+      "parent": "right_upper",
+      "asset": "forearm",
+      "x": 115,
+      "y": 0,
+      "width": 128,
+      "height": 68,
+      "anchor": [
+        0.1,
+        0.5
+      ],
+      "z": 7
+    },
+    {
+      "id": "weapon",
+      "parent": "right_lower",
+      "asset": "gun",
+      "x": 105,
+      "y": 0,
+      "width": 190,
+      "height": 90,
+      "anchor": [
+        0.16,
+        0.5
+      ],
+      "z": 8
+    }
+  ],
+  "clips": {
+    "idle": {
+      "duration_ms": 2400,
+      "loop": true,
+      "tracks": [
+        {
+          "node": "mech",
+          "property": "y",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 620
+            },
+            {
+              "time_ms": 1200,
+              "value": 608
+            },
+            {
+              "time_ms": 2400,
+              "value": 620
+            }
+          ]
+        },
+        {
+          "node": "core",
+          "property": "opacity",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 0.45
+            },
+            {
+              "time_ms": 1200,
+              "value": 1
+            },
+            {
+              "time_ms": 2400,
+              "value": 0.45
+            }
+          ]
+        }
+      ],
+      "effects": [],
+      "ik_tracks": [
+        {
+          "ik": "aim_right",
+          "axis": "y",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 410
+            },
+            {
+              "time_ms": 1200,
+              "value": 397
+            },
+            {
+              "time_ms": 2400,
+              "value": 410
+            }
+          ]
+        }
+      ]
+    },
+    "fire": {
+      "duration_ms": 2500,
+      "loop": false,
+      "tracks": [
+        {
+          "node": "mech",
+          "property": "x",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 400
+            },
+            {
+              "time_ms": 590,
+              "value": 400
+            },
+            {
+              "time_ms": 820,
+              "value": 378
+            },
+            {
+              "time_ms": 1400,
+              "value": 390
+            },
+            {
+              "time_ms": 2500,
+              "value": 400
+            }
+          ]
+        },
+        {
+          "node": "core",
+          "property": "opacity",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 0.5
+            },
+            {
+              "time_ms": 580,
+              "value": 1
+            },
+            {
+              "time_ms": 1450,
+              "value": 0.6
+            },
+            {
+              "time_ms": 2500,
+              "value": 0.5
+            }
+          ]
+        }
+      ],
+      "effects": [
+        {
+          "kind": "ring",
+          "node": "weapon",
+          "start_ms": 270,
+          "duration_ms": 600,
+          "offset": [
+            145,
+            0
+          ],
+          "radius": 100,
+          "color": "#6ae6ff"
+        },
+        {
+          "kind": "beam",
+          "node": "weapon",
+          "start_ms": 590,
+          "duration_ms": 1000,
+          "offset": [
+            145,
+            0
+          ],
+          "target": [
+            770,
+            185
+          ],
+          "color": "#7df3ff"
+        },
+        {
+          "kind": "burst",
+          "node": "weapon",
+          "start_ms": 620,
+          "duration_ms": 950,
+          "offset": [
+            145,
+            0
+          ],
+          "count": 30,
+          "radius": 210,
+          "seed": 4,
+          "color": "#fef2b8"
+        }
+      ],
+      "ik_tracks": [
+        {
+          "ik": "aim_right",
+          "axis": "x",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 705
+            },
+            {
+              "time_ms": 550,
+              "value": 760
+            },
+            {
+              "time_ms": 1000,
+              "value": 760
+            },
+            {
+              "time_ms": 2500,
+              "value": 705
+            }
+          ]
+        },
+        {
+          "ik": "aim_right",
+          "axis": "y",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 410
+            },
+            {
+              "time_ms": 550,
+              "value": 350
+            },
+            {
+              "time_ms": 1500,
+              "value": 350
+            },
+            {
+              "time_ms": 2500,
+              "value": 410
+            }
+          ]
+        }
+      ]
+    },
+    "transform": {
+      "duration_ms": 2100,
+      "loop": false,
+      "tracks": [
+        {
+          "node": "core",
+          "property": "opacity",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 0.4
+            },
+            {
+              "time_ms": 800,
+              "value": 1
+            },
+            {
+              "time_ms": 2100,
+              "value": 0.7
+            }
+          ]
+        },
+        {
+          "node": "mech",
+          "property": "scale",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 1
+            },
+            {
+              "time_ms": 800,
+              "value": 1.12
+            },
+            {
+              "time_ms": 1600,
+              "value": 0.95
+            },
+            {
+              "time_ms": 2100,
+              "value": 1
+            }
+          ]
+        }
+      ],
+      "effects": [
+        {
+          "kind": "ring",
+          "node": "mech",
+          "start_ms": 200,
+          "duration_ms": 1400,
+          "offset": [
+            0,
+            -20
+          ],
+          "radius": 380,
+          "color": "#ffdf72"
+        },
+        {
+          "kind": "ring",
+          "node": "mech",
+          "start_ms": 700,
+          "duration_ms": 1100,
+          "offset": [
+            0,
+            -20
+          ],
+          "radius": 270,
+          "color": "#64ffff"
+        },
+        {
+          "kind": "burst",
+          "node": "mech",
+          "start_ms": 950,
+          "duration_ms": 1050,
+          "offset": [
+            0,
+            -20
+          ],
+          "count": 60,
+          "radius": 280,
+          "seed": 2,
+          "color": "#ffdf72"
+        }
+      ],
+      "ik_tracks": [
+        {
+          "ik": "aim_right",
+          "axis": "y",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 410
+            },
+            {
+              "time_ms": 950,
+              "value": 320
+            },
+            {
+              "time_ms": 2100,
+              "value": 410
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "variants": {
+    "form_a": {
+      "nodes": {}
+    },
+    "form_b": {
+      "nodes": {
+        "body": {
+          "asset": "torso_power"
+        },
+        "core": {
+          "asset": "core_power"
+        },
+        "head": {
+          "rotation": -4
+        }
+      }
+    }
+  },
+  "defaults": {
+    "clip": "idle",
+    "variant": "form_a"
+  },
+  "iks": [
+    {
+      "id": "aim_right",
+      "upper": "right_upper",
+      "lower": "right_lower",
+      "lengths": [
+        115,
+        105
+      ],
+      "target": [
+        705,
+        410
+      ],
+      "bend": -1,
+      "weight": 1
+    }
+  ],
+  "notes": "Experimental 2-bone IK demo; rigid cutouts, not mesh skinning"
+}

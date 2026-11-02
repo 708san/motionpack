@@ -1,35 +1,35 @@
 # MotionPack
 
-**Engine-independent, editable 2D animation asset format and lightweight player — experimental project.**
+**Experimental pre-alpha**: portable, editable 2D visual-motion format, offline browser player, two-bone inverse kinematics (IK) and bounded visual effects.
 
-> Public **pre-alpha** development repository. No open-source license has been selected yet. Source code is visible, but permission to copy, modify, or redistribute is not generally granted by visibility alone.
+MotionPack is intentionally **not** a card-game format. The runtime does not require AI services or network access. The current preview is a reference demo, not a production SDK.
 
-## Goals
-- Separate original images, layers, masks, rigs, timelines, visual effects, variants and edit history.
-- Keep source projects inspectable and non-destructively editable.
-- Enable offline playback without a particular game engine or AI service.
-- Build independent format, runtime, command-line tools, and optional AI authoring skills.
-- Keep game rules and card-specific metadata outside the core asset format.
+## Quick start
 
-## Repository status
+```sh
+python3 tools/validate.py examples/robot_ik_demo
+python3 tools/validate.py examples/robot_demo
+python3 tools/package.py examples/robot_ik_demo --out dist
+node tests/ik_test.js
+node tests/runtime_smoke.js
+node tests/runtime_ik_smoke.js
+python3 -m unittest discover -s tests -v
+```
 
-**Bootstrap stage (2026-11-02):** GitHub governance, eleven specialized Codex subagents, contributor guidance, and governance validation workflow are proposed in [PR #1](https://github.com/708san/motionpack/pull/1).
+Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam firing, form switching and optional pointer aiming.
 
-The existing local **v0.2-alpha demonstration** (two-bone IK / inverse kinematics, particle beam, variant switching, HTML preview, Python validator/packager) is **not yet committed to this repository**. The next step is a separate import after code and rights inspection. Do not treat this README as a claim that those tools can currently be run from the repository.
+## Project layout
 
-## Documentation
-- [Agent and coding rules](AGENTS.md)
-- [Governance and decision rights](docs/DEVELOPMENT_GOVERNANCE_V1.md)
-- [Agent roles](docs/AGENT_ROLES.md)
-- [GitHub workflow](docs/GITHUB_POLICY.md)
-- [Security policy](docs/SECURITY_POLICY.md)
-- [Quality policy](docs/QUALITY_POLICY.md)
-- [Development roadmap](docs/ROADMAP_GOVERNED.md)
-- [Contributing](CONTRIBUTING.md)
-- [Vulnerability reporting](SECURITY.md)
+- `runtime/`: experimental Canvas2D player and IK solver
+- `tools/`: editable package validator and builder
+- `examples/`: demonstration layered assets and manifests for versions 0.1 and 0.2
+- `tests/`: functional and basic malicious-input regression tests
+- `.codex/agents/`: eleven development subagent definitions (not consumer asset-authoring agents)
+- `docs/`: format specification, architecture and development governance
 
-## Safety and scope
-The current format is experimental. Untrusted .motionpack packages, embedded SVG, ZIP archives, large images and effects must not be considered safe to parse until resource limits and security reviews are implemented. Native game engine adapters, robust mesh skinning and AI one-image auto-rigging are not yet available.
+## Security, compatibility and licensing
 
-## Maintainer approval
-AI agents may propose branches and draft pull requests; merging, making releases, choosing the license, or relaxing protections require the human maintainer's explicit approval.
+See [format specification](docs/FORMAT_SPEC.md), [security policy](docs/SECURITY_POLICY.md) and [development governance](docs/DEVELOPMENT_GOVERNANCE_V1.md).
+**Do not treat current tools as safe for arbitrary untrusted `.motionpack` files.** The ZIP archive import/extraction pathway and full SVG sanitization remain future work.
+
+Public repository visibility does not grant software reuse rights. **No software license has been selected yet.**

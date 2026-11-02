@@ -1,21 +1,18 @@
-# Quality policy (draft v1)
+# Quality policy
 
-## Independent acceptance gates
-- **Functional QA:** correct parsing, validation and animation state changes; deterministic replay where specified; unit/integration tests.
-- **Compatibility QA:** existing supported fixtures remain valid; every format change declares migration and version impact.
-- **Visual QA:** representative screenshots at fixed times; missing texture/mask, clipping, flicker, and joint distortion reviews.
-- **Performance QA:** reproducible package size, parse/load time, memory and frame timing with recorded hardware/browser; no invented benchmarks.
-- **Security QA:** malformed/untrusted ZIP, JSON, SVG and images; file traversal, unbounded expansion/allocations, hostile URLs; supply-chain checks.
-- **Documentation:** examples and commands agree with checked-in code.
+## Functional
+- Validate v0.1/v0.2 fixtures on every PR.
+- Test deterministic IK and parent transforms.
+- Run idle, fire, transform, variant and reset smoke tests.
+- Verify offline package creation and local archive manifest integrity.
 
-## Requirements for pull requests
-- List exact test commands and pass/fail results; do not claim visual or security coverage from unit tests.
-- New public format features require spec, fixture and backward compatibility consideration.
-- Critical and high-severity security findings block distribution until addressed or documented human exception.
-- Failures must include a minimal reproducible case and rollback plan.
+## Visual
+- Node mock tests are not pixel-level or aesthetic evaluation.
+- Until Issue #5 lands, human reviewers must inspect generated browser preview after visual-affecting changes.
+- Do not claim natural whole-body motion, full mesh deformation or production performance without evidence.
 
-## Initial staged gates
-Phase 1: syntax/configuration checks and function tests once runtime is imported.
-Phase 2: adversarial malformed inputs and compatibility tests.
-Phase 3: pixel/reference visual regression and quantified performance budgets.
-Actual budgets and tolerances must be agreed using baseline measurements, not guessed.
+## Performance
+Track file size, preview size, load latency, frame duration and peak memory with fixed fixtures. Hardware/browser must be stated. No universal numerical target has yet been established.
+
+## Done means
+Applicable tests pass, compatibility is assessed, security impacts reviewed, known gaps documented, and maintainer approves merge.

@@ -1,0 +1,39 @@
+name: MotionPack checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  functional:
+    name: functional
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validate both format versions
+        run: |
+          python3 tools/validate.py examples/robot_demo
+          python3 tools/validate.py examples/robot_ik_demo
+      - name: Build offline preview
+        run: python3 tools/package.py examples/robot_ik_demo --out /tmp/motionpack_build
+      - name: IK and runtime smoke tests
+        run: |
+          node tests/ik_test.js
+          node tests/runtime_smoke.js
+          node tests/runtime_ik_smoke.js
+  security:
+    name: security-negative-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Reject unsafe package metadata
+        run: python3 -m unittest discover -s tests -v
+      - name: Python syntax checks
+        run: python3 -m compileall -q tools tests
