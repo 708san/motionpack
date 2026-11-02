@@ -20,12 +20,43 @@ MAX_NODES = 1000
 MAX_ASSETS = 512
 MAX_TRACKS = 2000
 MAX_EFFECTS = 1000
+MAX_JSON_DEPTH = 64
 
 def num(value):
-    return type(value) in (int, float) and math.isfinite(value)
+    if type(value) not in (int, float):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+def check_json_nesting(text):
+    depth = 0
+    in_string = False
+    escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+            if depth > MAX_JSON_DEPTH:
+                raise ValueError("manifest nesting exceeds maximum depth")
+        elif char in "]}" and depth:
+            depth -= 1
 
 def validate(folder):
-    root = pathlib.Path(folder).resolve()
+    try:
+        root = pathlib.Path(folder).resolve()
+    except RuntimeError as exc:
+        raise ValueError("unable to resolve project root") from exc
     errors = []
     def check(ok, message):
         if not ok:
@@ -34,7 +65,12 @@ def validate(folder):
     manifest_path = root / "manifest.json"
     if not manifest_path.is_file() or manifest_path.stat().st_size > MAX_MANIFEST:
         raise ValueError("missing or oversized manifest")
-    m = json.loads(manifest_path.read_text(encoding="utf-8"), parse_constant=lambda x: (_ for _ in ()).throw(ValueError("non-finite constant")))
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    check_json_nesting(manifest_text)
+    try:
+        m = json.loads(manifest_text, parse_constant=lambda x: (_ for _ in ()).throw(ValueError("non-finite constant")))
+    except RecursionError as exc:
+        raise ValueError("manifest nesting exceeds parser limit") from exc
     if not isinstance(m, dict):
         raise ValueError("manifest must be an object")
     check(m.get("format") == "motionpack", "format must be motionpack")
@@ -65,7 +101,11 @@ def validate(folder):
                      "unsafe path for " + str(aid)):
             continue
         dest = root.joinpath(*p.parts)
-        real = dest.resolve()
+        try:
+            real = dest.resolve()
+        except RuntimeError:
+            check(False, "unable to resolve asset " + raw_path)
+            continue
         if not check(real.is_relative_to(root) and real.is_file() and not dest.is_symlink(), "missing/escaping asset " + raw_path):
             continue
         if not check(real.suffix.lower() in (".svg", ".png", ".webp", ".jpg", ".jpeg"), "unsupported asset " + raw_path):
@@ -102,7 +142,10 @@ def validate(folder):
         check(n.get("asset") is None or n["asset"] in assets, "missing asset for " + nid)
         for field in ("x", "y", "rotation", "opacity", "scale", "width", "height"):
             if field in n:
-                check(num(n[field]), "invalid " + field + " for " + nid)
+                valid = num(n[field])
+                if field in ("width", "height"):
+                    valid = valid and n[field] > 0
+                check(valid, "invalid " + field + " for " + nid)
         visited = set()
         cur = nid
         while cur in lookup and lookup[cur].get("parent"):
@@ -158,6 +201,10 @@ def validate(folder):
             check(nid in lookup and isinstance(overlay, dict), "bad variant override")
             if isinstance(overlay, dict):
                 check(overlay.get("asset") is None or overlay["asset"] in assets, "missing variant asset")
+                for field in ("width", "height"):
+                    if field in overlay:
+                        check(num(overlay[field]) and overlay[field] > 0,
+                              "invalid " + field + " for variant " + str(vn) + " node " + str(nid))
     check(m.get("defaults", {}).get("clip") in clips, "invalid default clip")
     check(m.get("defaults", {}).get("variant") in variants, "invalid default variant")
     return errors, m
