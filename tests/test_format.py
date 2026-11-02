@@ -46,8 +46,8 @@ class FormatTests(unittest.TestCase):
             m=json.loads((d/'manifest.json').read_text())
             m['nodes'][0]['x']=float('inf')
             (d/'manifest.json').write_text(json.dumps(m))
-            errors,_=validate(d)
-            self.assertTrue(any('invalid x' in x for x in errors),errors)
+            with self.assertRaises(ValueError):
+                validate(d)  # JSON Infinity is rejected before semantic checks
     def test_reject_parent_cycle(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=self._copy(tmp)
