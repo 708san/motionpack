@@ -25,6 +25,10 @@
 4. No change to the public `.motionpack` contract without versioning, migration/compatibility consideration, fixtures and architect review.
 5. Do not silently overwrite source assets or remove their provenance. Do not introduce gameplay terms into the format/runtime.
 
+## Initial repository status
+- At bootstrap PR #1 only governance and agent configuration are tracked. The v0.2-alpha runtime, examples and executable tests have not yet been imported. Do not run or require baseline commands until the implementation-import PR lands.
+- Documents on format and architecture that are not yet in the repository are pending import; do not mistake missing files for approved specifications.
+
 ## Test and evidence
 - Baseline (as provided by v0.2-alpha):
   `python tools/validate.py examples/robot_ik_demo`

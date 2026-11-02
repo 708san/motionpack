@@ -1,9 +1,9 @@
 # GitHub運用方針 v1.0
 
 ## 初期設定
-- 最初は **private**。公開ライセンス未選択であるため、公開前に権利と利用条件を決める。
+- 現在のリポジトリは **Public（公開）**。ライセンス未選択のため、ソースの閲覧と第三者への改変・再配布許諾を混同しない。
 - リポ名候補: `motionpack`。最初は個人所有を想定。説明: `Editable, engine-agnostic animated visual asset format and runtime (experimental)`。
-- デフォルトは`main`。公開後のmainは動作確認済みの統合ブランチとする。
+- デフォルトは`main`。`main`は動作確認済みの統合ブランチとする。
 - ブランチ命名: `feat/<issue>-...`, `fix/<issue>-...`, `docs/<issue>-...`, `test/<issue>-...`。
 - 変更はPRを原則とする。差分を小さく、Issueへのリンクをつける。
 - マージ: squash mergeを基本。必要なら履歴維持の理由を明示。
