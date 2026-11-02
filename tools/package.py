@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Package editable .motionpack ZIP and offline browser preview. No runtime network required."""
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import argparse
 import base64
 import json
@@ -9,24 +9,42 @@ import sys
 import zipfile
 from validate import validate
 
+def canonicalize_manifest(manifest):
+    canonical_manifest = json.loads(json.dumps(manifest))
+    canonical_paths = {}
+    for aid, raw_path in manifest["assets"].items():
+        canonical_path = PurePosixPath(raw_path).as_posix()
+        folded_path = canonical_path.casefold()
+        previous_path = canonical_paths.get(folded_path)
+        if previous_path is not None and previous_path != canonical_path:
+            raise ValueError("casefold collision for asset path " + canonical_path)
+        canonical_paths[folded_path] = canonical_path
+        canonical_manifest["assets"][aid] = canonical_path
+    return canonical_manifest
+
 def build(folder, out):
-    root = Path(folder).resolve()
+    try:
+        root = Path(folder).resolve()
+    except RuntimeError as exc:
+        raise ValueError("unable to resolve project root") from exc
     out = Path(out).resolve()
     errors, manifest = validate(root)
     if errors:
         raise ValueError("; ".join(errors))
+    canonical_manifest = canonicalize_manifest(manifest)
+    manifest_payload = json.dumps(canonical_manifest, ensure_ascii=False, indent=2)
     out.mkdir(parents=True, exist_ok=True)
     package = out / (root.name + ".motionpack")
     with zipfile.ZipFile(package, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=7) as archive:
-        for rel in ["manifest.json", *manifest["assets"].values()]:
+        archive.writestr("manifest.json", manifest_payload)
+        seen_archive_entries = set()
+        for rel in canonical_manifest["assets"].values():
+            if rel in seen_archive_entries:
+                continue
+            seen_archive_entries.add(rel)
             archive.write(root / rel, arcname=rel)
-        source = root / "source"
-        if source.is_dir():
-            for p in sorted(source.rglob("*")):
-                if p.is_file() and not p.is_symlink() and p.stat().st_size <= 12_000_000 and p.resolve().is_relative_to(root):
-                    archive.write(p, arcname=p.relative_to(root).as_posix())
-    embedded = json.loads(json.dumps(manifest))
-    for key, rel in manifest["assets"].items():
+    embedded = json.loads(json.dumps(canonical_manifest))
+    for key, rel in canonical_manifest["assets"].items():
         data = (root / rel).read_bytes()
         mime = mimetypes.guess_type(rel)[0] or "application/octet-stream"
         embedded["assets"][key] = "data:" + mime + ";base64," + base64.b64encode(data).decode("ascii")
