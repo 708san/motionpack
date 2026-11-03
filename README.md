@@ -30,6 +30,6 @@ Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam fir
 ## Security, compatibility and licensing
 
 See [format specification](docs/FORMAT_SPEC.md), [security policy](docs/SECURITY_POLICY.md) and [development governance](docs/DEVELOPMENT_GOVERNANCE_V1.md).
-**Do not treat current tools as safe for arbitrary untrusted `.motionpack` files.** The ZIP archive import/extraction pathway and full SVG sanitization remain future work.
+`tools/archive_reader.py` adds a bounded, read-only ZIP inspection path for v0.1/v0.2 packages. It does not extract arbitrary entries and does not read optional `source/` entries. **This experimental reader is not a production security boundary.** Full SVG hardening, hostile raster decoder protection, source-secret review and fuzzing remain future work. See [SECURITY.md](SECURITY.md).
 
 Public repository visibility does not grant software reuse rights. **No software license has been selected yet.**

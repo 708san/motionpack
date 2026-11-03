@@ -22,5 +22,5 @@ Timeline values are in milliseconds. Rendering uses timestamp sampling. Visual e
 ## Limitations and trust boundary
 
 The sample robot uses rigid SVG pieces. No mesh skinning, automatic background removal, full-body physics, native engine adapters or editor UI are implemented.
-The validator provides basic defensive checks, but no hardened reader for arbitrary downloaded `.motionpack` archives exists. Do not treat untrusted packs as production-safe or automatically extract arbitrary ZIP members.
+The experimental `tools/archive_reader.py` provides bounded, read-only inspection for v0.1/v0.2 ZIP packages. It checks ZIP metadata, reads the manifest and referenced image assets under configured limits, and does not extract arbitrary members. It does not read optional `source/` entries. ZIP64 and multi-disk archives are not supported by this reader. This is not a hardened production reader: do not treat untrusted packs as production-safe. The reader limits are tool defaults, not format-wide guarantees.
 See `docs/SECURITY_POLICY.md` and `docs/QUALITY_POLICY.md` for follow-up tasks.
