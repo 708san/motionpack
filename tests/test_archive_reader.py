@@ -38,13 +38,25 @@ class ArchiveReaderTests(unittest.TestCase):
         return path
 
     def test_reads_existing_v01_and_v02_packages(self):
-        for project in ("robot_demo", "robot_ik_demo"):
+        for project, version in (("robot_demo", "0.1"), ("robot_ik_demo", "0.2")):
             with self.subTest(project=project), tempfile.TemporaryDirectory() as tmp:
                 archive = self._package(ROOT / "examples" / project, pathlib.Path(tmp) / "out")
                 package = read_package(archive)
-                self.assertIn(package.manifest["version"], ("0.1", "0.2"))
+                self.assertEqual(package.manifest["version"], version)
                 self.assertEqual(set(package.assets), set(package.manifest["assets"]))
                 self.assertTrue(all(package.assets.values()))
+
+    def test_untrusted_svg_is_rejected_through_archive_reader(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packed = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "out")
+            with zipfile.ZipFile(packed) as original:
+                manifest = json.loads(original.read("manifest.json"))
+                target = next(iter(manifest["assets"].values()))
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries = [(name, b'<!DOCTYPE svg [<!ENTITY x "boom">]><svg xmlns="http://www.w3.org/2000/svg"/>' if name == target else data) for name, data in entries]
+            unsafe = self._zip(pathlib.Path(tmp) / "unsafe-svg.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "invalid package manifest or assets"):
+                read_package(unsafe)
 
     def test_reads_zip_with_leading_stub_data(self):
         with tempfile.TemporaryDirectory() as tmp:
