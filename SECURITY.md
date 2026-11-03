@@ -1,4 +1,24 @@
-# Security policy (public pre-alpha)
+# Security guidance
 
-This repository is a public experimental pre-alpha. Security hardening is incomplete. A dedicated vulnerability contact is not yet designated.
-If a security issue is discovered, contact the repository maintainer privately through an access-controlled channel; do not publish exploit details in a public Issue. See `docs/SECURITY_POLICY.md` for threat model and release gates.
+MotionPack is experimental pre-alpha software. Do not use its current tools to
+open untrusted packages in a production or high-privilege environment.
+
+The bounded reader in `tools/archive_reader.py` supports experimental v0.1/v0.2
+packages. It checks ZIP member names and metadata, enforces configurable size
+and compression-ratio limits, and reads only the manifest and referenced image
+assets. It does not extract arbitrary ZIP members. Optional `source/` entries
+are not decompressed, inspected for secrets, or returned by the reader.
+The default reader limits are 40 MiB per archive, 1,024 entries, 2 MiB for the
+central directory, 1 MiB for the manifest, 12 MiB per asset, 32 MiB total
+referenced assets, 40 MiB total declared expansion, and a 100:1 compression
+ratio. These are configurable tool defaults, not format-wide limits. ZIP64 and
+multi-disk archives are rejected.
+
+This reader is not a sandbox or a production security guarantee. SVG
+sanitization is incomplete, raster image decoders are not isolated, and the
+standard-library ZIP parser has not been fuzzed or isolated. CPU/time limits
+have not been independently measured. Keep packages and their assets untrusted.
+
+If a security issue is discovered, contact the repository maintainer privately
+through an access-controlled channel; do not publish exploit details in a
+public Issue. A dedicated vulnerability contact has not been designated.
