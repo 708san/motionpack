@@ -6,8 +6,10 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from unittest import mock
 ROOT=pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0,str(ROOT/'tools'))
+import validate as validator_module
 from validate import validate
 from package import build
 class FormatTests(unittest.TestCase):
@@ -63,6 +65,71 @@ class FormatTests(unittest.TestCase):
             (d/'assets'/'head.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.example/a.png"/></svg>')
             errors,_=validate(d)
             self.assertTrue(any('forbidden SVG' in x or 'unsafe SVG' in x for x in errors),errors)
+    def _validate_svg(self,svg):
+        with tempfile.TemporaryDirectory() as tmp:
+            d=self._copy(tmp)
+            (d/'assets'/'background.svg').write_text(svg)
+            return validate(d)[0]
+    def test_svg_allows_local_gradient_reference(self):
+        errors=self._validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="paint"><stop offset="0" stop-color="red"/></linearGradient></defs><path fill="url(#paint)" d="M0 0"/></svg>')
+        self.assertEqual(errors,[],errors)
+    def test_svg_rejects_remote_or_unresolved_css_references(self):
+        for value in ('url(https://example.test/a.svg#paint)','url(//example.test/a.svg)','url(file:///tmp/a.svg)','url(data:image/svg+xml,x)','url(#missing)','url(#paint) red'):
+            with self.subTest(value=value):
+                errors=self._validate_svg(f'<svg xmlns="http://www.w3.org/2000/svg"><path fill="{value}" d="M0 0"/></svg>')
+                self.assertTrue(any('SVG' in error for error in errors),errors)
+    def test_svg_rejects_css_evasion_and_non_paint_urls(self):
+        for attr,value in (('fill','u/**/rl(#paint)'),('fill',r'url(\23 paint)'),('filter','url(#paint)')):
+            with self.subTest(attr=attr,value=value):
+                errors=self._validate_svg(f'<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="paint"/></defs><path {attr}="{value}" d="M0 0"/></svg>')
+                self.assertTrue(any('SVG' in error for error in errors),errors)
+    def test_svg_rejects_doctype_entities_bad_namespace_and_xml_base(self):
+        cases=(
+            '<!DOCTYPE svg [<!ENTITY x "boom">]><svg xmlns="http://www.w3.org/2000/svg"><title>&x;</title></svg>',
+            '<?xml-stylesheet href="https://example.test/style.css"?><svg xmlns="http://www.w3.org/2000/svg"/>',
+            '<svg xmlns="urn:attacker"><path d="M0 0"/></svg>',
+            '<svg xmlns="http://www.w3.org/2000/svg" xml:base="https://example.test/"><path d="M0 0"/></svg>',
+        )
+        for svg in cases:
+            with self.subTest(svg=svg):
+                errors=self._validate_svg(svg)
+                self.assertTrue(any('SVG' in error for error in errors),errors)
+    def test_svg_rejects_excessive_depth_and_attribute_size(self):
+        deep='<svg xmlns="http://www.w3.org/2000/svg">'+'<g>'*128+'<path d="M0 0"/>'+'</g>'*128+'</svg>'
+        huge='<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="'+'x'*(64*1024+1)+'"/></svg>'
+        many='<svg xmlns="http://www.w3.org/2000/svg">'+'<path/>'*10000+'</svg>'
+        attrs=' '.join(f'a{i}="x"' for i in range(129))
+        too_many_attrs=f'<svg xmlns="http://www.w3.org/2000/svg"><path {attrs}/></svg>'
+        for svg in (deep,huge,many,too_many_attrs):
+            with self.subTest(size=len(svg)):
+                errors=self._validate_svg(svg)
+                self.assertTrue(any('SVG' in error for error in errors),errors)
+    def test_svg_asset_aliases_are_parsed_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d=self._copy(tmp)
+            manifest=json.loads((d/'manifest.json').read_text())
+            manifest['assets']['background_alias']=manifest['assets']['background']
+            (d/'manifest.json').write_text(json.dumps(manifest))
+            unique_svg_paths={
+                (d/pathlib.PurePosixPath(path)).resolve()
+                for path in manifest['assets'].values()
+                if pathlib.PurePosixPath(path).suffix.lower()=='.svg'
+            }
+            original=validator_module.parse_svg
+            with mock.patch.object(validator_module,'parse_svg',wraps=original) as parser:
+                errors,_=validate(d)
+            self.assertEqual(errors,[],errors)
+            self.assertEqual(parser.call_count,len(unique_svg_paths))
+    def test_svg_rejects_malformed_xml_and_duplicate_gradient_ids(self):
+        cases=(
+            '',
+            '<svg xmlns="http://www.w3.org/2000/svg"><path></svg>',
+            '<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="paint"/><radialGradient id="paint"/></defs><path fill="url(#paint)"/></svg>',
+        )
+        for svg in cases:
+            with self.subTest(svg=svg):
+                errors=self._validate_svg(svg)
+                self.assertTrue(any('SVG' in error for error in errors),errors)
     def test_reject_infinite(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=self._copy(tmp)

@@ -14,8 +14,12 @@ referenced assets, 40 MiB total declared expansion, and a 100:1 compression
 ratio. These are configurable tool defaults, not format-wide limits. ZIP64 and
 multi-disk archives are rejected.
 
-This reader is not a sandbox or a production security guarantee. SVG
-sanitization is incomplete, raster image decoders are not isolated, and the
+This reader is not a sandbox or a production security guarantee. The validator
+now rejects XML DTDs/entities, foreign namespaces, unsafe SVG attributes and
+external CSS/URL references, and bounds SVG nesting, element count, attributes
+per element and attribute values. It permits only a local `url(#id)` gradient reference in
+`fill` or `stroke`. This is a limited static SVG subset check, not a sanitizer
+for arbitrary renderers. Raster image decoders are not isolated, and the
 standard-library ZIP parser has not been fuzzed or isolated. CPU/time limits
 have not been independently measured. Keep packages and their assets untrusted.
 

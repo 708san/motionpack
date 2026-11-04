@@ -19,6 +19,10 @@ A `.motionpack` is a ZIP archive containing `manifest.json`, referenced `assets/
 
 Timeline values are in milliseconds. Rendering uses timestamp sampling. Visual effects do not define gameplay effects or results.
 
+### Experimental SVG subset
+
+The v0.1/v0.2 validator accepts only static SVG elements in its documented allowlist and either the standard SVG namespace or no namespace. It rejects XML DTDs, entity declarations, processing instructions, foreign namespaces, scripts/event attributes, CSS style attributes, external references and CSS escape/comment syntax. XML nesting (128), element count (10,000), attributes per element (128) and attribute-value size (64 KiB) are bounded by the validator. A `url(#id)` reference is accepted only as the complete value of `fill` or `stroke`, and only when `id` names a gradient in that same SVG document. External URLs and references to other element types are rejected. This narrows some SVGs that older validator versions may have accepted; existing v0.1/v0.2 examples remain supported. These checks do not sanitize SVG for arbitrary renderers or provide a production security boundary.
+
 ## Limitations and trust boundary
 
 The sample robot uses rigid SVG pieces. No mesh skinning, automatic background removal, full-body physics, native engine adapters or editor UI are implemented.

@@ -9,6 +9,7 @@ import pathlib
 import re
 import sys
 import xml.etree.ElementTree as ET
+from xml.parsers import expat
 
 ALLOWED_PROPERTIES = {"x", "y", "rotation", "opacity", "scale"}
 ALLOWED_EFFECTS = {"beam", "ring", "burst"}
@@ -21,6 +22,118 @@ MAX_ASSETS = 512
 MAX_TRACKS = 2000
 MAX_EFFECTS = 1000
 MAX_JSON_DEPTH = 64
+MAX_SVG_DEPTH = 128
+MAX_SVG_ELEMENTS = 10000
+MAX_SVG_ATTRIBUTES_PER_ELEMENT = 128
+MAX_SVG_ATTRIBUTE = 64 * 1024
+SVG_NAMESPACE = "http://www.w3.org/2000/svg"
+SVG_URL = re.compile(r"url\s*\(", re.I)
+SVG_LOCAL_URL = re.compile(r"url\(\s*(?:#([A-Za-z_][A-Za-z0-9_.:-]*)|(['\"])#([A-Za-z_][A-Za-z0-9_.:-]*)\2)\s*\)", re.I)
+
+def parse_svg(data):
+    """Parse the supported static SVG subset with explicit XML resource limits."""
+    builder = ET.TreeBuilder()
+    parser = expat.ParserCreate(namespace_separator="|")
+    parser.buffer_text = True
+    depth = 0
+    elements = 0
+
+    def tree_name(name):
+        if "|" not in name:
+            return name
+        namespace, local = name.split("|", 1)
+        return "{" + namespace + "}" + local
+
+    def reject_doctype(*_args):
+        raise ValueError("DOCTYPE is forbidden")
+
+    def reject_entity(*_args):
+        raise ValueError("entity declarations are forbidden")
+
+    def reject_processing_instruction(*_args):
+        raise ValueError("processing instructions are forbidden")
+
+    def start(name, attrs):
+        nonlocal depth, elements
+        depth += 1
+        elements += 1
+        if depth > MAX_SVG_DEPTH:
+            raise ValueError("nesting exceeds maximum depth")
+        if elements > MAX_SVG_ELEMENTS:
+            raise ValueError("element count exceeds maximum")
+        if len(attrs) > MAX_SVG_ATTRIBUTES_PER_ELEMENT:
+            raise ValueError("attribute count exceeds maximum")
+        if any(len(value) > MAX_SVG_ATTRIBUTE for value in attrs.values()):
+            raise ValueError("attribute value exceeds maximum size")
+        builder.start(tree_name(name), {tree_name(k): v for k, v in attrs.items()})
+
+    def end(name):
+        nonlocal depth
+        builder.end(tree_name(name))
+        depth -= 1
+
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.CharacterDataHandler = builder.data
+    parser.StartDoctypeDeclHandler = reject_doctype
+    parser.EntityDeclHandler = reject_entity
+    parser.UnparsedEntityDeclHandler = reject_entity
+    parser.ExternalEntityRefHandler = lambda *_args: 0
+    parser.ProcessingInstructionHandler = reject_processing_instruction
+    parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
+    parser.Parse(data, True)
+    root = builder.close()
+    if root is None:
+        raise ValueError("SVG document is empty")
+    return root
+
+def validate_svg(data):
+    """Return SVG subset errors; this is validation, not a sanitizer."""
+    svg = parse_svg(data)
+    errors = []
+    def check(ok, message):
+        if not ok:
+            errors.append(message)
+
+    def split_name(name):
+        if name.startswith("{") and "}" in name:
+            namespace, local = name[1:].split("}", 1)
+            return namespace, local
+        return "", name
+
+    root_namespace, root_name = split_name(svg.tag)
+    check(root_name.lower() == "svg", "root element must be svg")
+    check(root_namespace in ("", SVG_NAMESPACE), "unsupported SVG namespace")
+    ids = {}
+    references = []
+    for element in svg.iter():
+        namespace, tag = split_name(element.tag)
+        tag = tag.lower()
+        check(namespace == root_namespace, "mixed SVG element namespaces are forbidden")
+        check(tag in SVG_TAGS, "forbidden SVG element " + tag)
+        check(not (element.text and element.text.strip()), "SVG text content is forbidden")
+        for raw_attr, value in element.attrib.items():
+            attr_namespace, attr = split_name(raw_attr)
+            attr = attr.lower()
+            check(attr_namespace == "", "namespaced SVG attributes are forbidden")
+            check(not attr.startswith("on") and attr not in ("href", "src", "style", "base"),
+                  "unsafe SVG attribute " + attr)
+            check("@import" not in value.lower(), "SVG import forbidden")
+            check("\\" not in value and "/*" not in value and "*/" not in value,
+                  "SVG CSS escapes and comments are forbidden")
+            if attr == "id":
+                check(value not in ids, "duplicate SVG id " + value)
+                ids[value] = tag
+            if SVG_URL.search(value):
+                match = SVG_LOCAL_URL.fullmatch(value.strip())
+                check(match is not None and attr in ("fill", "stroke"),
+                      "unsafe SVG URL reference")
+                if match is not None and attr in ("fill", "stroke"):
+                    references.append((match.group(1) or match.group(3), attr))
+    for target, _attribute in references:
+        check(ids.get(target) in ("lineargradient", "radialgradient"),
+              "SVG URL reference must target a local gradient id")
+    return errors
 
 def num(value):
     if type(value) not in (int, float):
@@ -92,6 +205,7 @@ def validate(folder):
     check(len(nodes) <= MAX_NODES, "too many nodes")
     check(len(iks) <= MAX_NODES, "too many inverse-kinematics chains")
     total_size = 0
+    checked_svgs = set()
     for aid, raw_path in assets.items():
         if not isinstance(aid, str) or not isinstance(raw_path, str):
             check(False, "invalid asset key or path")
@@ -113,24 +227,13 @@ def validate(folder):
         size = real.stat().st_size
         total_size += size
         check(size <= MAX_ASSET, "oversized asset " + raw_path)
-        if real.suffix.lower() == ".svg" and size <= MAX_ASSET:
+        if real.suffix.lower() == ".svg" and size <= MAX_ASSET and real not in checked_svgs:
+            checked_svgs.add(real)
             try:
-                svg = ET.fromstring(real.read_bytes())
-                for el in svg.iter():
-                    tag = el.tag.rsplit("}", 1)[-1].lower()
-                    check(tag in SVG_TAGS, "forbidden SVG element " + tag)
-                    if el.text:
-                        check("@import" not in el.text.lower(), "SVG embedded import forbidden")
-                    for k, v in el.attrib.items():
-                        attr = k.rsplit("}", 1)[-1].lower()
-                        check(not attr.startswith("on") and attr not in ("href", "src", "style"),
-                              "unsafe SVG attribute " + attr)
-                        if isinstance(v, str):
-                            check("@import" not in v.lower(), "SVG import forbidden")
-                            for hit in re.findall(r"url\((.*?)\)", v, flags=re.I):
-                                check(hit.strip().strip("\"'").startswith("#"), "SVG external resource forbidden")
-            except ET.ParseError:
-                check(False, "invalid SVG " + raw_path)
+                for svg_error in validate_svg(real.read_bytes()):
+                    check(False, "SVG " + raw_path + ": " + svg_error)
+            except (ET.ParseError, expat.ExpatError, ValueError) as exc:
+                check(False, "invalid SVG " + raw_path + ": " + str(exc))
     check(total_size <= MAX_TOTAL_ASSETS, "total asset budget exceeded")
     ids = [n.get("id") for n in nodes if isinstance(n, dict)]
     check(len(ids) == len(nodes) and all(isinstance(x, str) and x for x in ids) and len(set(ids)) == len(ids),

@@ -30,6 +30,6 @@ Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam fir
 ## Security, compatibility and licensing
 
 See [format specification](docs/FORMAT_SPEC.md), [security policy](docs/SECURITY_POLICY.md) and [development governance](docs/DEVELOPMENT_GOVERNANCE_V1.md).
-`tools/archive_reader.py` adds a bounded, read-only ZIP inspection path for v0.1/v0.2 packages. It does not extract arbitrary entries and does not read optional `source/` entries. **This experimental reader is not a production security boundary.** Full SVG hardening, hostile raster decoder protection, source-secret review and fuzzing remain future work. See [SECURITY.md](SECURITY.md).
+`tools/archive_reader.py` adds a bounded, read-only ZIP inspection path for v0.1/v0.2 packages. It does not extract arbitrary entries and does not read optional `source/` entries. The validator checks a limited static SVG subset; this does not make the reader a production security boundary. Hostile raster decoder protection, source-secret review and fuzzing remain future work. See [SECURITY.md](SECURITY.md).
 
 Public repository visibility does not grant software reuse rights. **No software license has been selected yet.**
