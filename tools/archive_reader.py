@@ -12,6 +12,7 @@ import re
 import stat
 import struct
 import tempfile
+from typing import Optional
 import unicodedata
 import zipfile
 import zlib
@@ -47,6 +48,9 @@ class ReaderLimits:
     max_png_dimension: int = MAX_PNG_DIMENSION
     max_png_pixels: int = MAX_PNG_PIXELS
     max_total_png_pixels: int = MAX_TOTAL_PNG_PIXELS
+    max_raster_dimension: Optional[int] = None
+    max_raster_pixels: Optional[int] = None
+    max_total_raster_pixels: Optional[int] = None
 
     def __post_init__(self):
         byte_limits = (
@@ -65,6 +69,9 @@ class ReaderLimits:
             raise ValueError("reader PNG integer limits must be positive")
         if self.max_png_dimension > PNG_SPEC_MAX_DIMENSION:
             raise ValueError("reader PNG dimension limit exceeds PNG specification maximum")
+        raster_limits = (self.max_raster_dimension, self.max_raster_pixels, self.max_total_raster_pixels)
+        if any(value is not None and (type(value) is not int or value <= 0) for value in raster_limits):
+            raise ValueError("reader raster integer limits must be positive")
         if not isinstance(self.max_compression_ratio, (int, float)) or not math.isfinite(self.max_compression_ratio) or self.max_compression_ratio <= 0:
             raise ValueError("reader compression ratio limit must be finite and positive")
 
@@ -471,6 +478,9 @@ def read_package(path, *, limits=None):
                     max_png_dimension=limits.max_png_dimension,
                     max_png_pixels=limits.max_png_pixels,
                     max_total_png_pixels=limits.max_total_png_pixels,
+                    max_raster_dimension=limits.max_raster_dimension,
+                    max_raster_pixels=limits.max_raster_pixels,
+                    max_total_raster_pixels=limits.max_total_raster_pixels,
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError, OverflowError) as exc:
                 _error("invalid package manifest or assets", exc)

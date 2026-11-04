@@ -26,6 +26,59 @@ def png_ihdr(width,height,*,bad_crc=False):
         crc^=1
     return b'\x89PNG\r\n\x1a\n'+struct.pack('>I',13)+chunk+struct.pack('>I',crc)
 
+def jpeg_header(width,height,*,sof=0xC0,extra=b''):
+    components=b'\x01\x11\x00\x02\x11\x00\x03\x11\x00'
+    frame=bytes((8,))+struct.pack('>HHB',height,width,3)+components
+    return b'\xff\xd8'+extra+b'\xff'+bytes((sof,))+struct.pack('>H',len(frame)+2)+frame+b'\xff\xda'
+
+def webp_chunk(kind,payload):
+    return kind+struct.pack('<I',len(payload))+payload+(b'\0' if len(payload)&1 else b'')
+
+def webp_with_chunks(chunks):
+    body=b'WEBP'+b''.join(chunks)
+    return b'RIFF'+struct.pack('<I',len(body))+body
+
+def webp_header(width,height,*,kind=b'VP8X'):
+    if kind==b'VP8X':
+        payload=b'\0'*4+(width-1).to_bytes(3,'little')+(height-1).to_bytes(3,'little')
+        bits=(width-1)|((height-1)<<14)
+        chunks=webp_chunk(kind,payload)+webp_chunk(b'VP8L',b'\x2f'+bits.to_bytes(4,'little'))
+    elif kind==b'VP8 ':
+        payload=b'\0\0\0\x9d\x01\x2a'+struct.pack('<HH',width|0xC000,height|0x4000)
+        chunks=webp_chunk(kind,payload)
+    else:
+        bits=(width-1)|((height-1)<<14)
+        payload=b'\x2f'+bits.to_bytes(4,'little')
+        chunks=webp_chunk(kind,payload)
+    body=b'WEBP'+chunks
+    return b'RIFF'+struct.pack('<I',len(body))+body
+
+def webp_animation(width,height,frames,*,include_control=True):
+    vp8x=b'\x02\0\0\0'+(width-1).to_bytes(3,'little')+(height-1).to_bytes(3,'little')
+    chunks=webp_chunk(b'VP8X',vp8x)
+    if include_control:
+        chunks+=webp_chunk(b'ANIM',b'\0'*6)
+    for x,y,frame_width,frame_height in frames:
+        frame=(x//2).to_bytes(3,'little')+(y//2).to_bytes(3,'little')
+        frame+=(frame_width-1).to_bytes(3,'little')+(frame_height-1).to_bytes(3,'little')
+        frame+=b'\0'*4
+        bits=(frame_width-1)|((frame_height-1)<<14)
+        frame+=webp_chunk(b'VP8L',b'\x2f'+bits.to_bytes(4,'little'))
+        chunks+=webp_chunk(b'ANMF',frame)
+    body=b'WEBP'+chunks
+    return b'RIFF'+struct.pack('<I',len(body))+body
+
+def webp_extended(canvas_width,canvas_height,image_width,image_height,*,kind=b'VP8L',extra_chunks=()):
+    canvas=b'\0'*4+(canvas_width-1).to_bytes(3,'little')+(canvas_height-1).to_bytes(3,'little')
+    if kind==b'VP8 ':
+        bitstream=b'\0\0\0\x9d\x01\x2a'+struct.pack('<HH',image_width|0x8000,image_height|0x4000)
+    else:
+        bits=(image_width-1)|((image_height-1)<<14)
+        bitstream=b'\x2f'+bits.to_bytes(4,'little')
+    chunks=webp_chunk(b'VP8X',canvas)+webp_chunk(kind,bitstream)+b''.join(extra_chunks)
+    body=b'WEBP'+chunks
+    return b'RIFF'+struct.pack('<I',len(body))+body
+
 class FormatTests(unittest.TestCase):
     def test_examples_valid(self):
         for project in ('robot_demo','robot_ik_demo'):
@@ -54,6 +107,136 @@ class FormatTests(unittest.TestCase):
             target.write_bytes(png_ihdr(width,height))
             manifest['assets'][aid]=rel
         manifest_path.write_text(json.dumps(manifest))
+    def _add_raster_assets(self,folder,asset_specs):
+        manifest_path=folder/'manifest.json'
+        manifest=json.loads(manifest_path.read_text())
+        for aid,rel,data in asset_specs:
+            target=folder/rel
+            target.parent.mkdir(parents=True,exist_ok=True)
+            target.write_bytes(data)
+            manifest['assets'][aid]=rel
+        manifest_path.write_text(json.dumps(manifest))
+    def test_jpeg_dimension_preflight_variants_and_malformed_headers(self):
+        marker_fill=b'\xff\xff\xe0\x00\x04ab'
+        for data,expected in (
+            (jpeg_header(320,240), (320,240)),
+            (jpeg_header(320,240,sof=0xC2,extra=marker_fill), (320,240)),
+        ):
+            self.assertEqual(validator_module.parse_jpeg_dimensions(data),expected)
+        for data in (b'\xff\xd8', b'\xff\xd8\xff\xda\x00\x02',
+                     b'\xff\xd8\xff\xe0\xff\xff',
+                     b'\xff\xd8\xff\xc0\x00\x08\x08\x00\x00\x00\x00\x01'):
+            with self.subTest(data=data), self.assertRaises(ValueError):
+                validator_module.parse_jpeg_dimensions(data)
+    def test_webp_dimension_preflight_variants_and_malformed_headers(self):
+        for kind in (b'VP8X',b'VP8 ',b'VP8L'):
+            with self.subTest(kind=kind):
+                self.assertEqual(validator_module.parse_webp_dimensions(webp_header(320,240,kind=kind)),(320,240))
+        self.assertEqual(validator_module.parse_webp_dimensions(webp_extended(320,240,320,240,kind=b'VP8 ')),(320,240))
+        self.assertEqual(validator_module.parse_webp_dimensions(webp_header(1,2000,kind=b'VP8L')),(1,2000))
+        for data in (b'RIFF\x00\x00\x00\x00WEBP', webp_header(10,10)[:-1],
+                     webp_header(10,10)[:25]):
+            with self.subTest(data=data), self.assertRaises(ValueError):
+                validator_module.parse_webp_dimensions(data)
+        bad_padding=bytearray(webp_header(10,10,kind=b'VP8L'))
+        bad_padding[-1]=1
+        with self.assertRaisesRegex(ValueError,'padding'):
+            validator_module.parse_webp_dimensions(bytes(bad_padding))
+        bad_extended_padding=bytearray(webp_header(10,10))
+        bad_extended_padding[-1]=1
+        with self.assertRaisesRegex(ValueError,'padding'):
+            validator_module.parse_webp_dimensions(bytes(bad_extended_padding))
+        bad_vp8l=bytearray(webp_header(10,10,kind=b'VP8L'))
+        bad_vp8l[24]|=0x20
+        with self.assertRaisesRegex(ValueError,'VP8L header'):
+            validator_module.parse_webp_dimensions(bytes(bad_vp8l))
+        small_vp8l=b'\x2f'+(0).to_bytes(4,'little')
+        large_vp8l=b'\x2f'+(8192).to_bytes(4,'little')
+        small_vp8=b'\0\0\0\x9d\x01\x2a'+struct.pack('<HH',1,1)
+        large_vp8=b'\0\0\0\x9d\x01\x2a'+struct.pack('<HH',8193,1)
+        for kind,first,second in ((b'VP8L',small_vp8l,large_vp8l),(b'VP8 ',small_vp8,large_vp8)):
+            duplicate=webp_with_chunks([webp_chunk(kind,first),webp_chunk(kind,second)])
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError,'unexpected chunk'):
+                validator_module.parse_webp_raster(duplicate)
+        extended_duplicate=webp_extended(1,1,1,1,extra_chunks=[webp_chunk(b'VP8L',small_vp8l)])
+        with self.assertRaisesRegex(ValueError,'unexpected WebP image chunk'):
+            validator_module.parse_webp_raster(extended_duplicate)
+    def test_animated_webp_counts_canvas_and_frame_pixels_and_checks_regions(self):
+        animated=webp_animation(2,2,[(0,0,2,2),(0,0,2,2)])
+        self.assertEqual(validator_module.parse_webp_raster(animated),(2,2,12))
+        with self.assertRaisesRegex(ValueError,'canvas bounds'):
+            validator_module.parse_webp_raster(webp_animation(2,2,[(2,0,1,1)]))
+        with self.assertRaisesRegex(ValueError,'missing control or frame'):
+            validator_module.parse_webp_raster(webp_animation(2,2,[],include_control=False))
+        self.assertEqual(validator_module.parse_webp_raster(webp_animation(2,2000,[(0,0,1,2000)])),(2,2000,6000))
+        mismatched=webp_extended(2,2,3,2)
+        with self.assertRaisesRegex(ValueError,'VP8X canvas'):
+            validator_module.parse_webp_raster(mismatched)
+        bad_frame_padding=bytearray(webp_animation(2,2,[(0,0,1,1)]))
+        bad_frame_padding[-1]=1
+        with self.assertRaisesRegex(ValueError,'padding'):
+            validator_module.parse_webp_raster(bytes(bad_frame_padding))
+    def test_animated_webp_shared_pixel_budget_includes_canvas_and_frames(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            self._add_raster_assets(project,[('animated','assets/animated.webp',webp_animation(2,2,[(0,0,2,2),(0,0,2,2)]))])
+            errors,_=validate(project,max_raster_dimension=2,max_raster_pixels=4,max_total_raster_pixels=12)
+            self.assertEqual(errors,[],errors)
+            errors,_=validate(project,max_raster_dimension=2,max_raster_pixels=4,max_total_raster_pixels=11)
+            self.assertTrue(any('total raster pixel budget exceeded' in error for error in errors),errors)
+    def test_jpeg_webp_dimension_limits_and_extension_classification(self):
+        cases=(('large.jpg',jpeg_header(8193,1),'JPEG dimension limit'),
+               ('large.jpeg',jpeg_header(4001,4000),'JPEG pixel limit'),
+               ('large.webp',webp_header(8193,1),'WebP dimension limit'),
+               ('large.WEBP',webp_header(4001,4000),'WebP pixel limit'),
+               ('tall.webp',webp_header(1,8193,kind=b'VP8L'),'WebP dimension limit'))
+        for name,data,message in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                project=self._copy(tmp)
+                self._add_raster_assets(project,[(name,name if name.startswith('assets/') else 'assets/'+name,data)])
+                errors,_=validate(project)
+                self.assertTrue(any(message in error for error in errors),errors)
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            self._add_raster_assets(project,[('misnamed','assets/misnamed.png',jpeg_header(9000,1))])
+            errors,_=validate(project)
+            self.assertTrue(any('invalid PNG header' in error for error in errors),errors)
+
+    def test_legacy_png_limit_arguments_alias_shared_raster_limits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            self._add_raster_assets(project,[('webp','assets/image.webp',webp_header(2,2,kind=b'VP8L'))])
+            errors,_=validate(project,max_png_dimension=1)
+            self.assertTrue(any('WebP dimension limit exceeded' in error for error in errors),errors)
+            errors,_=validate(project,max_png_dimension=1,max_raster_dimension=2)
+            self.assertEqual(errors,[],errors)
+    def test_jpeg_webp_dimension_limits_accept_exact_boundaries(self):
+        for aid,rel,data in (
+            ('jpeg_edge','assets/jpeg_edge.jpg',jpeg_header(8192,1)),
+            ('jpeg_pixels','assets/jpeg_pixels.jpeg',jpeg_header(4000,4000)),
+            ('webp_edge','assets/webp_edge.webp',webp_header(1,8192,kind=b'VP8 ')),
+            ('webp_pixels','assets/webp_pixels.webp',webp_header(4000,4000,kind=b'VP8L')),
+        ):
+            with self.subTest(asset=aid), tempfile.TemporaryDirectory() as tmp:
+                project=self._copy(tmp)
+                self._add_raster_assets(project,[(aid,rel,data)])
+                errors,_=validate(project)
+                self.assertEqual(errors,[],errors)
+    def test_mixed_raster_aggregate_limit_counts_distinct_files_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            self._add_png_assets(project,[('png','assets/one.png',2,2),('png_alias','assets/one.png',2,2)])
+            manifest_path=project/'manifest.json'
+            manifest=json.loads(manifest_path.read_text())
+            manifest['assets']['jpeg']='assets/two.jpg'
+            manifest['assets']['webp']='assets/three.webp'
+            (project/'assets'/'two.jpg').write_bytes(jpeg_header(2,2))
+            (project/'assets'/'three.webp').write_bytes(webp_header(2,2))
+            manifest_path.write_text(json.dumps(manifest))
+            errors,_=validate(project,max_raster_dimension=2,max_raster_pixels=4,max_total_raster_pixels=12)
+            self.assertEqual(errors,[],errors)
+            errors,_=validate(project,max_raster_dimension=2,max_raster_pixels=4,max_total_raster_pixels=11)
+            self.assertTrue(any('total raster pixel budget exceeded' in error for error in errors),errors)
     def test_reject_traversal(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=self._copy(tmp)
@@ -99,7 +282,7 @@ class FormatTests(unittest.TestCase):
             self.assertEqual(errors,[],errors)
             self._add_png_assets(project,[('fifth','assets/large_4.png',4000,4000)])
             errors,_=validate(project)
-            self.assertTrue(any('total PNG pixel budget exceeded' in error for error in errors),errors)
+            self.assertTrue(any('total raster pixel budget exceeded' in error for error in errors),errors)
 
         with tempfile.TemporaryDirectory() as tmp:
             project=self._copy(tmp)
@@ -138,12 +321,12 @@ class FormatTests(unittest.TestCase):
                 max_total_png_pixels=0xFFFFFFFF,
             )
             self.assertTrue(any('invalid PNG header' in error for error in errors),errors)
-    def test_png_dimension_checks_are_scoped_to_png_extension(self):
+    def test_raster_parser_is_selected_by_filename_extension(self):
         with tempfile.TemporaryDirectory() as tmp:
             project=self._copy(tmp)
             self._add_png_assets(project,[('png_bytes_jpg_path','assets/misnamed.jpg',8193,1)])
             errors,_=validate(project)
-            self.assertEqual(errors,[],errors)
+            self.assertTrue(any('invalid JPEG header' in error for error in errors),errors)
     def test_png_header_preflight_does_not_validate_image_data(self):
         with tempfile.TemporaryDirectory() as tmp:
             project=self._copy(tmp)
