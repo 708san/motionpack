@@ -1,5 +1,7 @@
 import json
 import base64
+import contextlib
+import io
 import os
 import pathlib
 import shutil
@@ -8,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import warnings
 import zipfile
 import zlib
 from unittest import mock
@@ -94,6 +97,32 @@ class FormatTests(unittest.TestCase):
                 self.assertTrue(all(not p.startswith('/') and '..' not in pathlib.PurePosixPath(p).parts for p in z.namelist()))
                 asset_data=z.read(json.loads(z.read('manifest.json'))['assets']['background'])
             self.assertIn(base64.b64encode(asset_data).decode('ascii'),preview.read_text(encoding='utf8'))
+    def test_package_warns_on_secret_like_referenced_asset_without_rejecting_or_disclosing(self):
+        examples=(
+            ('GitHub token-like value','xghp_'+'A'*36),
+            ('OpenAI key-like value','xsk-proj-'+'A'*24),
+            ('AWS access-key ID-like value','xAKIA'+'A'*16),
+            ('private-key header','-----BEGIN ENCRYPTED PRIVATE KEY-----'),
+            ('private-key header','-----BEGIN PGP PRIVATE KEY BLOCK-----'),
+        )
+        for index,(category,secret) in enumerate(examples):
+            with self.subTest(category=category,secret=secret[:12]), tempfile.TemporaryDirectory() as tmp:
+                d=self._copy(tmp)
+                asset_bytes=f'<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="{secret}"/></svg>'.encode()
+                asset=d/'assets'/'background.svg'
+                asset.write_bytes(asset_bytes)
+                stderr=io.StringIO()
+                with contextlib.redirect_stderr(stderr), warnings.catch_warnings():
+                    warnings.simplefilter('error')
+                    archive,preview=build(d,pathlib.Path(tmp)/f'dist{index}')
+                message=stderr.getvalue()
+                self.assertIn('MotionPack secret-like content',message)
+                self.assertIn(category,message)
+                self.assertIn('assets/background.svg',message)
+                self.assertNotIn(secret,message)
+                with zipfile.ZipFile(archive) as packaged:
+                    self.assertEqual(packaged.read('assets/background.svg'),asset_bytes)
+                self.assertIn(base64.b64encode(asset_bytes).decode('ascii'),preview.read_text(encoding='utf8'))
     def _copy(self,tmp):
         d=pathlib.Path(tmp)/'project'
         shutil.copytree(ROOT/'examples'/'robot_ik_demo',d)

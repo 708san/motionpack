@@ -58,9 +58,13 @@ The project packager emits only `manifest.json` and its referenced runtime
 assets; it does not automatically add unreferenced project files or `source/`.
 The validator rejects runtime references into `source/` and local project paths
 with symlink components. The packager snapshots the bounded asset bytes used by
-validation and uses those same bytes for the ZIP and preview. It does not scan
-the contents or metadata of explicitly referenced assets for secrets, so
-maintainers must review those assets before distribution.
+validation and uses those same bytes for the ZIP and preview. It scans raw
+referenced-asset bytes for a small set of private-key headers and GitHub,
+OpenAI, and AWS credential-like patterns, then prints the asset path and
+category to standard error. This is warning-only: matching bytes remain in the
+ZIP and preview. The heuristic can miss transformed or pixel-encoded secrets
+and can produce false positives; maintainers must review assets before
+distribution.
 
 On platforms that support directory-relative no-follow opens, each project
 path component is opened beneath a pinned directory. Other platforms recheck
