@@ -506,6 +506,20 @@ class ArchiveReaderTests(unittest.TestCase):
                 with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid (JPEG|WebP) header'):
                     read_package(archive)
 
+    def test_archive_reader_rejects_jpeg_zero_sof_height(self):
+        path='assets/zero-height.jpg'
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets']['zero_height']=path
+            entries.append((path,jpeg_header(320,0)))
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
+            archive=self._zip(pathlib.Path(tmp)/'zero-height.motionpack',entries)
+            with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid JPEG header'):
+                read_package(archive)
+
     def test_archive_reader_counts_unicode_path_aliases_as_one_png_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
             packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
