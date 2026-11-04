@@ -360,19 +360,17 @@ def _bounded_read(archive, info, limit, label):
 
 
 def _open_regular_archive(path):
-    """Open an input without blocking on special files such as FIFOs."""
+    """Check an input path before opening, then verify its opened descriptor."""
+    try:
+        if not stat.S_ISREG(path.stat().st_mode):
+            _error("archive input must be a regular file")
+    except OSError as exc:
+        _error("unable to open MotionPack archive", exc)
+
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
     nonblocking = getattr(os, "O_NONBLOCK", None)
     if nonblocking is not None:
         flags |= nonblocking
-    else:
-        # Platforms without O_NONBLOCK still reject known special files before
-        # opening. The descriptor check below remains authoritative afterward.
-        try:
-            if not stat.S_ISREG(path.stat().st_mode):
-                _error("archive input must be a regular file")
-        except OSError as exc:
-            _error("unable to open MotionPack archive", exc)
 
     try:
         descriptor = os.open(path, flags)

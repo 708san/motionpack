@@ -622,6 +622,35 @@ class ArchiveReaderTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "named pipes are unavailable")
+    def test_fifo_is_rejected_before_opening_the_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fifo = pathlib.Path(tmp) / "input.motionpack"
+            os.mkfifo(fifo)
+            alias = pathlib.Path(tmp) / "input-link.motionpack"
+            alias.symlink_to(fifo)
+            with mock.patch.object(archive_reader.os, "open", side_effect=AssertionError("must not open special file")):
+                for candidate in (fifo, alias):
+                    with self.subTest(candidate=candidate), self.assertRaisesRegex(ArchiveError, "regular file"):
+                        read_package(candidate)
+
+    @unittest.skipUnless(hasattr(os, "mkfifo") and hasattr(os, "O_NONBLOCK"), "non-blocking named pipes are unavailable")
+    def test_fifo_replaced_after_stat_is_rejected_by_descriptor_check(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            regular = root / "regular.motionpack"
+            regular.write_bytes(b"not a package")
+            fifo = root / "input.motionpack"
+            os.mkfifo(fifo)
+            original_stat = type(fifo).stat
+
+            def report_regular(path, *args, **kwargs):
+                return original_stat(regular if path == fifo else path, *args, **kwargs)
+
+            with mock.patch.object(type(fifo), "stat", autospec=True, side_effect=report_regular):
+                with self.assertRaisesRegex(ArchiveError, "regular file"):
+                    read_package(fifo)
+
     def test_regular_file_symlink_input_remains_supported(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
