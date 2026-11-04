@@ -1,6 +1,7 @@
 import json
 import io
 import pathlib
+import random
 import shutil
 import stat
 import struct
@@ -340,6 +341,31 @@ class ArchiveReaderTests(unittest.TestCase):
             path.write_bytes(data)
             with self.assertRaisesRegex(ArchiveError, "unable to read manifest"):
                 read_package(path)
+
+    def test_deterministic_archive_mutations_reject_or_return_consistent_package(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            original = valid.read_bytes()
+            mutated = pathlib.Path(tmp) / "mutated.motionpack"
+            rng = random.Random(0x4D4F54494F4E)
+            rejected = 0
+
+            for _ in range(128):
+                data = bytearray(original)
+                for _ in range(rng.randint(1, 4)):
+                    offset = rng.randrange(len(data))
+                    data[offset] ^= rng.randrange(1, 256)
+                mutated.write_bytes(data)
+                try:
+                    package = read_package(mutated)
+                except ArchiveError:
+                    rejected += 1
+                else:
+                    self.assertIsInstance(package.manifest, dict)
+                    self.assertEqual(set(package.assets), set(package.manifest["assets"]))
+                    self.assertTrue(all(isinstance(asset, bytes) for asset in package.assets.values()))
+
+            self.assertGreater(rejected, 0, "mutation corpus unexpectedly contained no rejected archives")
 
     def test_does_not_create_files_outside_archive_input(self):
         with tempfile.TemporaryDirectory() as tmp:
