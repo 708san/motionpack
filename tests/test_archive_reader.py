@@ -1,10 +1,12 @@
 import json
 import io
+import os
 import pathlib
 import random
 import shutil
 import stat
 import struct
+import subprocess
 import sys
 import tempfile
 import warnings
@@ -581,6 +583,38 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaises(ArchiveError):
                 read_package(archive)
             self.assertFalse(outside.exists())
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "named pipes are unavailable")
+    def test_fifo_input_is_rejected_without_blocking(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            fifo = root / "input.motionpack"
+            os.mkfifo(fifo)
+            script = (
+                "import sys\n"
+                "from archive_reader import read_package, ArchiveError\n"
+                "try:\n"
+                "    read_package(sys.argv[1])\n"
+                "except ArchiveError:\n"
+                "    raise SystemExit(0)\n"
+                "raise SystemExit(2)\n"
+            )
+            result = subprocess.run(
+                [sys.executable, "-c", script, str(fifo)],
+                cwd=ROOT / "tools",
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_regular_file_symlink_input_remains_supported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            package = self._package(ROOT / "examples" / "robot_demo", root / "build")
+            alias = root / "regular-file-link.motionpack"
+            alias.symlink_to(package)
+            self.assertEqual(read_package(alias).manifest["version"], "0.1")
 
 
 if __name__ == "__main__":
