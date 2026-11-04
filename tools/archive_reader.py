@@ -7,6 +7,7 @@ optional ``source/`` entries.
 from dataclasses import dataclass
 import json
 import math
+import os
 import pathlib
 import re
 import stat
@@ -358,6 +359,34 @@ def _bounded_read(archive, info, limit, label):
     return b"".join(chunks)
 
 
+def _open_regular_archive(path):
+    """Open an input without blocking on special files such as FIFOs."""
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    nonblocking = getattr(os, "O_NONBLOCK", None)
+    if nonblocking is not None:
+        flags |= nonblocking
+    else:
+        # Platforms without O_NONBLOCK still reject known special files before
+        # opening. The descriptor check below remains authoritative afterward.
+        try:
+            if not stat.S_ISREG(path.stat().st_mode):
+                _error("archive input must be a regular file")
+        except OSError as exc:
+            _error("unable to open MotionPack archive", exc)
+
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        _error("unable to open MotionPack archive", exc)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            _error("archive input must be a regular file")
+        return os.fdopen(descriptor, "rb")
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
 def _json_object(pairs):
     result = {}
     for key, value in pairs:
@@ -392,7 +421,7 @@ def read_package(path, *, limits=None):
         raise TypeError("limits must be a ReaderLimits instance")
     source = pathlib.Path(path)
     try:
-        with source.open("rb") as source_file:
+        with _open_regular_archive(source) as source_file:
             source_file.seek(0, 2)
             archive_size = source_file.tell()
             if archive_size > limits.max_archive_bytes:
