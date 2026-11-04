@@ -4,7 +4,7 @@ MotionPack is a generic **editable visual-animation format**, independent of gam
 
 ## Editable package
 
-A `.motionpack` is a ZIP archive containing `manifest.json`, referenced `assets/` images and optional `source/` originals. Generated `preview.html` is an offline browser playback artifact.
+A `.motionpack` is a ZIP archive containing `manifest.json`, referenced runtime images and optional opaque `source/` originals. Generated `preview.html` is an offline browser playback artifact. The repository packager writes only the manifest and its referenced runtime assets; it does not walk the project tree or automatically include unreferenced files or `source/` entries. Runtime asset paths whose first component is `source` (case-insensitive) are reserved and rejected. When validating a local project, the validator and packager reject an asset path containing a filesystem symlink component; this is a local project tree rule, not a ZIP path feature. The packager uses the same bounded asset bytes for validation, the ZIP, and the preview.
 
 ## Manifest and runtime surface
 

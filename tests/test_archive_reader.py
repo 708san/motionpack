@@ -78,18 +78,33 @@ class ArchiveReaderTests(unittest.TestCase):
             package = read_package(source_archive)
             self.assertEqual(set(package.assets), set(package.manifest["assets"]))
 
-    def test_manifest_cannot_expose_source_as_runtime_asset(self):
+    def test_casefold_source_entries_remain_opaque(self):
         with tempfile.TemporaryDirectory() as tmp:
-            archive = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "out")
-            with zipfile.ZipFile(archive) as original:
-                manifest = json.loads(original.read("manifest.json"))
+            packed = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "out")
+            with zipfile.ZipFile(packed) as original:
                 entries = [(item.filename, original.read(item)) for item in original.infolist()]
-            manifest["assets"]["source_probe"] = "source/private.svg"
-            entries = [(name, json.dumps(manifest).encode() if name == "manifest.json" else data) for name, data in entries]
-            entries.append(("source/private.svg", b"<svg xmlns='http://www.w3.org/2000/svg'></svg>"))
-            source_archive = self._zip(pathlib.Path(tmp) / "referenced-source.motionpack", entries)
-            with self.assertRaisesRegex(ArchiveError, "source entries"):
-                read_package(source_archive)
+            entries.append(("SOURCE/private.zip", b"opaque source bytes"))
+            archive = self._zip(pathlib.Path(tmp) / "uppercase-source.motionpack", entries)
+            original_read = archive_reader._bounded_read
+            with mock.patch.object(archive_reader, "_bounded_read", wraps=original_read) as read_member:
+                package = read_package(archive)
+            self.assertEqual(set(package.assets), set(package.manifest["assets"]))
+            read_names = [call.args[1].filename for call in read_member.call_args_list]
+            self.assertNotIn("SOURCE/private.zip", read_names)
+
+    def test_manifest_cannot_expose_source_as_runtime_asset(self):
+        for source_path in ("source/private.svg", "SOURCE/private.svg"):
+            with self.subTest(source_path=source_path), tempfile.TemporaryDirectory() as tmp:
+                archive = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "out")
+                with zipfile.ZipFile(archive) as original:
+                    manifest = json.loads(original.read("manifest.json"))
+                    entries = [(item.filename, original.read(item)) for item in original.infolist()]
+                manifest["assets"]["source_probe"] = source_path
+                entries = [(name, json.dumps(manifest).encode() if name == "manifest.json" else data) for name, data in entries]
+                entries.append((source_path, b"<svg xmlns='http://www.w3.org/2000/svg'></svg>"))
+                source_archive = self._zip(pathlib.Path(tmp) / "referenced-source.motionpack", entries)
+                with self.assertRaisesRegex(ArchiveError, "source entries"):
+                    read_package(source_archive)
 
     def test_rejects_unsafe_names_before_returning_assets(self):
         unsafe_names = ("../escape", "/absolute", "C:/drive", "\\\\server\\share", "assets\\x.svg", "assets//x.svg", "assets/./x.svg")
@@ -111,6 +126,19 @@ class ArchiveReaderTests(unittest.TestCase):
                     warnings.simplefilter("ignore", UserWarning)
                     archive = self._zip(pathlib.Path(tmp) / "collision.motionpack", entries)
                 with self.assertRaises(ArchiveError):
+                    read_package(archive)
+
+    def test_rejects_file_directory_prefix_collisions(self):
+        for extra_entries in (
+            [("orphan", b"file"), ("orphan/child.txt", b"child")],
+            [("orphan/child.txt", b"child"), ("orphan", b"file")],
+        ):
+            with self.subTest(entries=[name for name, _ in extra_entries]), tempfile.TemporaryDirectory() as tmp:
+                packed = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "out")
+                with zipfile.ZipFile(packed) as original:
+                    entries = [(item.filename, original.read(item)) for item in original.infolist()]
+                archive = self._zip(pathlib.Path(tmp) / "prefix-collision.motionpack", entries + extra_entries)
+                with self.assertRaisesRegex(ArchiveError, "file/directory path collision"):
                     read_package(archive)
 
     def test_rejects_symlink_entries(self):
