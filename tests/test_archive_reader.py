@@ -25,6 +25,40 @@ def png_ihdr(width,height):
     crc=zlib.crc32(chunk)&0xffffffff
     return b'\x89PNG\r\n\x1a\n'+struct.pack('>I',13)+chunk+struct.pack('>I',crc)
 
+def jpeg_header(width,height):
+    frame=b'\x08'+struct.pack('>HHB',height,width,3)+b'\x01\x11\0\x02\x11\0\x03\x11\0'
+    return b'\xff\xd8\xff\xc0'+struct.pack('>H',len(frame)+2)+frame+b'\xff\xda'
+
+def webp_header(width,height,kind=b'VP8X'):
+    if kind==b'VP8X':
+        payload=b'\0'*4+(width-1).to_bytes(3,'little')+(height-1).to_bytes(3,'little')
+        bits=(width-1)|((height-1)<<14)
+        chunks=b'VP8X'+struct.pack('<I',len(payload))+payload
+        bitstream=b'VP8L'+struct.pack('<I',5)+b'\x2f'+bits.to_bytes(4,'little')+b'\0'
+        body=b'WEBP'+chunks+bitstream
+        return b'RIFF'+struct.pack('<I',len(body))+body
+    elif kind==b'VP8 ':
+        payload=b'\0\0\0\x9d\x01\x2a'+struct.pack('<HH',width,height)
+    else:
+        payload=b'\x2f'+((width-1)|((height-1)<<14)).to_bytes(4,'little')
+    chunk=kind+struct.pack('<I',len(payload))+payload+(b'\0' if len(payload)&1 else b'')
+    body=b'WEBP'+chunk
+    return b'RIFF'+struct.pack('<I',len(body))+body
+
+def webp_animation(width,height,frames):
+    def chunk(kind,payload):
+        return kind+struct.pack('<I',len(payload))+payload+(b'\0' if len(payload)&1 else b'')
+    vp8x=b'\x02\0\0\0'+(width-1).to_bytes(3,'little')+(height-1).to_bytes(3,'little')
+    chunks=chunk(b'VP8X',vp8x)+chunk(b'ANIM',b'\0'*6)
+    for x,y,frame_width,frame_height in frames:
+        frame=(x//2).to_bytes(3,'little')+(y//2).to_bytes(3,'little')
+        frame+=(frame_width-1).to_bytes(3,'little')+(frame_height-1).to_bytes(3,'little')+b'\0'*4
+        bits=(frame_width-1)|((frame_height-1)<<14)
+        frame+=chunk(b'VP8L',b'\x2f'+bits.to_bytes(4,'little'))
+        chunks+=chunk(b'ANMF',frame)
+    body=b'WEBP'+chunks
+    return b'RIFF'+struct.pack('<I',len(body))+body
+
 
 class NonSeekableBuffer(io.BytesIO):
     def seekable(self):
@@ -355,7 +389,7 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid PNG header'):
                 read_package(archive)
 
-    def test_archive_reader_png_limits_are_scoped_to_png_extension(self):
+    def test_archive_reader_classifies_raster_by_extension(self):
         with tempfile.TemporaryDirectory() as tmp:
             packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
             with zipfile.ZipFile(packed) as original:
@@ -365,8 +399,8 @@ class ArchiveReaderTests(unittest.TestCase):
             entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
             entries.append(('assets/misnamed.jpg',png_ihdr(8193,1)))
             archive=self._zip(pathlib.Path(tmp)/'misnamed-png.motionpack',entries)
-            result=read_package(archive)
-            self.assertIn('png_bytes_jpg_path',result.assets)
+            with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid JPEG header'):
+                read_package(archive)
 
     def test_archive_reader_rejects_png_spec_dimensions_above_permissive_limits(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -399,8 +433,76 @@ class ArchiveReaderTests(unittest.TestCase):
             entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
             archive=self._zip(pathlib.Path(tmp)/'png-total-limit.motionpack',entries)
             limits=ReaderLimits(max_png_dimension=2,max_png_pixels=4,max_total_png_pixels=16)
-            with self.assertRaisesRegex(ArchiveError,'total PNG pixel budget exceeded'):
+            with self.assertRaisesRegex(ArchiveError,'total raster pixel budget exceeded'):
                 read_package(archive,limits=limits)
+
+    def test_archive_reader_applies_shared_limits_to_jpeg_webp(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets'].update({'jpeg':'assets/large.jpg','webp':'assets/large.webp'})
+            entries.extend([('assets/large.jpg',jpeg_header(8193,1)),('assets/large.webp',webp_header(1,1))])
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
+            archive=self._zip(pathlib.Path(tmp)/'large-raster.motionpack',entries)
+            with self.assertRaisesRegex(ArchiveError,'JPEG dimension limit exceeded'):
+                read_package(archive)
+            with self.assertRaisesRegex(ArchiveError,'JPEG dimension limit exceeded'):
+                read_package(archive,limits=ReaderLimits(max_png_dimension=1))
+            override=ReaderLimits(max_png_dimension=1,max_raster_dimension=8193)
+            self.assertIn('jpeg',read_package(archive,limits=override).assets)
+
+    def test_archive_reader_mixed_raster_aggregate_counts_alias_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets'].update({
+                'png':'assets/one.png','png_alias':'assets/one.png',
+                'jpeg':'assets/two.jpg','webp':'assets/three.webp',
+            })
+            entries.extend([('assets/one.png',png_ihdr(2,2)),('assets/two.jpg',jpeg_header(2,2)),
+                            ('assets/three.webp',webp_header(2,2,b'VP8L'))])
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
+            archive=self._zip(pathlib.Path(tmp)/'mixed-raster.motionpack',entries)
+            accepted=ReaderLimits(max_raster_dimension=2,max_raster_pixels=4,max_total_raster_pixels=12)
+            result=read_package(archive,limits=accepted)
+            self.assertEqual(result.assets['png'],result.assets['png_alias'])
+            rejected=ReaderLimits(max_raster_dimension=2,max_raster_pixels=4,max_total_raster_pixels=11)
+            with self.assertRaisesRegex(ArchiveError,'total raster pixel budget exceeded'):
+                read_package(archive,limits=rejected)
+
+    def test_archive_reader_counts_animated_webp_canvas_and_frames(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets']['animated']='assets/animated.webp'
+            entries.append(('assets/animated.webp',webp_animation(2,2,[(0,0,2,2),(0,0,2,2)])))
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
+            archive=self._zip(pathlib.Path(tmp)/'animated-webp.motionpack',entries)
+            accepted=ReaderLimits(max_raster_dimension=2,max_raster_pixels=4,max_total_raster_pixels=12)
+            self.assertIn('animated',read_package(archive,limits=accepted).assets)
+            rejected=ReaderLimits(max_raster_dimension=2,max_raster_pixels=4,max_total_raster_pixels=11)
+            with self.assertRaisesRegex(ArchiveError,'total raster pixel budget exceeded'):
+                read_package(archive,limits=rejected)
+
+    def test_archive_reader_rejects_malformed_jpeg_and_webp_headers(self):
+        for path,data in (('assets/bad.jpg',b'\xff\xd8'),('assets/bad.webp',b'RIFF\0\0\0\0WEBP')):
+            with self.subTest(path=path), tempfile.TemporaryDirectory() as tmp:
+                packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+                with zipfile.ZipFile(packed) as original:
+                    manifest=json.loads(original.read('manifest.json'))
+                    entries=[(item.filename,original.read(item)) for item in original.infolist()]
+                manifest['assets']['bad']=path
+                entries.append((path,data))
+                entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else content) for name,content in entries]
+                archive=self._zip(pathlib.Path(tmp)/'bad-raster.motionpack',entries)
+                with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid (JPEG|WebP) header'):
+                    read_package(archive)
 
     def test_archive_reader_counts_unicode_path_aliases_as_one_png_entry(self):
         with tempfile.TemporaryDirectory() as tmp:

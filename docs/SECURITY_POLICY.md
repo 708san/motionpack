@@ -28,7 +28,7 @@
 脆弱性連絡窓口、パーサ・画像処理のサンドボックス、公開後の修正・通知手順、依存ソフトウェア一覧。窓口のメールアドレスは未指定なので推測して記載しない。
 
 ## 実験的ZIP readerの範囲
-- `tools/archive_reader.py` はentry名・種別・件数・宣言サイズ・圧縮率を検査してから、manifestと参照画像だけを上限付きで読み込む。任意のentryは展開しない。`.png`拡張子のassetに限りsignatureと先頭IHDR chunk/CRCを検査し、既定では辺8192px、1画像16,000,000画素、参照PNG合計64,000,000画素をtool上限として拒否する。PNG仕様上限の2^31−1 px/edgeは設定にかかわらず拒否する。画素デコードや後続chunkの検査は行わず、他拡張子にPNGデータを偽装した場合の検出とJPEG/WebPの寸法上限は未実装である。
+- `tools/archive_reader.py` はentry名・種別・件数・宣言サイズ・圧縮率を検査してから、manifestと参照画像だけを上限付きで読み込む。任意のentryは展開しない。`.png`/`.jpg`/`.jpeg`/`.webp`拡張子のassetに限り、形式別ヘッダーから寸法を事前検査し、既定では辺8192px、1画像またはWebP各フレーム16,000,000画素、PNG/JPEG/WebP参照ラスター合計64,000,000画素をtool上限として拒否する。アニメーションWebPはキャンバス画素に全フレーム面積を加算し、ANMF領域と内側bitstream寸法を検査する。PNG仕様上限の2^31−1 px/edgeは設定にかかわらず拒否する。JPEGのDNLによる後続高さ指定は未対応。画素デコードや完全な画像検証は行わず、別拡張子への内容偽装を独立検出せず、後続デコーダも保護しない。
 - readerの既定上限はツールの運用制限であり、形式全体の互換保証や本番向けセキュリティ保証ではない。`zipfile` の解析前にZIP終端レコードからentry数と中央ディレクトリサイズ（既定2 MiB）を検査するが、その後の標準ライブラリ解析は別プロセス隔離ではなく、処理時間も未計測。ZIP64とマルチディスクZIPは拒否する。
 - 任意の `source/` はメタデータと宣言サイズだけを検査し、展開・解釈しない。readerの戻り値にも含めず、manifestからruntime assetとして参照される場合は拒否する。入力アーカイブ自体は変更しない。
 - packagerはmanifestとその参照assetだけを出力し、未参照ファイルや `source/` を自動同梱しない。runtime assetからの `source/` 参照とローカルproject上のsymlinkを含むpathはvalidatorで拒否する。検証に使った上限付きasset bytesをZIPとpreviewにも使い、検証後のpath再オープンを避ける。dirfd/O_NOFOLLOW対応環境では各path componentを固定したdirectory descriptorの下で開く。他環境ではpathとfile identityを再確認するが、全ての並行directory差替えを防ぐ保証はない。参照assetの内容に秘密が含まれないことまでは検査しない。
