@@ -14,6 +14,16 @@ referenced assets, 40 MiB total declared expansion, and a 100:1 compression
 ratio. These are configurable tool defaults, not format-wide limits. ZIP64 and
 multi-disk archives are rejected.
 
+Before opening an archive path, the reader checks that it currently resolves to
+a regular file, then checks the opened descriptor again. It uses
+`O_NONBLOCK` where the operating system exposes that flag. The path check and
+open are separate operations, so a concurrently replaced path may still be
+opened before the descriptor check rejects it. Python exposes `O_NONBLOCK` on
+Unix. On a platform that lacks the flag and supports blocking special-file
+types, a path replaced with such a file after the initial check may block
+during open. Windows behavior has not been tested. This reader does not
+guarantee safe handling of paths that another process can change concurrently.
+
 For asset paths ending in `.png`, `.jpg`, `.jpeg`, or `.webp` (case-insensitively),
 the validator and reader inspect the corresponding format header before any
 decoder is involved. The default tool ceilings are 8,192 pixels per edge,
