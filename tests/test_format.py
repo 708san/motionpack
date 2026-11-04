@@ -109,7 +109,12 @@ class FormatTests(unittest.TestCase):
             with self.subTest(category=category,secret=secret[:12]), tempfile.TemporaryDirectory() as tmp:
                 d=self._copy(tmp)
                 asset_bytes=f'<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="{secret}"/></svg>'.encode()
-                asset=d/'assets'/'background.svg'
+                asset=d/'assets'/f'private_{secret}.svg'
+                (d/'assets'/'background.svg').rename(asset)
+                manifest_path=d/'manifest.json'
+                manifest=json.loads(manifest_path.read_text())
+                manifest['assets']['background']=asset.relative_to(d).as_posix()
+                manifest_path.write_text(json.dumps(manifest))
                 asset.write_bytes(asset_bytes)
                 stderr=io.StringIO()
                 with contextlib.redirect_stderr(stderr), warnings.catch_warnings():
@@ -118,11 +123,98 @@ class FormatTests(unittest.TestCase):
                 message=stderr.getvalue()
                 self.assertIn('MotionPack secret-like content',message)
                 self.assertIn(category,message)
-                self.assertIn('assets/background.svg',message)
+                self.assertIn('referenced asset #1',message)
                 self.assertNotIn(secret,message)
                 with zipfile.ZipFile(archive) as packaged:
-                    self.assertEqual(packaged.read('assets/background.svg'),asset_bytes)
+                    self.assertEqual(packaged.read(asset.relative_to(d).as_posix()),asset_bytes)
                 self.assertIn(base64.b64encode(asset_bytes).decode('ascii'),preview.read_text(encoding='utf8'))
+    def test_strict_secret_scan_fails_before_creating_or_replacing_outputs(self):
+        secret='ghp_'+'B'*36
+        for preexisting in (False,True):
+            with self.subTest(preexisting=preexisting), tempfile.TemporaryDirectory() as tmp:
+                d=self._copy(tmp)
+                manifest_path=d/'manifest.json'
+                manifest=json.loads(manifest_path.read_text())
+                original=d/'assets'/'background.svg'
+                asset=d/'assets'/f'private_{secret}.svg'
+                original.rename(asset)
+                manifest['assets']['background']=asset.relative_to(d).as_posix()
+                manifest_path.write_text(json.dumps(manifest))
+                asset.write_text(
+                    f'<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="{secret}"/></svg>'
+                )
+                out=pathlib.Path(tmp)/'dist'
+                package=out/(d.name+'.motionpack')
+                preview=out/'preview.html'
+                if preexisting:
+                    out.mkdir()
+                    package.write_bytes(b'previous archive')
+                    preview.write_bytes(b'previous preview')
+                with self.assertRaisesRegex(ValueError,'GitHub token-like value') as raised:
+                    build(d,out,fail_on_secret_like=True)
+                self.assertIn('referenced asset #1',str(raised.exception))
+                self.assertNotIn(secret,str(raised.exception))
+                if preexisting:
+                    self.assertEqual(package.read_bytes(),b'previous archive')
+                    self.assertEqual(preview.read_bytes(),b'previous preview')
+                else:
+                    self.assertFalse(out.exists())
+    def test_strict_secret_scan_accepts_v01_and_v02_examples(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for version,project in (('0.1','robot_demo'),('0.2','robot_ik_demo')):
+                with self.subTest(version=version):
+                    archive,_=build(ROOT/'examples'/project,pathlib.Path(tmp)/version,fail_on_secret_like=True)
+                    with zipfile.ZipFile(archive) as packaged:
+                        manifest=json.loads(packaged.read('manifest.json'))
+                    self.assertEqual(manifest['version'],version)
+    def test_package_cli_strict_secret_scan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            clean_out=pathlib.Path(tmp)/'clean-dist'
+            clean_result=subprocess.run(
+                [sys.executable,str(ROOT/'tools'/'package.py'),str(ROOT/'examples'/'robot_demo'),
+                 '--out',str(clean_out),'--fail-on-secret-like'],
+                capture_output=True,text=True,check=False,
+            )
+            self.assertEqual(clean_result.returncode,0,clean_result.stderr)
+            self.assertTrue((clean_out/'robot_demo.motionpack').is_file())
+            self.assertTrue((clean_out/'preview.html').is_file())
+            d=self._copy(tmp)
+            secret='ghp_'+'C'*36
+            manifest_path=d/'manifest.json'
+            manifest=json.loads(manifest_path.read_text())
+            original=d/'assets'/'background.svg'
+            asset=d/'assets'/f'private_{secret}.svg'
+            original.rename(asset)
+            manifest['assets']['background']=asset.relative_to(d).as_posix()
+            manifest_path.write_text(json.dumps(manifest))
+            asset.write_text(
+                f'<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="{secret}"/></svg>'
+            )
+            default_out=pathlib.Path(tmp)/'default-dist'
+            default_result=subprocess.run(
+                [sys.executable,str(ROOT/'tools'/'package.py'),str(d),'--out',str(default_out)],
+                capture_output=True,text=True,check=False,
+            )
+            self.assertEqual(default_result.returncode,0,default_result.stderr)
+            self.assertIn('GitHub token-like value',default_result.stderr)
+            self.assertNotIn(secret,default_result.stderr)
+            self.assertTrue((default_out/'project.motionpack').is_file())
+            strict_out=pathlib.Path(tmp)/'strict-dist'
+            strict_out.mkdir()
+            strict_archive=strict_out/'project.motionpack'
+            strict_preview=strict_out/'preview.html'
+            strict_archive.write_bytes(b'previous archive')
+            strict_preview.write_bytes(b'previous preview')
+            result=subprocess.run(
+                [sys.executable,str(ROOT/'tools'/'package.py'),str(d),'--out',str(strict_out),'--fail-on-secret-like'],
+                capture_output=True,text=True,check=False,
+            )
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('GitHub token-like value',result.stderr)
+            self.assertIn('referenced asset #1',result.stderr)
+            self.assertNotIn(secret,result.stderr)
+            self.assertEqual(strict_archive.read_bytes(),b'previous archive')
+            self.assertEqual(strict_preview.read_bytes(),b'previous preview')
     def _copy(self,tmp):
         d=pathlib.Path(tmp)/'project'
         shutil.copytree(ROOT/'examples'/'robot_ik_demo',d)
