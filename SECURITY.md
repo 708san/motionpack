@@ -23,6 +23,20 @@ for arbitrary renderers. Raster image decoders are not isolated, and the
 standard-library ZIP parser has not been fuzzed or isolated. CPU/time limits
 have not been independently measured. Keep packages and their assets untrusted.
 
+The project packager emits only `manifest.json` and its referenced runtime
+assets; it does not automatically add unreferenced project files or `source/`.
+The validator rejects runtime references into `source/` and local project paths
+with symlink components. The packager snapshots the bounded asset bytes used by
+validation and uses those same bytes for the ZIP and preview. It does not scan
+the contents or metadata of explicitly referenced assets for secrets, so
+maintainers must review those assets before distribution.
+
+On platforms that support directory-relative no-follow opens, each project
+path component is opened beneath a pinned directory. Other platforms recheck
+path components and file identity, but cannot fully rule out every concurrent
+directory replacement. Build from a project tree that is not being changed by
+another process.
+
 If a security issue is discovered, contact the repository maintainer privately
 through an access-controlled channel; do not publish exploit details in a
 public Issue. A dedicated vulnerability contact has not been designated.

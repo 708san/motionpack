@@ -5,8 +5,10 @@ Validation is intentionally conservative; a passing result is NOT a security cer
 """
 import json
 import math
+import os
 import pathlib
 import re
+import stat
 import sys
 import xml.etree.ElementTree as ET
 from xml.parsers import expat
@@ -27,8 +29,81 @@ MAX_SVG_ELEMENTS = 10000
 MAX_SVG_ATTRIBUTES_PER_ELEMENT = 128
 MAX_SVG_ATTRIBUTE = 64 * 1024
 SVG_NAMESPACE = "http://www.w3.org/2000/svg"
+SUPPORTS_DIR_FD_OPEN = os.open in os.supports_dir_fd
 SVG_URL = re.compile(r"url\s*\(", re.I)
 SVG_LOCAL_URL = re.compile(r"url\(\s*(?:#([A-Za-z_][A-Za-z0-9_.:-]*)|(['\"])#([A-Za-z_][A-Za-z0-9_.:-]*)\2)\s*\)", re.I)
+
+def file_identity(info):
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+def _has_symlink_component(root, path):
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        return True
+    current = root
+    for part in parts:
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
+
+def _open_asset_beneath(root, path):
+    """Open a file beneath a pinned directory, refusing symlinks where supported."""
+    parts = path.relative_to(root).parts
+    if not parts:
+        raise ValueError("asset path must name a file")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    nonblock = getattr(os, "O_NONBLOCK", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    if nofollow and directory and SUPPORTS_DIR_FD_OPEN:
+        dir_fd = os.open(root, os.O_RDONLY | directory | nofollow)
+        try:
+            for part in parts[:-1]:
+                next_fd = os.open(part, os.O_RDONLY | directory | nofollow, dir_fd=dir_fd)
+                os.close(dir_fd)
+                dir_fd = next_fd
+            return os.open(parts[-1], os.O_RDONLY | nofollow | nonblock, dir_fd=dir_fd)
+        finally:
+            os.close(dir_fd)
+    return os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0) | nofollow | nonblock)
+
+def read_stable_asset(root, path, limit, expected_identity):
+    """Read a bounded regular asset and reject a file changed since stat."""
+    if _has_symlink_component(root, path):
+        raise ValueError("symlink in asset path")
+    before = path.stat()
+    if not stat.S_ISREG(before.st_mode) or file_identity(before) != expected_identity:
+        raise ValueError("asset changed during validation")
+    if _has_symlink_component(root, path):
+        raise ValueError("symlink in asset path")
+    if before.st_size > limit:
+        raise ValueError("asset exceeds snapshot size limit")
+
+    descriptor = _open_asset_beneath(root, path)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or file_identity(opened) != file_identity(before):
+            raise ValueError("asset changed during validation")
+        chunks = []
+        total = 0
+        with os.fdopen(descriptor, "rb") as stream:
+            descriptor = None
+            while True:
+                chunk = stream.read(min(64 * 1024, limit + 1 - total))
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > limit:
+                    raise ValueError("asset exceeds snapshot size limit")
+                chunks.append(chunk)
+            after = os.fstat(stream.fileno())
+            if file_identity(after) != file_identity(opened):
+                raise ValueError("asset changed during validation")
+        return b"".join(chunks)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
 
 def parse_svg(data):
     """Parse the supported static SVG subset with explicit XML resource limits."""
@@ -165,7 +240,7 @@ def check_json_nesting(text):
         elif char in "]}" and depth:
             depth -= 1
 
-def validate(folder):
+def validate(folder, *, asset_data_sink=None):
     try:
         root = pathlib.Path(folder).resolve()
     except RuntimeError as exc:
@@ -206,13 +281,18 @@ def validate(folder):
     check(len(iks) <= MAX_NODES, "too many inverse-kinematics chains")
     total_size = 0
     checked_svgs = set()
+    captured_assets = {}
     for aid, raw_path in assets.items():
         if not isinstance(aid, str) or not isinstance(raw_path, str):
             check(False, "invalid asset key or path")
             continue
         p = pathlib.PurePosixPath(raw_path)
-        if not check(raw_path and "\\" not in raw_path and not p.is_absolute() and ".." not in p.parts and len(raw_path) <= 256,
+        if not check(raw_path and "\\" not in raw_path and not p.is_absolute()
+                     and not re.match(r"^[A-Za-z]:", raw_path) and ".." not in p.parts and len(raw_path) <= 256,
                      "unsafe path for " + str(aid)):
+            continue
+        if p.parts and p.parts[0].casefold() == "source":
+            check(False, "source directory cannot be a runtime asset: " + raw_path)
             continue
         dest = root.joinpath(*p.parts)
         try:
@@ -220,17 +300,53 @@ def validate(folder):
         except RuntimeError:
             check(False, "unable to resolve asset " + raw_path)
             continue
-        if not check(real.is_relative_to(root) and real.is_file() and not dest.is_symlink(), "missing/escaping asset " + raw_path):
+        current = root
+        symlink_in_path = False
+        for part in p.parts:
+            current = current / part
+            if current.is_symlink():
+                symlink_in_path = True
+                break
+        if symlink_in_path:
+            check(False, "symlink in asset path " + raw_path)
+            continue
+        if not check(real.is_relative_to(root) and real.is_file(), "missing/escaping asset " + raw_path):
             continue
         if not check(real.suffix.lower() in (".svg", ".png", ".webp", ".jpg", ".jpeg"), "unsupported asset " + raw_path):
             continue
-        size = real.stat().st_size
+        try:
+            asset_info = real.stat()
+        except OSError:
+            check(False, "unable to stat asset " + raw_path)
+            continue
+        size = asset_info.st_size
         total_size += size
         check(size <= MAX_ASSET, "oversized asset " + raw_path)
+        if total_size > MAX_TOTAL_ASSETS:
+            continue
+        asset_bytes = None
+        if asset_data_sink is not None:
+            if real not in captured_assets:
+                try:
+                    captured_assets[real] = read_stable_asset(
+                        root, real, MAX_ASSET, file_identity(asset_info)
+                    )
+                except (OSError, ValueError) as exc:
+                    check(False, "unable to snapshot asset " + raw_path + ": " + str(exc))
+                    continue
+            asset_bytes = captured_assets[real]
+            asset_data_sink[raw_path] = asset_bytes
         if real.suffix.lower() == ".svg" and size <= MAX_ASSET and real not in checked_svgs:
             checked_svgs.add(real)
+            svg_bytes = asset_bytes
+            if svg_bytes is None:
+                try:
+                    svg_bytes = read_stable_asset(root, real, MAX_ASSET, file_identity(asset_info))
+                except (OSError, ValueError) as exc:
+                    check(False, "unable to read SVG " + raw_path + ": " + str(exc))
+                    continue
             try:
-                for svg_error in validate_svg(real.read_bytes()):
+                for svg_error in validate_svg(svg_bytes):
                     check(False, "SVG " + raw_path + ": " + svg_error)
             except (ET.ParseError, expat.ExpatError, ValueError) as exc:
                 check(False, "invalid SVG " + raw_path + ": " + str(exc))

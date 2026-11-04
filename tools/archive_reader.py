@@ -84,6 +84,12 @@ def _member_parts(name):
     return parts
 
 
+def _is_source_path(path):
+    """Whether a normalized project path is inside the reserved source tree."""
+    parts = pathlib.PurePosixPath(path).parts
+    return bool(parts and parts[0].casefold() == "source")
+
+
 def _preflight_end_record(stream, file_size, limits):
     """Validate classic ZIP directory structure before ZipFile parses it."""
     tail_size = min(file_size, 22 + 0xFFFF)
@@ -233,13 +239,14 @@ def _preflight(archive, limits):
     exact_names = set()
     normalized_names = {}
     portable_components = {}
+    path_kinds = {}
     total_uncompressed = 0
     allowed_compression = {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}
 
     for info in infos:
         name = info.filename
         parts = _member_parts(name)
-        if not info.is_dir() and not name.startswith("source/") and pathlib.PurePosixPath(name).suffix.lower() in {
+        if not info.is_dir() and not _is_source_path(name) and pathlib.PurePosixPath(name).suffix.lower() in {
             ".zip", ".motionpack", ".tar", ".tgz", ".gz", ".bz2", ".xz", ".7z", ".rar",
         }:
             _error("nested archive entries are unsupported")
@@ -263,6 +270,12 @@ def _preflight(archive, limits):
             if previous is not None and previous != spelling:
                 _error("archive path component collision")
             portable_components[prefix] = spelling
+
+            kind = "directory" if index < len(parts) - 1 or info.is_dir() else "file"
+            previous_kind = path_kinds.get(prefix)
+            if previous_kind is not None and previous_kind != kind:
+                _error("archive file/directory path collision")
+            path_kinds[prefix] = kind
 
         if info.flag_bits & 0x1:
             _error("encrypted archive entries are unsupported")
@@ -394,7 +407,7 @@ def read_package(path, *, limits=None):
                     if not isinstance(asset_id, str):
                         _error("invalid manifest asset ID")
                     asset_path = _canonical_asset_path(raw_path)
-                    if asset_path == "source" or asset_path.startswith("source/"):
+                    if _is_source_path(asset_path):
                         _error("source entries cannot be referenced as runtime assets")
                     key = unicodedata.normalize("NFC", asset_path)
                     info = canonical_entries.get(key)
