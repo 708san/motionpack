@@ -128,6 +128,10 @@ class FormatTests(unittest.TestCase):
                      b'\xff\xd8\xff\xc0\x00\x08\x08\x00\x00\x00\x00\x01'):
             with self.subTest(data=data), self.assertRaises(ValueError):
                 validator_module.parse_jpeg_dimensions(data)
+    def test_jpeg_zero_sof_height_is_rejected(self):
+        with self.assertRaisesRegex(ValueError,'dimensions'):
+            validator_module.parse_jpeg_dimensions(jpeg_header(320,0))
+        self.assertEqual(validator_module.parse_jpeg_dimensions(jpeg_header(320,240)),(320,240))
     def test_webp_dimension_preflight_variants_and_malformed_headers(self):
         for kind in (b'VP8X',b'VP8 ',b'VP8L'):
             with self.subTest(kind=kind):
