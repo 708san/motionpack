@@ -20,15 +20,17 @@ _SECRET_MARKERS = (
 )
 
 
-def _warn_secret_like_assets(asset_data):
-    for rel, data in asset_data.items():
+def _check_secret_like_assets(asset_data, *, fail_on_secret_like=False):
+    for ordinal, data in enumerate(asset_data.values(), start=1):
         categories = [name for name, pattern in _SECRET_MARKERS if pattern.search(data)]
         if categories:
-            print(
-                "MotionPack secret-like content in referenced asset " + json.dumps(rel, ensure_ascii=True)
-                + " (" + ", ".join(categories) + "); packaging continues and the asset bytes are included",
-                file=sys.stderr,
+            diagnostic = (
+                "MotionPack secret-like content in referenced asset #"
+                + str(ordinal) + " (" + ", ".join(categories) + ")"
             )
+            if fail_on_secret_like:
+                raise ValueError(diagnostic + "; strict scan rejected package")
+            print(diagnostic + "; packaging continues and the asset bytes are included", file=sys.stderr)
 
 def canonicalize_manifest(manifest):
     canonical_manifest = json.loads(json.dumps(manifest))
@@ -52,7 +54,7 @@ def canonicalize_manifest(manifest):
         canonical_manifest["assets"][aid] = canonical_path
     return canonical_manifest
 
-def build(folder, out):
+def build(folder, out, *, fail_on_secret_like=False):
     try:
         root = Path(folder).resolve()
     except RuntimeError as exc:
@@ -69,7 +71,7 @@ def build(folder, out):
         rel = canonical_manifest["assets"][asset_id]
         asset_data.setdefault(rel, asset_data_by_manifest_path[raw_path])
 
-    _warn_secret_like_assets(asset_data)
+    _check_secret_like_assets(asset_data, fail_on_secret_like=fail_on_secret_like)
 
     with tempfile.TemporaryDirectory(prefix="motionpack-build-") as snapshot_name:
         snapshot_root = Path(snapshot_name)
@@ -117,9 +119,14 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("project")
     p.add_argument("--out", default="dist")
+    p.add_argument(
+        "--fail-on-secret-like",
+        action="store_true",
+        help="fail before writing outputs when a referenced asset matches a known secret-like pattern",
+    )
     args = p.parse_args()
     try:
-        a, b = build(args.project, args.out)
+        a, b = build(args.project, args.out, fail_on_secret_like=args.fail_on_secret_like)
         print("Built:", a, a.stat().st_size, "bytes")
         print("Built:", b, b.stat().st_size, "bytes")
     except (OSError, ValueError, TypeError) as e:
