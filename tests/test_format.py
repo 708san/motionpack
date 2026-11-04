@@ -420,4 +420,26 @@ class FormatTests(unittest.TestCase):
                     build(d,pathlib.Path(tmp)/'dist')
             self.assertTrue(swapped)
             self.assertFalse((pathlib.Path(tmp)/'dist').exists())
+    def test_validate_rejects_fifo_swap_without_blocking(self):
+        if not (hasattr(os,'mkfifo') and getattr(os,'O_NONBLOCK',0)
+                and getattr(os,'O_NOFOLLOW',0) and getattr(os,'O_DIRECTORY',0)
+                and os.open in os.supports_dir_fd):
+            self.skipTest('nonblocking descriptor-relative file open unavailable')
+        with tempfile.TemporaryDirectory() as tmp:
+            d=self._copy(tmp)
+            manifest=json.loads((d/'manifest.json').read_text())
+            target=d/pathlib.PurePosixPath(next(iter(manifest['assets'].values())))
+            real_open=os.open
+            swapped=False
+            def open_with_fifo_swap(path,flags,*args,**kwargs):
+                nonlocal swapped
+                if kwargs.get('dir_fd') is not None and pathlib.Path(path).name==target.name and not swapped:
+                    target.unlink()
+                    os.mkfifo(target)
+                    swapped=True
+                return real_open(path,flags,*args,**kwargs)
+            with mock.patch.object(validator_module.os,'open',side_effect=open_with_fifo_swap):
+                errors,_=validate(d)
+            self.assertTrue(swapped)
+            self.assertTrue(any('SVG' in error and 'asset changed' in error for error in errors),errors)
 if __name__=='__main__':unittest.main()

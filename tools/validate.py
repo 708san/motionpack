@@ -338,8 +338,14 @@ def validate(folder, *, asset_data_sink=None):
             asset_data_sink[raw_path] = asset_bytes
         if real.suffix.lower() == ".svg" and size <= MAX_ASSET and real not in checked_svgs:
             checked_svgs.add(real)
+            svg_bytes = asset_bytes
+            if svg_bytes is None:
+                try:
+                    svg_bytes = read_stable_asset(root, real, MAX_ASSET, file_identity(asset_info))
+                except (OSError, ValueError) as exc:
+                    check(False, "unable to read SVG " + raw_path + ": " + str(exc))
+                    continue
             try:
-                svg_bytes = asset_bytes if asset_bytes is not None else real.read_bytes()
                 for svg_error in validate_svg(svg_bytes):
                     check(False, "SVG " + raw_path + ": " + svg_error)
             except (ET.ParseError, expat.ExpatError, ValueError) as exc:
