@@ -17,9 +17,15 @@ import zipfile
 import zlib
 
 try:
-    from .validate import MAX_ASSET, MAX_ASSETS, MAX_MANIFEST, MAX_TOTAL_ASSETS, check_json_nesting, validate
+    from .validate import (
+        MAX_ASSET, MAX_ASSETS, MAX_MANIFEST, MAX_PNG_DIMENSION, MAX_PNG_PIXELS,
+        MAX_TOTAL_ASSETS, MAX_TOTAL_PNG_PIXELS, PNG_SPEC_MAX_DIMENSION, check_json_nesting, validate,
+    )
 except ImportError:  # Support direct execution/import from the tools directory.
-    from validate import MAX_ASSET, MAX_ASSETS, MAX_MANIFEST, MAX_TOTAL_ASSETS, check_json_nesting, validate
+    from validate import (
+        MAX_ASSET, MAX_ASSETS, MAX_MANIFEST, MAX_PNG_DIMENSION, MAX_PNG_PIXELS,
+        MAX_TOTAL_ASSETS, MAX_TOTAL_PNG_PIXELS, PNG_SPEC_MAX_DIMENSION, check_json_nesting, validate,
+    )
 
 
 class ArchiveError(ValueError):
@@ -38,6 +44,9 @@ class ReaderLimits:
     max_total_assets_bytes: int = MAX_TOTAL_ASSETS
     max_total_uncompressed: int = 40 * 1024 * 1024
     max_compression_ratio: float = 100.0
+    max_png_dimension: int = MAX_PNG_DIMENSION
+    max_png_pixels: int = MAX_PNG_PIXELS
+    max_total_png_pixels: int = MAX_TOTAL_PNG_PIXELS
 
     def __post_init__(self):
         byte_limits = (
@@ -51,6 +60,11 @@ class ReaderLimits:
         )
         if any(type(value) is not int or value <= 0 for value in byte_limits):
             raise ValueError("reader integer limits must be positive")
+        png_limits = (self.max_png_dimension, self.max_png_pixels, self.max_total_png_pixels)
+        if any(type(value) is not int or value <= 0 for value in png_limits):
+            raise ValueError("reader PNG integer limits must be positive")
+        if self.max_png_dimension > PNG_SPEC_MAX_DIMENSION:
+            raise ValueError("reader PNG dimension limit exceeds PNG specification maximum")
         if not isinstance(self.max_compression_ratio, (int, float)) or not math.isfinite(self.max_compression_ratio) or self.max_compression_ratio <= 0:
             raise ValueError("reader compression ratio limit must be finite and positive")
 
@@ -432,21 +446,32 @@ def read_package(path, *, limits=None):
                     assets[asset_id] = loaded_by_entry[info.filename]
 
         # Reuse the existing v0.1/v0.2 semantic validator on a private temporary
-        # tree containing only the manifest and referenced assets. No ZIP member
-        # controls the temporary path and no caller-selected destination is used.
+        # tree containing only the manifest and referenced assets. Canonical entry
+        # paths ensure aliases of one ZIP entry count once for PNG pixel budgets.
+        # No ZIP member controls the temporary path and no caller-selected destination is used.
         with tempfile.TemporaryDirectory(prefix="motionpack-reader-") as temp_name:
             root = pathlib.Path(temp_name)
-            (root / "manifest.json").write_bytes(manifest_raw)
+            validation_manifest = dict(manifest)
+            validation_assets = dict(declared_assets)
+            for asset_id, info in resolved.items():
+                validation_assets[asset_id] = info.filename
+            validation_manifest["assets"] = validation_assets
+            validation_payload = json.dumps(validation_manifest).encode("utf-8")
+            (root / "manifest.json").write_bytes(validation_payload)
             by_path = {}
-            for asset_id in resolved:
-                asset_path = _canonical_asset_path(declared_assets[asset_id])
-                by_path.setdefault(asset_path, assets[asset_id])
+            for asset_id, info in resolved.items():
+                by_path.setdefault(info.filename, assets[asset_id])
             for relative_path, data in by_path.items():
                 destination = root.joinpath(*pathlib.PurePosixPath(relative_path).parts)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_bytes(data)
             try:
-                errors, _ = validate(root)
+                errors, _ = validate(
+                    root,
+                    max_png_dimension=limits.max_png_dimension,
+                    max_png_pixels=limits.max_png_pixels,
+                    max_total_png_pixels=limits.max_total_png_pixels,
+                )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError, OverflowError) as exc:
                 _error("invalid package manifest or assets", exc)
             if errors:

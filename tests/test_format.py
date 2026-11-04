@@ -3,11 +3,13 @@ import base64
 import os
 import pathlib
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import unittest
 import zipfile
+import zlib
 from unittest import mock
 ROOT=pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0,str(ROOT/'tools'))
@@ -15,6 +17,15 @@ import validate as validator_module
 from validate import validate
 import package as package_module
 from package import build
+
+def png_ihdr(width,height,*,bad_crc=False):
+    fields=struct.pack('>IIBBBBB',width,height,8,6,0,0,0)
+    chunk=b'IHDR'+fields
+    crc=zlib.crc32(chunk)&0xffffffff
+    if bad_crc:
+        crc^=1
+    return b'\x89PNG\r\n\x1a\n'+struct.pack('>I',13)+chunk+struct.pack('>I',crc)
+
 class FormatTests(unittest.TestCase):
     def test_examples_valid(self):
         for project in ('robot_demo','robot_ik_demo'):
@@ -34,6 +45,15 @@ class FormatTests(unittest.TestCase):
         d=pathlib.Path(tmp)/'project'
         shutil.copytree(ROOT/'examples'/'robot_ik_demo',d)
         return d
+    def _add_png_assets(self,folder,asset_specs):
+        manifest_path=folder/'manifest.json'
+        manifest=json.loads(manifest_path.read_text())
+        for aid,rel,width,height in asset_specs:
+            target=folder/rel
+            target.parent.mkdir(parents=True,exist_ok=True)
+            target.write_bytes(png_ihdr(width,height))
+            manifest['assets'][aid]=rel
+        manifest_path.write_text(json.dumps(manifest))
     def test_reject_traversal(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=self._copy(tmp)
@@ -50,6 +70,86 @@ class FormatTests(unittest.TestCase):
             (d/'manifest.json').write_text(json.dumps(manifest))
             errors,_=validate(d)
             self.assertTrue(any('unsafe path' in error for error in errors),errors)
+    def test_png_dimension_and_per_image_pixel_limits(self):
+        cases=(
+            ('edge_at_limit',8192,1,True),
+            ('edge_height_at_limit',1,8192,True),
+            ('edge_over_limit',8193,1,False),
+            ('edge_height_over_limit',1,8193,False),
+            ('pixels_at_limit',4000,4000,True),
+            ('pixels_over_limit',4001,4000,False),
+        )
+        for aid,width,height,accepted in cases:
+            with self.subTest(aid=aid), tempfile.TemporaryDirectory() as tmp:
+                project=self._copy(tmp)
+                self._add_png_assets(project,[(aid,'assets/'+aid+'.PNG',width,height)])
+                errors,_=validate(project)
+                if accepted:
+                    self.assertEqual(errors,[],errors)
+                else:
+                    self.assertTrue(any('PNG' in error and ('dimension' in error or 'pixel' in error) for error in errors),errors)
+                    with self.assertRaisesRegex(ValueError,'PNG'):
+                        build(project,pathlib.Path(tmp)/'dist')
+    def test_total_png_pixel_limit_counts_unique_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            specs=[(f'large_{i}',f'assets/large_{i}.png',4000,4000) for i in range(4)]
+            self._add_png_assets(project,specs)
+            errors,_=validate(project)
+            self.assertEqual(errors,[],errors)
+            self._add_png_assets(project,[('fifth','assets/large_4.png',4000,4000)])
+            errors,_=validate(project)
+            self.assertTrue(any('total PNG pixel budget exceeded' in error for error in errors),errors)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            specs=[(f'alias_{i}','assets/shared.png',4000,4000) for i in range(5)]
+            self._add_png_assets(project,specs)
+            errors,_=validate(project,max_total_png_pixels=16_000_000)
+            self.assertEqual(errors,[],errors)
+
+    def test_rejects_invalid_png_ihdr(self):
+        valid=png_ihdr(10,10)
+        wrong_chunk=bytearray(valid)
+        wrong_chunk[12:16]=b'IDAT'
+        wrong_length=bytearray(valid)
+        wrong_length[8:12]=struct.pack('>I',12)
+        bad_headers=(
+            b'not a png',valid[:32],bytes(wrong_chunk),bytes(wrong_length),
+            png_ihdr(0,10),png_ihdr(10,0),png_ihdr(10,10,bad_crc=True),
+        )
+        for index,data in enumerate(bad_headers):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as tmp:
+                project=self._copy(tmp)
+                (project/'assets'/'bad.png').write_bytes(data)
+                manifest=json.loads((project/'manifest.json').read_text())
+                manifest['assets']['bad']='assets/bad.png'
+                (project/'manifest.json').write_text(json.dumps(manifest))
+                errors,_=validate(project)
+                self.assertTrue(any('invalid PNG header' in error for error in errors),errors)
+    def test_png_ihdr_rejects_dimensions_above_png_spec_even_with_permissive_limits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            self._add_png_assets(project,[('too_wide','assets/too_wide.png',0x80000000,1)])
+            errors,_=validate(
+                project,
+                max_png_dimension=0xFFFFFFFF,
+                max_png_pixels=0xFFFFFFFF,
+                max_total_png_pixels=0xFFFFFFFF,
+            )
+            self.assertTrue(any('invalid PNG header' in error for error in errors),errors)
+    def test_png_dimension_checks_are_scoped_to_png_extension(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            self._add_png_assets(project,[('png_bytes_jpg_path','assets/misnamed.jpg',8193,1)])
+            errors,_=validate(project)
+            self.assertEqual(errors,[],errors)
+    def test_png_header_preflight_does_not_validate_image_data(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            self._add_png_assets(project,[('header_only','assets/header_only.png',1,1)])
+            errors,_=validate(project)
+            self.assertEqual(errors,[],errors)
     def test_validate_allows_noncanonical_asset_path_aliases(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=self._copy(tmp)

@@ -10,6 +10,7 @@ import tempfile
 import warnings
 import unittest
 import zipfile
+import zlib
 from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -17,6 +18,12 @@ sys.path.insert(0, str(ROOT / "tools"))
 import archive_reader
 from archive_reader import ArchiveError, ReaderLimits, read_package
 from package import build
+
+def png_ihdr(width,height):
+    fields=struct.pack('>IIBBBBB',width,height,8,6,0,0,0)
+    chunk=b'IHDR'+fields
+    crc=zlib.crc32(chunk)&0xffffffff
+    return b'\x89PNG\r\n\x1a\n'+struct.pack('>I',13)+chunk+struct.pack('>I',crc)
 
 
 class NonSeekableBuffer(io.BytesIO):
@@ -277,6 +284,10 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_rejects_invalid_reader_limits(self):
         with self.assertRaisesRegex(ValueError, "positive"):
             ReaderLimits(max_entries=0)
+        with self.assertRaisesRegex(ValueError, "PNG integer limits"):
+            ReaderLimits(max_total_png_pixels=0)
+        with self.assertRaisesRegex(ValueError, "PNG specification maximum"):
+            ReaderLimits(max_png_dimension=0x80000000)
         with self.assertRaisesRegex(ValueError, "finite"):
             ReaderLimits(max_compression_ratio=float("inf"))
 
@@ -312,6 +323,99 @@ class ArchiveReaderTests(unittest.TestCase):
                 read_package(path, limits=ReaderLimits(max_manifest_bytes=1))
             with self.assertRaisesRegex(ArchiveError, "asset size"):
                 read_package(path, limits=ReaderLimits(max_asset_bytes=1))
+
+    def test_archive_reader_enforces_png_limits_and_unique_entry_accounting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets']['pixel']='assets/pixel.png'
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
+            entries.append(('assets/pixel.png',png_ihdr(2,2)))
+            archive=self._zip(pathlib.Path(tmp)/'png-limits.motionpack',entries)
+
+            with self.assertRaisesRegex(ArchiveError,'PNG pixel limit exceeded'):
+                read_package(archive,limits=ReaderLimits(max_png_dimension=2,max_png_pixels=3,max_total_png_pixels=4))
+            with self.assertRaisesRegex(ArchiveError,'PNG dimension limit exceeded'):
+                read_package(archive,limits=ReaderLimits(max_png_dimension=1,max_png_pixels=4,max_total_png_pixels=4))
+            result=read_package(archive,limits=ReaderLimits(max_png_dimension=2,max_png_pixels=4,max_total_png_pixels=4))
+            self.assertIn('pixel',result.assets)
+
+    def test_archive_reader_rejects_invalid_png_ihdr(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets']['bad_png']='assets/bad.png'
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
+            entries.append(('assets/bad.png',b'not a png'))
+            archive=self._zip(pathlib.Path(tmp)/'invalid-png.motionpack',entries)
+            with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid PNG header'):
+                read_package(archive)
+
+    def test_archive_reader_png_limits_are_scoped_to_png_extension(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets']['png_bytes_jpg_path']='assets/misnamed.jpg'
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
+            entries.append(('assets/misnamed.jpg',png_ihdr(8193,1)))
+            archive=self._zip(pathlib.Path(tmp)/'misnamed-png.motionpack',entries)
+            result=read_package(archive)
+            self.assertIn('png_bytes_jpg_path',result.assets)
+
+    def test_archive_reader_rejects_png_spec_dimensions_above_permissive_limits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets']['too_wide']='assets/too_wide.png'
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
+            entries.append(('assets/too_wide.png',png_ihdr(0x80000000,1)))
+            archive=self._zip(pathlib.Path(tmp)/'png-spec-dimension.motionpack',entries)
+            permissive=ReaderLimits(
+                max_png_dimension=0x7FFFFFFF,
+                max_png_pixels=0xFFFFFFFF,
+                max_total_png_pixels=0xFFFFFFFF,
+            )
+            with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid PNG header'):
+                read_package(archive,limits=permissive)
+
+    def test_archive_reader_enforces_aggregate_png_pixel_limit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            for index in range(5):
+                rel=f'assets/pixel_{index}.png'
+                manifest['assets'][f'pixel_{index}']=rel
+                entries.append((rel,png_ihdr(2,2)))
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
+            archive=self._zip(pathlib.Path(tmp)/'png-total-limit.motionpack',entries)
+            limits=ReaderLimits(max_png_dimension=2,max_png_pixels=4,max_total_png_pixels=16)
+            with self.assertRaisesRegex(ArchiveError,'total PNG pixel budget exceeded'):
+                read_package(archive,limits=limits)
+
+    def test_archive_reader_counts_unicode_path_aliases_as_one_png_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets']['pixel_composed']='assets/é.png'
+            manifest['assets']['pixel_decomposed']='assets/e\u0301.png'
+            entries=[(name,json.dumps(manifest,ensure_ascii=False).encode() if name=='manifest.json' else data) for name,data in entries]
+            entries.append(('assets/é.png',png_ihdr(2,2)))
+            archive=self._zip(pathlib.Path(tmp)/'png-aliases.motionpack',entries)
+            limits=ReaderLimits(max_png_dimension=2,max_png_pixels=4,max_total_png_pixels=4)
+            result=read_package(archive,limits=limits)
+            self.assertEqual(result.assets['pixel_composed'],result.assets['pixel_decomposed'])
 
     def test_rejects_truncated_or_non_zip_input(self):
         with tempfile.TemporaryDirectory() as tmp:

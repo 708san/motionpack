@@ -9,7 +9,9 @@ import os
 import pathlib
 import re
 import stat
+import struct
 import sys
+import zlib
 import xml.etree.ElementTree as ET
 from xml.parsers import expat
 
@@ -19,6 +21,10 @@ SVG_TAGS = {"svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline",
 MAX_MANIFEST = 1024 * 1024
 MAX_ASSET = 12 * 1024 * 1024
 MAX_TOTAL_ASSETS = 32 * 1024 * 1024
+MAX_PNG_DIMENSION = 8192
+MAX_PNG_PIXELS = 16_000_000
+MAX_TOTAL_PNG_PIXELS = 64_000_000
+PNG_SPEC_MAX_DIMENSION = 0x7FFFFFFF
 MAX_NODES = 1000
 MAX_ASSETS = 512
 MAX_TRACKS = 2000
@@ -32,6 +38,33 @@ SVG_NAMESPACE = "http://www.w3.org/2000/svg"
 SUPPORTS_DIR_FD_OPEN = os.open in os.supports_dir_fd
 SVG_URL = re.compile(r"url\s*\(", re.I)
 SVG_LOCAL_URL = re.compile(r"url\(\s*(?:#([A-Za-z_][A-Za-z0-9_.:-]*)|(['\"])#([A-Za-z_][A-Za-z0-9_.:-]*)\2)\s*\)", re.I)
+
+def parse_png_dimensions(data):
+    """Read and validate only the PNG signature and first IHDR chunk."""
+    if len(data) < 33 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("invalid PNG signature or truncated IHDR")
+    if struct.unpack_from(">I", data, 8)[0] != 13 or data[12:16] != b"IHDR":
+        raise ValueError("invalid PNG IHDR framing")
+    ihdr = data[16:29]
+    expected_crc = struct.unpack_from(">I", data, 29)[0]
+    if zlib.crc32(data[12:29]) & 0xFFFFFFFF != expected_crc:
+        raise ValueError("invalid PNG IHDR CRC")
+
+    width, height, bit_depth, color_type, compression, filter_method, interlace = struct.unpack(
+        ">IIBBBBB", ihdr
+    )
+    valid_depths = {
+        0: {1, 2, 4, 8, 16},
+        2: {8, 16},
+        3: {1, 2, 4, 8},
+        4: {8, 16},
+        6: {8, 16},
+    }
+    if (width == 0 or height == 0 or width > PNG_SPEC_MAX_DIMENSION or height > PNG_SPEC_MAX_DIMENSION
+            or bit_depth not in valid_depths.get(color_type, set())
+            or compression != 0 or filter_method != 0 or interlace not in (0, 1)):
+        raise ValueError("invalid PNG IHDR values")
+    return width, height
 
 def file_identity(info):
     return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
@@ -240,7 +273,11 @@ def check_json_nesting(text):
         elif char in "]}" and depth:
             depth -= 1
 
-def validate(folder, *, asset_data_sink=None):
+def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSION,
+             max_png_pixels=MAX_PNG_PIXELS, max_total_png_pixels=MAX_TOTAL_PNG_PIXELS):
+    png_limits = (max_png_dimension, max_png_pixels, max_total_png_pixels)
+    if any(type(value) is not int or value <= 0 for value in png_limits):
+        raise ValueError("PNG integer limits must be positive")
     try:
         root = pathlib.Path(folder).resolve()
     except RuntimeError as exc:
@@ -281,6 +318,8 @@ def validate(folder, *, asset_data_sink=None):
     check(len(iks) <= MAX_NODES, "too many inverse-kinematics chains")
     total_size = 0
     checked_svgs = set()
+    checked_pngs = set()
+    total_png_pixels = 0
     captured_assets = {}
     for aid, raw_path in assets.items():
         if not isinstance(aid, str) or not isinstance(raw_path, str):
@@ -350,6 +389,28 @@ def validate(folder, *, asset_data_sink=None):
                     check(False, "SVG " + raw_path + ": " + svg_error)
             except (ET.ParseError, expat.ExpatError, ValueError) as exc:
                 check(False, "invalid SVG " + raw_path + ": " + str(exc))
+        elif real.suffix.lower() == ".png" and size <= MAX_ASSET and real not in checked_pngs:
+            checked_pngs.add(real)
+            png_bytes = asset_bytes
+            if png_bytes is None:
+                try:
+                    png_bytes = read_stable_asset(root, real, MAX_ASSET, file_identity(asset_info))
+                except (OSError, ValueError) as exc:
+                    check(False, "unable to read PNG header " + raw_path + ": " + str(exc))
+                    continue
+            try:
+                width, height = parse_png_dimensions(png_bytes)
+            except (ValueError, struct.error) as exc:
+                check(False, "invalid PNG header " + raw_path + ": " + str(exc))
+                continue
+            if not check(width <= max_png_dimension and height <= max_png_dimension,
+                         "PNG dimension limit exceeded for " + raw_path):
+                continue
+            pixels = width * height
+            if not check(pixels <= max_png_pixels, "PNG pixel limit exceeded for " + raw_path):
+                continue
+            total_png_pixels += pixels
+            check(total_png_pixels <= max_total_png_pixels, "total PNG pixel budget exceeded")
     check(total_size <= MAX_TOTAL_ASSETS, "total asset budget exceeded")
     ids = [n.get("id") for n in nodes if isinstance(n, dict)]
     check(len(ids) == len(nodes) and all(isinstance(x, str) and x for x in ids) and len(set(ids)) == len(ids),

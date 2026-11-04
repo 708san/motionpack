@@ -14,6 +14,20 @@ referenced assets, 40 MiB total declared expansion, and a 100:1 compression
 ratio. These are configurable tool defaults, not format-wide limits. ZIP64 and
 multi-disk archives are rejected.
 
+For asset paths ending in `.png` (case-insensitively), the validator and reader
+inspect the PNG signature and first IHDR chunk before any decoder is involved.
+PNG data stored under another extension is not detected by this check. Default
+tool ceilings are 8,192 pixels per edge,
+16,000,000 pixels per referenced PNG and 64,000,000 pixels total across
+distinct referenced PNG paths or archive entries. The IHDR CRC is checked,
+but later chunks and image data are not parsed or decoded. These are tool
+acceptance limits, not format-wide rules, and they do not protect a later
+decoder from malformed image data. Current tools may reject older v0.1/v0.2
+packages over these ceilings despite no schema or format-version change. JPEG
+and WebP dimension limits are not yet implemented. Reader callers can adjust
+the tool ceilings; the PNG specification's 2^31−1 maximum dimension is always
+enforced.
+
 This reader is not a sandbox or a production security guarantee. The validator
 now rejects XML DTDs/entities, foreign namespaces, unsafe SVG attributes and
 external CSS/URL references, and bounds SVG nesting, element count, attributes
