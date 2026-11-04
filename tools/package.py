@@ -5,11 +5,30 @@ import argparse
 import base64
 import json
 import mimetypes
+import re
 import sys
 import tempfile
 import unicodedata
 import zipfile
 from validate import validate
+
+_SECRET_MARKERS = (
+    ("private-key header", re.compile(rb"-----BEGIN (?:(?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY|ENCRYPTED PRIVATE KEY|PGP PRIVATE KEY BLOCK)-----")),
+    ("GitHub token-like value", re.compile(rb"(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})")),
+    ("OpenAI key-like value", re.compile(rb"sk-(?:proj-)?[A-Za-z0-9_-]{20,}")),
+    ("AWS access-key ID-like value", re.compile(rb"(?:AKIA|ASIA)[A-Z0-9]{16}")),
+)
+
+
+def _warn_secret_like_assets(asset_data):
+    for rel, data in asset_data.items():
+        categories = [name for name, pattern in _SECRET_MARKERS if pattern.search(data)]
+        if categories:
+            print(
+                "MotionPack secret-like content in referenced asset " + json.dumps(rel, ensure_ascii=True)
+                + " (" + ", ".join(categories) + "); packaging continues and the asset bytes are included",
+                file=sys.stderr,
+            )
 
 def canonicalize_manifest(manifest):
     canonical_manifest = json.loads(json.dumps(manifest))
@@ -49,6 +68,8 @@ def build(folder, out):
     for asset_id, raw_path in manifest["assets"].items():
         rel = canonical_manifest["assets"][asset_id]
         asset_data.setdefault(rel, asset_data_by_manifest_path[raw_path])
+
+    _warn_secret_like_assets(asset_data)
 
     with tempfile.TemporaryDirectory(prefix="motionpack-build-") as snapshot_name:
         snapshot_root = Path(snapshot_name)
