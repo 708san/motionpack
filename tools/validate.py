@@ -17,7 +17,28 @@ from xml.parsers import expat
 
 ALLOWED_PROPERTIES = {"x", "y", "rotation", "opacity", "scale"}
 ALLOWED_EFFECTS = {"beam", "ring", "burst"}
-SVG_TAGS = {"svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "defs", "lineargradient", "radialgradient", "stop"}
+SVG_CANONICAL_TAGS = {
+    "svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
+    "defs", "linearGradient", "radialGradient", "stop",
+}
+SVG_PAINT_ATTRIBUTES = {
+    "fill", "stroke", "stroke-width", "opacity",
+}
+SVG_ATTRIBUTES = {
+    "svg": {"width", "height", "viewBox"},
+    "g": set(),
+    "path": {"d"} | SVG_PAINT_ATTRIBUTES,
+    "rect": {"x", "y", "width", "height", "rx", "ry"} | SVG_PAINT_ATTRIBUTES,
+    "circle": {"cx", "cy", "r"} | SVG_PAINT_ATTRIBUTES,
+    "ellipse": {"cx", "cy", "rx", "ry"} | SVG_PAINT_ATTRIBUTES,
+    "line": {"x1", "y1", "x2", "y2", "stroke", "stroke-width", "opacity"},
+    "polyline": {"points"} | SVG_PAINT_ATTRIBUTES,
+    "polygon": {"points"} | SVG_PAINT_ATTRIBUTES,
+    "defs": set(),
+    "lineargradient": {"id"},
+    "radialgradient": {"id"},
+    "stop": {"offset", "stop-color"},
+}
 MAX_MANIFEST = 1024 * 1024
 MAX_ASSET = 12 * 1024 * 1024
 MAX_TOTAL_ASSETS = 32 * 1024 * 1024
@@ -484,34 +505,36 @@ def validate_svg(data):
         return "", name
 
     root_namespace, root_name = split_name(svg.tag)
-    check(root_name.lower() == "svg", "root element must be svg")
+    check(root_name == "svg", "root element must be svg")
     check(root_namespace in ("", SVG_NAMESPACE), "unsupported SVG namespace")
     ids = {}
     references = []
     for element in svg.iter():
         namespace, tag = split_name(element.tag)
-        tag = tag.lower()
+        tag_key = tag.lower()
         check(namespace == root_namespace, "mixed SVG element namespaces are forbidden")
-        check(tag in SVG_TAGS, "forbidden SVG element " + tag)
+        check(tag in SVG_CANONICAL_TAGS, "forbidden SVG element " + tag)
         check(not (element.text and element.text.strip()), "SVG text content is forbidden")
+        check(not (element.tail and element.tail.strip()), "SVG text content is forbidden")
         for raw_attr, value in element.attrib.items():
             attr_namespace, attr = split_name(raw_attr)
-            attr = attr.lower()
+            normalized_attr = attr.lower()
             check(attr_namespace == "", "namespaced SVG attributes are forbidden")
-            check(not attr.startswith("on") and attr not in ("href", "src", "style", "base"),
+            check(attr in SVG_ATTRIBUTES.get(tag_key, set()), "unsupported SVG attribute " + attr)
+            check(not normalized_attr.startswith("on") and normalized_attr not in ("href", "src", "style", "base"),
                   "unsafe SVG attribute " + attr)
             check("@import" not in value.lower(), "SVG import forbidden")
             check("\\" not in value and "/*" not in value and "*/" not in value,
                   "SVG CSS escapes and comments are forbidden")
-            if attr == "id":
+            if normalized_attr == "id":
                 check(value not in ids, "duplicate SVG id " + value)
-                ids[value] = tag
+                ids[value] = tag_key
             if SVG_URL.search(value):
                 match = SVG_LOCAL_URL.fullmatch(value.strip())
-                check(match is not None and attr in ("fill", "stroke"),
+                check(match is not None and normalized_attr in ("fill", "stroke"),
                       "unsafe SVG URL reference")
-                if match is not None and attr in ("fill", "stroke"):
-                    references.append((match.group(1) or match.group(3), attr))
+                if match is not None and normalized_attr in ("fill", "stroke"):
+                    references.append((match.group(1) or match.group(3), normalized_attr))
     for target, _attribute in references:
         check(ids.get(target) in ("lineargradient", "radialgradient"),
               "SVG URL reference must target a local gradient id")

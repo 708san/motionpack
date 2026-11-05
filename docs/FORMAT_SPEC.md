@@ -21,7 +21,23 @@ Timeline values are in milliseconds. Rendering uses timestamp sampling. Visual e
 
 ### Experimental SVG subset
 
-The v0.1/v0.2 validator accepts only static SVG elements in its documented allowlist and either the standard SVG namespace or no namespace. It rejects XML DTDs, entity declarations, processing instructions, foreign namespaces, scripts/event attributes, CSS style attributes, external references and CSS escape/comment syntax. XML nesting (128), element count (10,000), attributes per element (128) and attribute-value size (64 KiB) are bounded by the validator. A `url(#id)` reference is accepted only as the complete value of `fill` or `stroke`, and only when `id` names a gradient in that same SVG document. External URLs and references to other element types are rejected. This narrows some SVGs that older validator versions may have accepted; existing v0.1/v0.2 examples remain supported. These checks do not sanitize SVG for arbitrary renderers or provide a production security boundary.
+The v0.1/v0.2 validator accepts only static SVG elements in its documented allowlist and either the standard SVG namespace or no namespace. Attribute names are case-sensitive and restricted by element as follows; attributes not listed here are rejected:
+
+| Element | Accepted attributes |
+|---|---|
+| `svg` | `width`, `height`, `viewBox` |
+| `g` | none |
+| `path` | `d`, plus the paint attributes below |
+| `rect` | `x`, `y`, `width`, `height`, `rx`, `ry`, plus the paint attributes below |
+| `circle` | `cx`, `cy`, `r`, plus the paint attributes below |
+| `ellipse` | `cx`, `cy`, `rx`, `ry`, plus the paint attributes below |
+| `line` | `x1`, `y1`, `x2`, `y2`, `stroke`, `stroke-width`, `opacity` |
+| `polyline`, `polygon` | `points`, plus the paint attributes below |
+| `defs` | none |
+| `linearGradient`, `radialGradient` | `id` |
+| `stop` | `offset`, `stop-color` |
+
+The paint attributes are `fill`, `stroke`, `stroke-width`, and `opacity`. `id` is accepted only on gradient elements. Attribute values are not comprehensively validated against every SVG value grammar; the existing size and URL checks still apply. XML DTDs, entity declarations, processing instructions, foreign namespaces, scripts/event attributes, CSS style attributes, external references and CSS escape/comment syntax are rejected. XML nesting (128), element count (10,000), attributes per element (128) and attribute-value size (64 KiB) are bounded by the validator. A `url(#id)` reference is accepted only as the complete value of `fill` or `stroke`, and only when `id` names a gradient in that same SVG document. External URLs and references to other element types are rejected. This validator update narrows some SVGs that earlier validator versions may have accepted, without changing the v0.1/v0.2 manifest versions; existing repository fixtures remain supported. A v0.1/v0.2 asset using an attribute outside this table must be revalidated and have that attribute removed or converted to a supported form. Preserve the original SVG and its provenance when making such edits; external legacy assets have not been inventoried. These checks do not sanitize SVG for arbitrary renderers or provide a production security boundary.
 
 The current SVG rendering profile is the generated offline `preview.html`: it embeds each referenced asset as a data URL, loads it through the browser's `HTMLImageElement` (`new Image()`), and draws it with the Canvas 2D API. This describes the implementation path, not a certified browser or version support matrix. The project has no browser conformance matrix, does not promise pixel-identical output across browsers, and does not guarantee that every SVG accepted by the validator renders identically in every browser. Other MotionPack runtimes may support different SVG subsets. Loading SVG as an image does not sanitize or isolate the browser's SVG parser, bound rendering CPU or memory, or make the validator's acceptance a security approval for another renderer.
 

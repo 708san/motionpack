@@ -25,6 +25,7 @@ SEED_FILES = (
     "invalid_doctype.svg",
     "invalid_external_reference.svg",
     "invalid_css_url.svg",
+    "invalid_unknown_attribute.svg",
     "malformed_xml.svg",
 )
 VALID_SEEDS = {"valid_minimal.svg", "valid_gradient.svg"}
