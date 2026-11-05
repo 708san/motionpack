@@ -48,11 +48,36 @@ now rejects XML DTDs/entities, foreign namespaces, unsafe SVG attributes and
 external CSS/URL references, and bounds SVG nesting, element count, attributes
 per element and attribute values. It permits only a local `url(#id)` gradient reference in
 `fill` or `stroke`. This is a limited static SVG subset check, not a sanitizer
-for arbitrary renderers. Raster image decoders are not isolated, and the
-standard-library ZIP parser has only a small deterministic mutation smoke test;
-it has not had sustained or coverage-guided fuzzing and is not isolated.
-CPU/time limits have not been independently measured. Keep packages and their
-assets untrusted.
+for arbitrary renderers. Raster image decoders are not isolated. The ZIP
+reader now has a bounded Atheris coverage-guided target with a 15-second
+pull-request run and a 120-second weekly/manual run. The fuzz input is capped
+at 64 KiB, each case has a 2-second timeout, and the job has a 5-minute limit.
+This is an early smoke budget, not sustained fuzzing; the ZIP parser is not
+isolated and CPU/time behavior outside these limits remains unmeasured. Keep
+packages and their assets untrusted.
+
+The target and synthetic seed corpus are in `tests/fuzz_archive_reader.py`
+and `tests/fuzz_corpus/archive_reader/`. It accepts only the six reviewed
+regular-file seeds, caps the corpus at 16 files / 1 MiB and each seed at
+64 KiB, and copies them to a temporary directory before fuzzing so direct
+invocation cannot mutate the checked-in corpus. It exercises
+`read_package(path)` and accepts only `ArchiveError` as an expected rejection;
+unexpected exceptions or inconsistent successful results fail the run. On Linux x86-64 with CPython
+3.12, install the hash-pinned test-only dependency and run a local budget with:
+
+```sh
+python3.12 -m venv /tmp/motionpack-fuzz-venv
+/tmp/motionpack-fuzz-venv/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-fuzz.txt
+mkdir -p /tmp/motionpack-fuzz-artifacts
+/tmp/motionpack-fuzz-venv/bin/python tests/fuzz_archive_reader.py tests/fuzz_corpus/archive_reader -max_total_time=120 -timeout=2 -max_len=65536 -rss_limit_mb=1024 -seed=317770 -artifact_prefix=/tmp/motionpack-fuzz-artifacts/
+```
+
+Atheris is test-only and does not enter the runtime package. Version 3.1.0 is
+pinned to the Linux CPython 3.12 wheel hash; the upstream project is Apache-2.0.
+PyPI lists no provenance attestation for this release, so the workflow uses a
+hash-locked wheel in an isolated environment, with read-only repository
+permissions and no secrets. Review generated crash inputs before adding them
+as regression fixtures; the workflow does not upload or commit fuzz outputs.
 
 The project packager emits only `manifest.json` and its referenced runtime
 assets; it does not automatically add unreferenced project files or `source/`.
