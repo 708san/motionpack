@@ -40,19 +40,23 @@ SVG_URL = re.compile(r"url\s*\(", re.I)
 SVG_LOCAL_URL = re.compile(r"url\(\s*(?:#([A-Za-z_][A-Za-z0-9_.:-]*)|(['\"])#([A-Za-z_][A-Za-z0-9_.:-]*)\2)\s*\)", re.I)
 
 
+class RasterHeaderError(ValueError):
+    """A malformed or unsupported raster header was rejected."""
+
+
 class RasterLimitError(ValueError):
     """A raster header exceeds a configured dimension or per-image limit."""
 
 def parse_png_dimensions(data):
     """Read and validate only the PNG signature and first IHDR chunk."""
     if len(data) < 33 or data[:8] != b"\x89PNG\r\n\x1a\n":
-        raise ValueError("invalid PNG signature or truncated IHDR")
+        raise RasterHeaderError("invalid PNG signature or truncated IHDR")
     if struct.unpack_from(">I", data, 8)[0] != 13 or data[12:16] != b"IHDR":
-        raise ValueError("invalid PNG IHDR framing")
+        raise RasterHeaderError("invalid PNG IHDR framing")
     ihdr = data[16:29]
     expected_crc = struct.unpack_from(">I", data, 29)[0]
     if zlib.crc32(data[12:29]) & 0xFFFFFFFF != expected_crc:
-        raise ValueError("invalid PNG IHDR CRC")
+        raise RasterHeaderError("invalid PNG IHDR CRC")
 
     width, height, bit_depth, color_type, compression, filter_method, interlace = struct.unpack(
         ">IIBBBBB", ihdr
@@ -67,96 +71,96 @@ def parse_png_dimensions(data):
     if (width == 0 or height == 0 or width > PNG_SPEC_MAX_DIMENSION or height > PNG_SPEC_MAX_DIMENSION
             or bit_depth not in valid_depths.get(color_type, set())
             or compression != 0 or filter_method != 0 or interlace not in (0, 1)):
-        raise ValueError("invalid PNG IHDR values")
+        raise RasterHeaderError("invalid PNG IHDR values")
     return width, height
 
 
 def parse_jpeg_dimensions(data):
     """Read JPEG dimensions from a bounded marker scan before the first scan."""
     if len(data) < 4 or data[:2] != b"\xff\xd8":
-        raise ValueError("invalid JPEG signature")
+        raise RasterHeaderError("invalid JPEG signature")
 
     sof_markers = set(range(0xC0, 0xC4)) | set(range(0xC5, 0xC8)) | set(range(0xC9, 0xCC)) | set(range(0xCD, 0xD0))
     position = 2
     while position < len(data):
         if data[position] != 0xFF:
-            raise ValueError("invalid JPEG marker framing")
+            raise RasterHeaderError("invalid JPEG marker framing")
         while position < len(data) and data[position] == 0xFF:
             position += 1
         if position >= len(data):
-            raise ValueError("truncated JPEG marker")
+            raise RasterHeaderError("truncated JPEG marker")
         marker = data[position]
         position += 1
         if marker == 0x00:
-            raise ValueError("unexpected stuffed JPEG marker")
+            raise RasterHeaderError("unexpected stuffed JPEG marker")
         if marker == 0xD8:
-            raise ValueError("unexpected nested JPEG start marker")
+            raise RasterHeaderError("unexpected nested JPEG start marker")
         if marker == 0xD9:
-            raise ValueError("JPEG dimensions are missing")
+            raise RasterHeaderError("JPEG dimensions are missing")
         if 0xD0 <= marker <= 0xD7:
-            raise ValueError("unexpected JPEG restart marker")
+            raise RasterHeaderError("unexpected JPEG restart marker")
         if marker == 0x01:
             continue
         if marker == 0xDA:
-            raise ValueError("JPEG dimensions are missing before scan data")
+            raise RasterHeaderError("JPEG dimensions are missing before scan data")
         if position + 2 > len(data):
-            raise ValueError("truncated JPEG segment length")
+            raise RasterHeaderError("truncated JPEG segment length")
         segment_length = struct.unpack_from(">H", data, position)[0]
         if segment_length < 2 or position + segment_length > len(data):
-            raise ValueError("invalid or truncated JPEG segment")
+            raise RasterHeaderError("invalid or truncated JPEG segment")
         segment_start = position + 2
         segment_end = position + segment_length
         if marker in sof_markers:
             if segment_length < 8:
-                raise ValueError("invalid JPEG frame header")
+                raise RasterHeaderError("invalid JPEG frame header")
             precision = data[segment_start]
             height, width = struct.unpack_from(">HH", data, segment_start + 1)
             components = data[segment_start + 5]
             if segment_length != 8 + 3 * components or components == 0:
-                raise ValueError("invalid JPEG frame header length")
+                raise RasterHeaderError("invalid JPEG frame header length")
             if precision == 0 or width == 0 or height == 0:
-                raise ValueError("invalid JPEG frame dimensions")
+                raise RasterHeaderError("invalid JPEG frame dimensions")
             return width, height
         position = segment_end
-    raise ValueError("JPEG dimensions are missing")
+    raise RasterHeaderError("JPEG dimensions are missing")
 
 
 def _parse_webp_bitstream_dimensions(chunk_type, data, payload_start, payload_end):
     if chunk_type == b"VP8 ":
         if payload_end - payload_start < 10:
-            raise ValueError("truncated WebP VP8 frame header")
+            raise RasterHeaderError("truncated WebP VP8 frame header")
         frame = data[payload_start:payload_start + 10]
         if frame[0] & 1 or frame[3:6] != b"\x9d\x01\x2a":
-            raise ValueError("invalid WebP VP8 frame signature")
+            raise RasterHeaderError("invalid WebP VP8 frame signature")
         width = int.from_bytes(frame[6:8], "little") & 0x3FFF
         height = int.from_bytes(frame[8:10], "little") & 0x3FFF
         if not width or not height:
-            raise ValueError("invalid WebP VP8 dimensions")
+            raise RasterHeaderError("invalid WebP VP8 dimensions")
         return width, height
     if chunk_type == b"VP8L":
         if payload_end - payload_start < 5:
-            raise ValueError("truncated WebP VP8L header")
+            raise RasterHeaderError("truncated WebP VP8L header")
         header = data[payload_start:payload_start + 5]
         if header[0] != 0x2F or header[4] & 0xE0:
-            raise ValueError("invalid WebP VP8L header")
+            raise RasterHeaderError("invalid WebP VP8L header")
         bits = int.from_bytes(header[1:5], "little")
         return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
-    raise ValueError("unsupported WebP bitstream chunk")
+    raise RasterHeaderError("unsupported WebP bitstream chunk")
 
 
 def _parse_webp_frame(data, payload_start, payload_end, canvas_width, canvas_height,
                       max_dimension, max_pixels):
     if payload_end - payload_start < 16:
-        raise ValueError("truncated WebP animation frame header")
+        raise RasterHeaderError("truncated WebP animation frame header")
     frame_x = int.from_bytes(data[payload_start:payload_start + 3], "little") * 2
     frame_y = int.from_bytes(data[payload_start + 3:payload_start + 6], "little") * 2
     frame_width = 1 + int.from_bytes(data[payload_start + 6:payload_start + 9], "little")
     frame_height = 1 + int.from_bytes(data[payload_start + 9:payload_start + 12], "little")
     flags = data[payload_start + 15]
     if flags & 0xFC:
-        raise ValueError("invalid WebP animation frame reserved bits")
+        raise RasterHeaderError("invalid WebP animation frame reserved bits")
     if frame_x + frame_width > canvas_width or frame_y + frame_height > canvas_height:
-        raise ValueError("WebP animation frame exceeds canvas bounds")
+        raise RasterHeaderError("WebP animation frame exceeds canvas bounds")
     if max_dimension is not None and (frame_width > max_dimension or frame_height > max_dimension):
         raise RasterLimitError("WebP frame dimension limit exceeded")
     frame_pixels = frame_width * frame_height
@@ -168,46 +172,46 @@ def _parse_webp_frame(data, payload_start, payload_end, canvas_width, canvas_hei
     found_bitstream = False
     while position < payload_end:
         if position + 8 > payload_end:
-            raise ValueError("truncated WebP animation frame subchunk")
+            raise RasterHeaderError("truncated WebP animation frame subchunk")
         chunk_type = data[position:position + 4]
         chunk_size = struct.unpack_from("<I", data, position + 4)[0]
         subchunk_start = position + 8
         subchunk_end = subchunk_start + chunk_size
         subchunk_next = subchunk_end + (chunk_size & 1)
         if subchunk_end > payload_end or subchunk_next > payload_end:
-            raise ValueError("WebP animation frame subchunk exceeds frame bounds")
+            raise RasterHeaderError("WebP animation frame subchunk exceeds frame bounds")
         if chunk_size & 1 and data[subchunk_end] != 0:
-            raise ValueError("invalid WebP animation frame subchunk padding")
+            raise RasterHeaderError("invalid WebP animation frame subchunk padding")
         if chunk_type == b"ALPH":
             if found_alpha or found_bitstream or chunk_size < 1:
-                raise ValueError("invalid WebP animation alpha subchunk")
+                raise RasterHeaderError("invalid WebP animation alpha subchunk")
             found_alpha = True
         elif chunk_type in (b"VP8 ", b"VP8L"):
             if found_bitstream:
-                raise ValueError("duplicate WebP animation bitstream")
+                raise RasterHeaderError("duplicate WebP animation bitstream")
             if found_alpha and chunk_type == b"VP8L":
-                raise ValueError("WebP alpha subchunk cannot precede VP8L")
+                raise RasterHeaderError("WebP alpha subchunk cannot precede VP8L")
             if _parse_webp_bitstream_dimensions(chunk_type, data, subchunk_start, subchunk_end) != (frame_width, frame_height):
-                raise ValueError("WebP animation frame dimensions disagree with bitstream")
+                raise RasterHeaderError("WebP animation frame dimensions disagree with bitstream")
             found_bitstream = True
         elif found_bitstream:
             # Unknown subchunks may follow the bitstream.
             pass
         else:
-            raise ValueError("unsupported WebP animation frame subchunk order")
+            raise RasterHeaderError("unsupported WebP animation frame subchunk order")
         position = subchunk_next
     if not found_bitstream:
-        raise ValueError("WebP animation frame bitstream is missing")
+        raise RasterHeaderError("WebP animation frame bitstream is missing")
     return frame_pixels
 
 
 def parse_webp_raster(data, max_dimension=None, max_pixels=None, max_total_pixels=None):
     """Read dimensions and bounded canvas-plus-frame pixel cost from WebP headers."""
     if len(data) < 20 or data[:4] != b"RIFF" or data[8:12] != b"WEBP":
-        raise ValueError("invalid WebP RIFF signature")
+        raise RasterHeaderError("invalid WebP RIFF signature")
     riff_end = 8 + struct.unpack_from("<I", data, 4)[0]
     if riff_end < 12 or riff_end > len(data):
-        raise ValueError("invalid or truncated WebP RIFF size")
+        raise RasterHeaderError("invalid or truncated WebP RIFF size")
 
     position = 12
     canvas = None
@@ -219,29 +223,29 @@ def parse_webp_raster(data, max_dimension=None, max_pixels=None, max_total_pixel
     work_pixels = 0
     while position + 8 <= riff_end:
         if canvas is None and simple_dimensions is not None:
-            raise ValueError("unexpected chunk after simple WebP image bitstream")
+            raise RasterHeaderError("unexpected chunk after simple WebP image bitstream")
         chunk_type = data[position:position + 4]
         chunk_size = struct.unpack_from("<I", data, position + 4)[0]
         payload_start = position + 8
         payload_end = payload_start + chunk_size
         chunk_end = payload_end + (chunk_size & 1)
         if payload_end > riff_end or chunk_end > riff_end:
-            raise ValueError("WebP chunk exceeds RIFF bounds")
+            raise RasterHeaderError("WebP chunk exceeds RIFF bounds")
         if chunk_size & 1 and data[payload_end] != 0:
-            raise ValueError("invalid WebP RIFF chunk padding")
+            raise RasterHeaderError("invalid WebP RIFF chunk padding")
         if chunk_type == b"VP8X":
             if canvas is not None or position != 12:
-                raise ValueError("invalid WebP VP8X chunk position")
+                raise RasterHeaderError("invalid WebP VP8X chunk position")
             if chunk_size < 10:
-                raise ValueError("truncated WebP VP8X header")
+                raise RasterHeaderError("truncated WebP VP8X header")
             # The current dimension fields occupy the first 10 bytes; later
             # specification revisions may extend this header.
             if data[payload_start] & 0xC1 or any(data[payload_start + 1:payload_start + 4]):
-                raise ValueError("invalid WebP VP8X reserved bits")
+                raise RasterHeaderError("invalid WebP VP8X reserved bits")
             width = 1 + int.from_bytes(data[payload_start + 4:payload_start + 7], "little")
             height = 1 + int.from_bytes(data[payload_start + 7:payload_start + 10], "little")
             if width * height > 0xFFFFFFFF:
-                raise ValueError("WebP canvas dimensions exceed format maximum")
+                raise RasterHeaderError("WebP canvas dimensions exceed format maximum")
             if max_dimension is not None and (width > max_dimension or height > max_dimension):
                 raise RasterLimitError("WebP dimension limit exceeded")
             if max_pixels is not None and width * height > max_pixels:
@@ -253,11 +257,11 @@ def parse_webp_raster(data, max_dimension=None, max_pixels=None, max_total_pixel
                 raise RasterLimitError("total raster pixel budget exceeded")
         elif chunk_type == b"ANIM":
             if canvas is None or not animation or animation_control_seen or chunk_size != 6:
-                raise ValueError("invalid WebP animation control chunk")
+                raise RasterHeaderError("invalid WebP animation control chunk")
             animation_control_seen = True
         elif chunk_type == b"ANMF":
             if canvas is None or not animation or not animation_control_seen:
-                raise ValueError("WebP animation frame appears before animation control")
+                raise RasterHeaderError("WebP animation frame appears before animation control")
             frame_pixels = _parse_webp_frame(
                 data, payload_start, payload_end, canvas[0], canvas[1], max_dimension, max_pixels
             )
@@ -270,39 +274,47 @@ def parse_webp_raster(data, max_dimension=None, max_pixels=None, max_total_pixel
         if chunk_type == b"VP8 ":
             if canvas is not None:
                 if animation or image_bitstream_seen:
-                    raise ValueError("unexpected WebP image chunk after VP8X")
+                    raise RasterHeaderError("unexpected WebP image chunk after VP8X")
                 image_width, image_height = _parse_webp_bitstream_dimensions(chunk_type, data, payload_start, payload_end)
                 if (image_width, image_height) != canvas:
-                    raise ValueError("WebP image dimensions disagree with VP8X canvas")
+                    raise RasterHeaderError("WebP image dimensions disagree with VP8X canvas")
                 image_bitstream_seen = True
             else:
                 if position != 12:
-                    raise ValueError("simple WebP image bitstream is not the first chunk")
+                    raise RasterHeaderError("simple WebP image bitstream is not the first chunk")
                 simple_dimensions = _parse_webp_bitstream_dimensions(chunk_type, data, payload_start, payload_end)
         elif chunk_type == b"VP8L":
             if canvas is not None:
                 if animation or image_bitstream_seen:
-                    raise ValueError("unexpected WebP image chunk after VP8X")
+                    raise RasterHeaderError("unexpected WebP image chunk after VP8X")
                 image_width, image_height = _parse_webp_bitstream_dimensions(chunk_type, data, payload_start, payload_end)
                 if (image_width, image_height) != canvas:
-                    raise ValueError("WebP image dimensions disagree with VP8X canvas")
+                    raise RasterHeaderError("WebP image dimensions disagree with VP8X canvas")
                 image_bitstream_seen = True
             else:
                 if position != 12:
-                    raise ValueError("simple WebP image bitstream is not the first chunk")
+                    raise RasterHeaderError("simple WebP image bitstream is not the first chunk")
                 simple_dimensions = _parse_webp_bitstream_dimensions(chunk_type, data, payload_start, payload_end)
         position = chunk_end
     if position != riff_end:
-        raise ValueError("truncated WebP chunk header")
+        raise RasterHeaderError("truncated WebP chunk header")
     if canvas is not None and animation:
         if not animation_control_seen or not frame_count:
-            raise ValueError("WebP animation is missing control or frame chunks")
+            raise RasterHeaderError("WebP animation is missing control or frame chunks")
         return canvas[0], canvas[1], work_pixels
     if canvas is not None and not animation and image_bitstream_seen:
         return canvas[0], canvas[1], work_pixels
     if simple_dimensions is not None:
-        return simple_dimensions[0], simple_dimensions[1], simple_dimensions[0] * simple_dimensions[1]
-    raise ValueError("WebP image dimensions are missing")
+        width, height = simple_dimensions
+        if max_dimension is not None and (width > max_dimension or height > max_dimension):
+            raise RasterLimitError("WebP dimension limit exceeded")
+        pixels = width * height
+        if max_pixels is not None and pixels > max_pixels:
+            raise RasterLimitError("WebP pixel limit exceeded")
+        if max_total_pixels is not None and pixels > max_total_pixels:
+            raise RasterLimitError("total raster pixel budget exceeded")
+        return width, height, pixels
+    raise RasterHeaderError("WebP image dimensions are missing")
 
 
 def parse_webp_dimensions(data):
@@ -320,7 +332,7 @@ def parse_raster_dimensions(data, suffix):
         return parse_jpeg_dimensions(data)
     if extension == ".webp":
         return parse_webp_dimensions(data)
-    raise ValueError("unsupported raster extension")
+    raise RasterHeaderError("unsupported raster extension")
 
 def file_identity(info):
     identity = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)

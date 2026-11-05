@@ -49,8 +49,9 @@ external CSS/URL references, and bounds SVG nesting, element count, attributes
 per element and attribute values. It permits only a local `url(#id)` gradient reference in
 `fill` or `stroke`. This is a limited static SVG subset check, not a sanitizer
 for arbitrary renderers. Raster image decoders are not isolated. Bounded
-Atheris coverage-guided targets exercise both the ZIP reader and SVG validator,
-each with a 15-second pull-request run and a 120-second weekly/manual run.
+Atheris coverage-guided targets exercise the ZIP reader, SVG validator, and
+raster header parsers, each with a 15-second pull-request run and a 120-second
+weekly/manual run.
 Inputs are capped at 64 KiB, each case has a 2-second timeout, and the shared
 job has a 10-minute limit. This is smoke coverage, not sustained fuzzing. The default
 `read_package()` path remains in-process; the opt-in wrapper below uses
@@ -130,6 +131,19 @@ the run. Run it locally with the same environment and budget:
 
 ```sh
 /tmp/motionpack-fuzz-venv/bin/python tests/fuzz_svg_validator.py tests/fuzz_corpus/svg_validator -max_total_time=120 -timeout=2 -max_len=65536 -rss_limit_mb=1024 -seed=317771 -artifact_prefix=/tmp/motionpack-fuzz-artifacts/svg-
+```
+
+The raster header target is `tests/fuzz_raster_headers.py` with reviewed PNG,
+JPEG, and WebP seeds in `tests/fuzz_corpus/raster_headers/`. It exercises only
+dimension/header parsing; it does not decode image pixels or test downstream
+image decoders. It accepts the 16 reviewed regular-file seeds only, limits the
+corpus to 16 files / 1 MiB and each seed to 64 KiB, and copies inputs to a
+temporary directory. Malformed or over-limit headers use explicit raster
+rejection exception types; unexpected exceptions fail the run. Run it locally
+with:
+
+```sh
+/tmp/motionpack-fuzz-venv/bin/python tests/fuzz_raster_headers.py tests/fuzz_corpus/raster_headers -max_total_time=120 -timeout=2 -max_len=65536 -rss_limit_mb=1024 -seed=317772 -artifact_prefix=/tmp/motionpack-fuzz-artifacts/raster-
 ```
 
 Atheris is test-only and does not enter the runtime package. Version 3.1.0 is

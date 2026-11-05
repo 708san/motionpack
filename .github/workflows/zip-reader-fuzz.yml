@@ -27,7 +27,7 @@ jobs:
           FUZZ_TRIGGER: ${{ github.event_name }}
           FUZZ_TMP: ${{ runner.temp }}
         run: |
-          artifacts="$FUZZ_TMP/motionpack-archive-reader-artifacts"
+          artifacts="$FUZZ_TMP/motionpack-fuzz-artifacts"
           mkdir -p "$artifacts"
           budget=15
           if [ "$FUZZ_TRIGGER" = "schedule" ] || [ "$FUZZ_TRIGGER" = "workflow_dispatch" ]; then
@@ -40,3 +40,6 @@ jobs:
           .venv-fuzz/bin/python tests/fuzz_svg_validator.py tests/fuzz_corpus/svg_validator \
             -max_total_time="$budget" -timeout=2 -max_len=65536 -rss_limit_mb=1024 \
             -seed=317771 -artifact_prefix="$artifacts/svg-"
+          .venv-fuzz/bin/python tests/fuzz_raster_headers.py tests/fuzz_corpus/raster_headers \
+            -max_total_time="$budget" -timeout=2 -max_len=65536 -rss_limit_mb=1024 \
+            -seed=317772 -artifact_prefix="$artifacts/raster-"

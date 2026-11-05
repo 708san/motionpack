@@ -83,6 +83,42 @@ def webp_extended(canvas_width,canvas_height,image_width,image_height,*,kind=b'V
     return b'RIFF'+struct.pack('<I',len(body))+body
 
 class FormatTests(unittest.TestCase):
+    def test_raster_header_rejections_have_specific_value_error_subtype(self):
+        self.assertTrue(issubclass(validator_module.RasterHeaderError, ValueError))
+        for parser, malformed in (
+            (validator_module.parse_png_dimensions, b"not PNG"),
+            (validator_module.parse_jpeg_dimensions, b"not JPEG"),
+            (validator_module.parse_webp_dimensions, b"not WebP"),
+        ):
+            with self.subTest(parser=parser.__name__), self.assertRaises(validator_module.RasterHeaderError):
+                parser(malformed)
+        with self.assertRaises(validator_module.RasterLimitError):
+            validator_module.parse_webp_raster(
+                webp_header(8193, 1), max_dimension=8192,
+            )
+
+    def test_simple_webp_enforces_header_parser_resource_limits(self):
+        with self.assertRaisesRegex(validator_module.RasterLimitError, "dimension"):
+            validator_module.parse_webp_raster(
+                webp_header(8193, 1, kind=b"VP8 "), max_dimension=8192,
+            )
+        with self.assertRaisesRegex(validator_module.RasterLimitError, "dimension"):
+            validator_module.parse_webp_raster(
+                webp_header(8193, 1, kind=b"VP8L"), max_dimension=8192,
+            )
+        with self.assertRaisesRegex(validator_module.RasterLimitError, "pixel limit"):
+            validator_module.parse_webp_raster(
+                webp_header(4001, 4000, kind=b"VP8 "), max_pixels=16_000_000,
+            )
+        with self.assertRaisesRegex(validator_module.RasterLimitError, "pixel limit"):
+            validator_module.parse_webp_raster(
+                webp_header(4001, 4000, kind=b"VP8L"), max_pixels=16_000_000,
+            )
+        with self.assertRaisesRegex(validator_module.RasterLimitError, "total raster"):
+            validator_module.parse_webp_raster(
+                webp_header(8192, 1, kind=b"VP8 "), max_total_pixels=8191,
+            )
+
     def test_examples_valid(self):
         for project in ('robot_demo','robot_ik_demo'):
             errors,m=validate(ROOT/'examples'/project)
