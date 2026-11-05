@@ -10,7 +10,7 @@ jobs:
   fuzz:
     name: bounded-zip-reader-fuzz
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -22,19 +22,21 @@ jobs:
         run: |
           python -m venv .venv-fuzz
           .venv-fuzz/bin/python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r requirements-fuzz.txt
-      - name: Run bounded ZIP reader fuzz target
+      - name: Run bounded ZIP reader and SVG validator fuzz targets
         env:
           FUZZ_TRIGGER: ${{ github.event_name }}
           FUZZ_TMP: ${{ runner.temp }}
         run: |
-          corpus="tests/fuzz_corpus/archive_reader"
           artifacts="$FUZZ_TMP/motionpack-archive-reader-artifacts"
           mkdir -p "$artifacts"
           budget=15
           if [ "$FUZZ_TRIGGER" = "schedule" ] || [ "$FUZZ_TRIGGER" = "workflow_dispatch" ]; then
             budget=120
           fi
-          echo "Atheris budget: ${budget}s; per-input timeout: 2s; max input: 65536 bytes; RSS limit: 1024 MiB"
-          .venv-fuzz/bin/python tests/fuzz_archive_reader.py "$corpus" \
+          echo "Atheris budget: ${budget}s per target; per-input timeout: 2s; max input: 65536 bytes; RSS limit: 1024 MiB"
+          .venv-fuzz/bin/python tests/fuzz_archive_reader.py tests/fuzz_corpus/archive_reader \
             -max_total_time="$budget" -timeout=2 -max_len=65536 -rss_limit_mb=1024 \
-            -seed=317770 -artifact_prefix="$artifacts/"
+            -seed=317770 -artifact_prefix="$artifacts/archive-"
+          .venv-fuzz/bin/python tests/fuzz_svg_validator.py tests/fuzz_corpus/svg_validator \
+            -max_total_time="$budget" -timeout=2 -max_len=65536 -rss_limit_mb=1024 \
+            -seed=317771 -artifact_prefix="$artifacts/svg-"

@@ -48,11 +48,11 @@ now rejects XML DTDs/entities, foreign namespaces, unsafe SVG attributes and
 external CSS/URL references, and bounds SVG nesting, element count, attributes
 per element and attribute values. It permits only a local `url(#id)` gradient reference in
 `fill` or `stroke`. This is a limited static SVG subset check, not a sanitizer
-for arbitrary renderers. Raster image decoders are not isolated. The ZIP
-reader now has a bounded Atheris coverage-guided target with a 15-second
-pull-request run and a 120-second weekly/manual run. The fuzz input is capped
-at 64 KiB, each case has a 2-second timeout, and the job has a 5-minute limit.
-This is an early smoke budget, not sustained fuzzing. The default
+for arbitrary renderers. Raster image decoders are not isolated. Bounded
+Atheris coverage-guided targets exercise both the ZIP reader and SVG validator,
+each with a 15-second pull-request run and a 120-second weekly/manual run.
+Inputs are capped at 64 KiB, each case has a 2-second timeout, and the shared
+job has a 10-minute limit. This is smoke coverage, not sustained fuzzing. The default
 `read_package()` path remains in-process; the opt-in wrapper below uses
 platform-specific process and memory controls and is not a sandbox. Keep
 packages and their assets untrusted.
@@ -120,6 +120,16 @@ python3.12 -m venv /tmp/motionpack-fuzz-venv
 /tmp/motionpack-fuzz-venv/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-fuzz.txt
 mkdir -p /tmp/motionpack-fuzz-artifacts
 /tmp/motionpack-fuzz-venv/bin/python tests/fuzz_archive_reader.py tests/fuzz_corpus/archive_reader -max_total_time=120 -timeout=2 -max_len=65536 -rss_limit_mb=1024 -seed=317770 -artifact_prefix=/tmp/motionpack-fuzz-artifacts/
+```
+
+The SVG validator target is `tests/fuzz_svg_validator.py` with reviewed seeds in
+`tests/fuzz_corpus/svg_validator/`. It applies the same corpus, input, timeout,
+and memory ceilings, and treats malformed XML or validator rejection as
+expected input outcomes. Unexpected exceptions or invalid return shapes fail
+the run. Run it locally with the same environment and budget:
+
+```sh
+/tmp/motionpack-fuzz-venv/bin/python tests/fuzz_svg_validator.py tests/fuzz_corpus/svg_validator -max_total_time=120 -timeout=2 -max_len=65536 -rss_limit_mb=1024 -seed=317771 -artifact_prefix=/tmp/motionpack-fuzz-artifacts/svg-
 ```
 
 Atheris is test-only and does not enter the runtime package. Version 3.1.0 is
