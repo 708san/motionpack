@@ -144,7 +144,7 @@ class FormatTests(unittest.TestCase):
         for index,(category,secret) in enumerate(examples):
             with self.subTest(category=category,secret=secret[:12]), tempfile.TemporaryDirectory() as tmp:
                 d=self._copy(tmp)
-                asset_bytes=f'<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="{secret}"/></svg>'.encode()
+                asset_bytes=f'<svg xmlns="http://www.w3.org/2000/svg"><path fill="{secret}"/></svg>'.encode()
                 asset=d/'assets'/f'private_{secret}.svg'
                 (d/'assets'/'background.svg').rename(asset)
                 manifest_path=d/'manifest.json'
@@ -177,7 +177,7 @@ class FormatTests(unittest.TestCase):
                 manifest['assets']['background']=asset.relative_to(d).as_posix()
                 manifest_path.write_text(json.dumps(manifest))
                 asset.write_text(
-                    f'<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="{secret}"/></svg>'
+                    f'<svg xmlns="http://www.w3.org/2000/svg"><path fill="{secret}"/></svg>'
                 )
                 out=pathlib.Path(tmp)/'dist'
                 package=out/(d.name+'.motionpack')
@@ -224,7 +224,7 @@ class FormatTests(unittest.TestCase):
             manifest['assets']['background']=asset.relative_to(d).as_posix()
             manifest_path.write_text(json.dumps(manifest))
             asset.write_text(
-                f'<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="{secret}"/></svg>'
+                f'<svg xmlns="http://www.w3.org/2000/svg"><path fill="{secret}"/></svg>'
             )
             default_out=pathlib.Path(tmp)/'default-dist'
             default_result=subprocess.run(
@@ -554,6 +554,46 @@ class FormatTests(unittest.TestCase):
     def test_svg_allows_local_gradient_reference(self):
         errors=self._validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="paint"><stop offset="0" stop-color="red"/></linearGradient></defs><path fill="url(#paint)" d="M0 0"/></svg>')
         self.assertEqual(errors,[],errors)
+    def test_svg_tag_specific_attribute_allowlist(self):
+        supported=(
+            '<svg width="10" height="10" viewBox="0 0 10 10"><g>'
+            '<path d="M0 0L1 1" fill="red" stroke="blue" stroke-width="1" opacity=".5"/>'
+            '<rect x="0" y="0" width="1" height="1" rx=".1" ry=".1" fill="red"/>'
+            '<circle cx="1" cy="1" r="1" fill="red"/>'
+            '<ellipse cx="1" cy="1" rx="1" ry=".5" fill="red"/>'
+            '<line x1="0" y1="0" x2="1" y2="1" stroke="red"/>'
+            '<polyline points="0,0 1,1" stroke="red"/>'
+            '<polygon points="0,0 1,0 1,1" fill="red"/>'
+            '<defs><linearGradient id="paint"><stop offset="0" stop-color="red"/></linearGradient>'
+            '<radialGradient id="radial"><stop offset="0" stop-color="white"/></radialGradient></defs>'
+            '<path d="M0 0L1 1" fill="url(#paint)"/><circle cx="1" cy="1" r="1" fill="url(#radial)"/></g></svg>'
+        )
+        self.assertEqual(self._validate_svg(supported),[])
+        rejected=(
+            '<path d="M0 0" vendor-feature="x"/>',
+            '<path d="M0 0" filter="blur(2px)"/>',
+            '<path d="M0 0" mask="none"/>',
+            '<path d="M0 0" cx="1"/>',
+            '<path d="M0 0" id="not-a-gradient"/>',
+            '<g transform="translate(1 1)"/>',
+            '<svg preserveAspectRatio="xMidYMid meet"/>',
+            '<svg viewbox="0 0 1 1"/>',
+        )
+        for element in rejected:
+            with self.subTest(element=element):
+                errors=self._validate_svg(f'<svg xmlns="http://www.w3.org/2000/svg">{element}</svg>')
+                self.assertTrue(any('unsupported SVG attribute' in error for error in errors),errors)
+    def test_svg_rejects_noncanonical_element_names_and_text_tail(self):
+        cases=(
+            ('<SVG xmlns="http://www.w3.org/2000/svg"/>','root element must be svg'),
+            ('<svg xmlns="http://www.w3.org/2000/svg"><PATH d="M0 0"/></svg>','forbidden SVG element'),
+            ('<svg xmlns="http://www.w3.org/2000/svg"><g><path d="M0 0"/>unexpected</g></svg>','SVG text content is forbidden'),
+        )
+        for svg,message in cases:
+            with self.subTest(svg=svg):
+                errors=self._validate_svg(svg)
+                self.assertTrue(any(message in error for error in errors),errors)
+        self.assertEqual(self._validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><g><path d="M0 0"/> \n</g></svg>'),[])
     def test_svg_rejects_remote_or_unresolved_css_references(self):
         for value in ('url(https://example.test/a.svg#paint)','url(//example.test/a.svg)','url(file:///tmp/a.svg)','url(data:image/svg+xml,x)','url(#missing)','url(#paint) red'):
             with self.subTest(value=value):
@@ -577,14 +617,16 @@ class FormatTests(unittest.TestCase):
                 self.assertTrue(any('SVG' in error for error in errors),errors)
     def test_svg_rejects_excessive_depth_and_attribute_size(self):
         deep='<svg xmlns="http://www.w3.org/2000/svg">'+'<g>'*128+'<path d="M0 0"/>'+'</g>'*128+'</svg>'
-        huge='<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="'+'x'*(64*1024+1)+'"/></svg>'
+        huge='<svg xmlns="http://www.w3.org/2000/svg"><path fill="'+'x'*(64*1024+1)+'"/></svg>'
         many='<svg xmlns="http://www.w3.org/2000/svg">'+'<path/>'*10000+'</svg>'
         attrs=' '.join(f'a{i}="x"' for i in range(129))
         too_many_attrs=f'<svg xmlns="http://www.w3.org/2000/svg"><path {attrs}/></svg>'
-        for svg in (deep,huge,many,too_many_attrs):
-            with self.subTest(size=len(svg)):
-                errors=self._validate_svg(svg)
-                self.assertTrue(any('SVG' in error for error in errors),errors)
+        for svg,message in ((deep,'nesting exceeds maximum'),
+                            (huge,'attribute value exceeds maximum size'),
+                            (many,'element count exceeds maximum'),
+                            (too_many_attrs,'attribute count exceeds maximum')):
+            with self.subTest(size=len(svg),message=message), self.assertRaisesRegex(ValueError,message):
+                validator_module.parse_svg(svg.encode())
     def test_svg_asset_aliases_are_parsed_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=self._copy(tmp)
@@ -799,7 +841,7 @@ class FormatTests(unittest.TestCase):
             asset=d/'assets'/'background.svg'
             original_bytes=asset.read_bytes()
             canary=pathlib.Path(tmp)/'private.svg'
-            canary.write_text('<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="PRIVATE-CANARY"/></svg>')
+            canary.write_text('<svg xmlns="http://www.w3.org/2000/svg"><path fill="PRIVATE-CANARY"/></svg>')
             real_validate=package_module.validate
             did_swap=False
             def validate_then_swap(folder,**kwargs):
@@ -824,7 +866,7 @@ class FormatTests(unittest.TestCase):
             d=self._copy(tmp)
             outside=pathlib.Path(tmp)/'outside'
             outside.mkdir()
-            (outside/'background.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg"><path aria-label="PRIVATE-CANARY"/></svg>')
+            (outside/'background.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg"><path fill="PRIVATE-CANARY"/></svg>')
             real_open=os.open
             swapped=False
             def open_with_parent_swap(path,flags,*args,**kwargs):

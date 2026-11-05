@@ -45,8 +45,10 @@ The PNG specification's 2^31−1 maximum dimension is always enforced.
 
 This reader is not a sandbox or a production security guarantee. The validator
 now rejects XML DTDs/entities, foreign namespaces, unsafe SVG attributes and
-external CSS/URL references, and bounds SVG nesting, element count, attributes
-per element and attribute values. It permits only a local `url(#id)` gradient reference in
+external CSS/URL references, rejects attributes outside the documented
+element-specific allowlists, and bounds SVG nesting, element count, attributes
+per element and attribute values. Attribute values are not checked against every
+SVG value grammar. It permits only a local `url(#id)` gradient reference in
 `fill` or `stroke`. This is a limited static SVG subset check, not a sanitizer
 for arbitrary renderers. Raster image decoders are not isolated. Bounded
 Atheris coverage-guided targets exercise the ZIP reader, SVG validator, and
