@@ -10,7 +10,7 @@ jobs:
   fuzz:
     name: bounded-zip-reader-fuzz
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -31,7 +31,7 @@ jobs:
           mkdir -p "$artifacts"
           budget=15
           if [ "$FUZZ_TRIGGER" = "schedule" ] || [ "$FUZZ_TRIGGER" = "workflow_dispatch" ]; then
-            budget=120
+            budget=300
           fi
           echo "Atheris budget: ${budget}s per target; per-input timeout: 2s; max input: 65536 bytes; RSS limit: 1024 MiB"
           .venv-fuzz/bin/python tests/fuzz_archive_reader.py tests/fuzz_corpus/archive_reader \
