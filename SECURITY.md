@@ -52,9 +52,59 @@ for arbitrary renderers. Raster image decoders are not isolated. The ZIP
 reader now has a bounded Atheris coverage-guided target with a 15-second
 pull-request run and a 120-second weekly/manual run. The fuzz input is capped
 at 64 KiB, each case has a 2-second timeout, and the job has a 5-minute limit.
-This is an early smoke budget, not sustained fuzzing; the ZIP parser is not
-isolated and CPU/time behavior outside these limits remains unmeasured. Keep
+This is an early smoke budget, not sustained fuzzing. The default
+`read_package()` path remains in-process; the opt-in wrapper below uses
+platform-specific process and memory controls and is not a sandbox. Keep
 packages and their assets untrusted.
+
+## Opt-in isolated reader
+
+`tools/isolated_archive_reader.py` provides `read_package_isolated()` as a
+separate, opt-in API; the existing synchronous `read_package()` behavior is
+unchanged. The wrapper creates a private temporary directory and starts a fresh
+Python worker without a shell. The worker snapshots at most 40 MiB of a regular
+input file there, then reads the snapshot. The parent enforces the deadline
+across input open/copy and ZIP inspection, and counts process creation and job
+setup against the available time. Process creation and OS job setup are
+synchronous and cannot themselves be interrupted; after they return, an expired
+deadline causes immediate worker termination. A blocked special-file open is
+covered by the child-process timeout. The fixed binary response protocol is
+capped at 40 MiB. The default wall-clock deadline is 30 seconds and callers may
+set a deadline up to 300 seconds. A timeout or oversized result terminates and
+reaps the worker. POSIX uses a new process session and kills its process group;
+Windows assigns the waiting worker to a Job Object configured to terminate its
+processes when the job closes.
+
+The default memory policy is OS-specific:
+
+- Linux applies a 512 MiB `RLIMIT_AS` address-space ceiling in the worker before
+  it opens the snapshot. This is a virtual-address limit, not a resident-memory
+  or cgroup limit.
+- Windows applies a 512 MiB per-process committed-memory limit using a Job
+  Object before sending the worker its request.
+- macOS has no supported whole-process hard memory limit in this implementation.
+  The wrapper still enforces its timeout and protocol bounds there. An explicit
+  positive `memory_limit_bytes` request raises `UnsupportedMemoryLimit` on macOS.
+
+`memory_limit_bytes=0` disables an available OS memory limit; a positive custom
+value requests a limit and fails closed on platforms where this implementation
+cannot enforce one. The default `None` selects the platform policy above. A
+Linux worker may fail to start parsing if its Python runtime cannot fit within
+the configured address-space ceiling. A Windows Job Object assignment failure
+also fails closed before the worker receives input. Platform limits include
+runtime overhead and may need adjustment for callers with different archive
+limits.
+
+The wrapper reduces exposure to parser hangs and unbounded protocol output; it
+does not sandbox the worker. The worker runs under the caller's account, can
+access files and network resources available to that account, and may still be
+affected by OS/runtime vulnerabilities. The snapshot's path check and open are
+not atomic on every platform. POSIX process-group cleanup does not contain a
+process that deliberately detaches into a new session. No hostile raster
+decoder is launched. The three-OS CI matrix verifies the wrapper's API and
+timeout behavior; Linux and Windows also exercise their
+memory-limit mechanisms. macOS CI verifies the documented unsupported-memory
+behavior rather than claiming a hard cap.
 
 The target and synthetic seed corpus are in `tests/fuzz_archive_reader.py`
 and `tests/fuzz_corpus/archive_reader/`. It accepts only the six reviewed

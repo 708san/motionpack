@@ -38,6 +38,7 @@
   `node tests/runtime_ik_smoke.js`
   `node tests/runtime_smoke.js`
   `python -m unittest discover -s tests -v`
+  `python -m unittest discover -s tests -p test_isolated_archive_reader.py -v` (Linux/macOS/Windows matrix)
 - Test command names may evolve, but record exact commands and real results in the PR.
 - Unit tests are not evidence of visually natural motion. Visual tests and humans must verify appearance where relevant.
 - Do not assert a security check, UI run, performance result or compatibility test passed unless actually executed.

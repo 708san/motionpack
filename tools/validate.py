@@ -323,7 +323,13 @@ def parse_raster_dimensions(data, suffix):
     raise ValueError("unsupported raster extension")
 
 def file_identity(info):
-    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    identity = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+    # Windows reports creation time as st_ctime_ns, and stat()/fstat() can
+    # disagree for the same open file. Keep the stable file ID, size and
+    # modification-time checks there; ctime remains useful on POSIX.
+    if os.name != "nt":
+        identity += (info.st_ctime_ns,)
+    return identity
 
 def _has_symlink_component(root, path):
     try:
@@ -363,7 +369,7 @@ def read_stable_asset(root, path, limit, expected_identity):
         raise ValueError("symlink in asset path")
     before = path.stat()
     if not stat.S_ISREG(before.st_mode) or file_identity(before) != expected_identity:
-        raise ValueError("asset changed during validation")
+        raise ValueError("asset changed since initial stat")
     if _has_symlink_component(root, path):
         raise ValueError("symlink in asset path")
     if before.st_size > limit:
@@ -373,7 +379,7 @@ def read_stable_asset(root, path, limit, expected_identity):
     try:
         opened = os.fstat(descriptor)
         if not stat.S_ISREG(opened.st_mode) or file_identity(opened) != file_identity(before):
-            raise ValueError("asset changed during validation")
+            raise ValueError("asset changed between stat and open")
         chunks = []
         total = 0
         with os.fdopen(descriptor, "rb") as stream:
@@ -388,7 +394,7 @@ def read_stable_asset(root, path, limit, expected_identity):
                 chunks.append(chunk)
             after = os.fstat(stream.fileno())
             if file_identity(after) != file_identity(opened):
-                raise ValueError("asset changed during validation")
+                raise ValueError("asset changed while reading")
         return b"".join(chunks)
     finally:
         if descriptor is not None:
