@@ -165,15 +165,17 @@ assets; it does not automatically add unreferenced project files or `source/`.
 The validator rejects runtime references into `source/` and local project paths
 with symlink components. The packager snapshots the bounded asset bytes used by
 validation and uses those same bytes for the ZIP and preview. It scans raw
-referenced-asset bytes for a small set of private-key headers and GitHub,
-OpenAI, and AWS credential-like patterns, then prints the 1-based
-referenced-asset ordinal and category to standard error without printing the
-path or matched value. By default, this is warning-only and matching
-bytes remain in the ZIP and preview. Pass `--fail-on-secret-like` to reject a
-match before creating or replacing either output. The opt-in mode can reject
+serialized manifest (including asset paths) and referenced-asset bytes for a
+small set of private-key headers and GitHub, OpenAI, and AWS credential-like
+patterns, then prints only a generic metadata location or the 1-based
+referenced-asset ordinal and category to standard error. It does not print
+paths or matched values. By default, this is warning-only and matching
+content remains in the ZIP and preview. Pass `--fail-on-secret-like` to reject
+a match before creating or replacing either output. The opt-in mode can reject
 legitimate assets that match a heuristic. Scanning can miss transformed or
 pixel-encoded secrets and can produce false positives; maintainers must review
-assets before distribution.
+assets before distribution. Recognized secret-like patterns are also redacted
+from packager validation errors when an invalid asset path contains a match.
 
 On platforms that support directory-relative no-follow opens, each project
 path component is opened beneath a pinned directory. Other platforms recheck
