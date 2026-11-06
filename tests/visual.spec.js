@@ -75,6 +75,11 @@ async function capture(page, testInfo, name, advanceMs, expectedStatus, options 
   }));
   const imagePath = path.join(candidateDir, `${name}.png`);
   await canvas.screenshot({ path: imagePath, animations: 'disabled', scale: 'css' });
+  const screenshotBytes = fs.readFileSync(imagePath);
+  const screenshotSize = {
+    width: screenshotBytes.readUInt32BE(16),
+    height: screenshotBytes.readUInt32BE(20)
+  };
   await testInfo.attach(`${name}.png`, { path: imagePath, contentType: 'image/png' });
 
   const baselinePath = testInfo.snapshotPath(`${name}.png`);
@@ -95,6 +100,7 @@ async function capture(page, testInfo, name, advanceMs, expectedStatus, options 
     `${name}: ${status}; viewport=1000x1400; deviceScaleFactor=1; ` +
     `canvasCss=${canvasSize.cssWidth}x${canvasSize.cssHeight}; ` +
     `canvasBitmap=${canvasSize.bitmapWidth}x${canvasSize.bitmapHeight}; ` +
+    `canvasPng=${screenshotSize.width}x${screenshotSize.height}; ` +
     `platform=${process.platform}-${process.arch}; ` +
     `playwright=${require('@playwright/test/package.json').version}; ` +
     `chromium=${page.context().browser().version()}\n`);
