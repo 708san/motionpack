@@ -1,0 +1,10 @@
+{
+  "name": "motionpack-visual-tests",
+  "private": true,
+  "scripts": {
+    "test:visual": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0"
+  }
+}

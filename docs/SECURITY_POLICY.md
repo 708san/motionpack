@@ -35,3 +35,8 @@
 - 任意の `source/` はメタデータと宣言サイズだけを検査し、展開・解釈しない。readerの戻り値にも含めず、manifestからruntime assetとして参照される場合は拒否する。入力アーカイブ自体は変更しない。
 - packagerはmanifestとその参照assetだけを出力し、未参照ファイルや `source/` を自動同梱しない。runtime assetからの `source/` 参照とローカルproject上のsymlinkを含むpathはvalidatorで拒否する。検証に使った上限付きasset bytesをZIPとpreviewにも使い、検証後のpath再オープンを避ける。dirfd/O_NOFOLLOW対応環境では各path componentを固定したdirectory descriptorの下で開く。他環境ではpathとfile identityを再確認するが、全ての並行directory差替えを防ぐ保証はない。packagerはシリアライズ済みmanifest（asset pathを含む）と同梱対象の参照asset bytesを走査し、PEM秘密鍵ヘッダー、GitHub/OpenAI token-like value、AWS access-key ID-like valueを検出した場合はカテゴリと「package metadata」またはmanifest順の重複除外済み参照asset列における1始まり位置のみを表示し、pathや検出値は出力しない。既定では警告してbuildを継続し、該当内容をZIPとpreviewに含める。`--fail-on-secret-like` 指定時は検出でbuildを失敗させ、出力作成や既存出力の置換前に停止する。これは既知形式に対する未完全なヒューリスティックであり、画像pixel、変換・符号化済み値、未知形式等は検出せず、誤検知もあり得る。秘密の不在を保証しない。
 - SVG検査は現行validatorの限定的な静的サブセット検査を再利用し、要素ごとの属性allowlistを適用する。未知属性は拒否するが、属性値の全SVG文法検証や任意renderer向けの完全な無害化は行わない。DTD・entity宣言・外部参照を拒否し、同一SVG内gradientへの `fill` / `stroke` の `url(#id)` のみ許可する。SVG validatorには上記の短時間Atheris smoke fuzzingを追加済みだが、rendererや画像デコーダの隔離、長時間・継続的なファジングは未実施。
+
+## Browser visual CI
+- `.github/workflows/visual-regression.yml` は Playwright 1.65.0 のnpm依存をlockfile/integrity hashで固定し、npm lifecycle scriptsを実行せずに導入する。対応Chromiumを含むUbuntu 24.04コンテナはPlaywrightのバージョンとOCI digestの両方で固定する。Workflowは `contents: read` のみで、checkout credentialsを永続化せず、secretsを渡さない。
+- ブラウザ上では preview のHTTP(S)要求を遮断して検査するが、これはrunner全体のegress制限ではない。依存・コンテナ取得にはCI setup時のネットワークが必要であり、Visual Workflow内のPRコードも通常のPR trust boundaryで実行される。
+- Artifactには候補スクリーンショットPNGとブラウザ/時刻メタデータだけを14日間保存する。Artifactはリポジトリアクセス権を持つ利用者が取得可能な情報として扱い、秘密情報を含めない。
