@@ -1,7 +1,7 @@
 # Quality policy
 
 ## Functional
-- Validate v0.1/v0.2 fixtures on every PR.
+- Validate v0.1/v0.2 compatibility fixtures and v0.3 schema tests on every PR.
 - Test deterministic IK and parent transforms.
 - Run idle, fire, transform, variant and reset smoke tests.
 - Verify offline package creation and local archive manifest integrity.

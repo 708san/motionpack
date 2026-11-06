@@ -2,6 +2,7 @@ import json
 import io
 import os
 import pathlib
+import re
 import random
 import shutil
 import stat
@@ -89,6 +90,71 @@ class ArchiveReaderTests(unittest.TestCase):
                 self.assertEqual(package.manifest["version"], version)
                 self.assertEqual(set(package.assets), set(package.manifest["assets"]))
                 self.assertTrue(all(package.assets.values()))
+
+    def test_reads_v03_and_enforces_svg_dimensions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            packaged=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packaged) as original:
+                entries=[]
+                for item in original.infolist():
+                    content=original.read(item)
+                    if item.filename=='manifest.json':
+                        manifest=json.loads(content)
+                        manifest['version']='0.3'
+                        content=json.dumps(manifest).encode()
+                    elif item.filename.lower().endswith('.svg'):
+                        content=re.sub(rb'(<svg\b[^>]*?)\swidth="[^"]*"',rb'\1',content,count=1)
+                        content=re.sub(rb'(<svg\b[^>]*?)\sheight="[^"]*"',rb'\1',content,count=1)
+                        content=content.replace(b'<svg',b'<svg width="10" height="10"',1)
+                    entries.append((item.filename,content))
+            archive=self._zip(pathlib.Path(tmp)/'v03.motionpack',entries)
+            result=read_package(archive)
+            self.assertEqual(result.manifest['version'],'0.3')
+            for name,width,height,message in (
+                ('default-edge',8193,1,'SVG dimension limit exceeded'),
+                ('default-area',4001,4000,'SVG pixel limit exceeded'),
+            ):
+                oversized=[]
+                for path,content in entries:
+                    if path.lower().endswith('.svg'):
+                        content=re.sub(rb'(<svg\b[^>]*?)\swidth="[^"]*"',rb'\1',content,count=1)
+                        content=re.sub(rb'(<svg\b[^>]*?)\sheight="[^"]*"',rb'\1',content,count=1)
+                        content=content.replace(b'<svg',f'<svg width="{width}" height="{height}"'.encode(),1)
+                    oversized.append((path,content))
+                oversized_archive=self._zip(pathlib.Path(tmp)/f'{name}.motionpack',oversized)
+                with self.assertRaisesRegex(ArchiveError,message):
+                    read_package(oversized_archive)
+            limited=ReaderLimits(max_svg_dimension=5)
+            with self.assertRaisesRegex(ArchiveError,'SVG dimension limit exceeded'):
+                read_package(archive,limits=limited)
+            dimensionless=[(name,content.replace(b' width="10" height="10"',b'',1)
+                            if name.lower().endswith('.svg') else content)
+                           for name,content in entries]
+            bad=self._zip(pathlib.Path(tmp)/'v03-no-svg-size.motionpack',dimensionless)
+            with self.assertRaisesRegex(ArchiveError,'SVG width is required'):
+                read_package(bad)
+
+    def test_v01_and_v02_archives_keep_dimensionless_svg_compatibility(self):
+        for project,version in (("robot_demo","0.1"),("robot_ik_demo","0.2")):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as tmp:
+                packaged=self._package(ROOT/'examples'/project,pathlib.Path(tmp)/'build')
+                with zipfile.ZipFile(packaged) as original:
+                    entries=[]
+                    for item in original.infolist():
+                        content=original.read(item)
+                        if item.filename.lower().endswith('.svg'):
+                            content=re.sub(rb'(<svg\b[^>]*?)\swidth="[^"]*"',rb'\1',content,count=1)
+                            content=re.sub(rb'(<svg\b[^>]*?)\sheight="[^"]*"',rb'\1',content,count=1)
+                        entries.append((item.filename,content))
+                archive=self._zip(pathlib.Path(tmp)/f'legacy-{version}.motionpack',entries)
+                result=read_package(archive)
+                self.assertEqual(result.manifest['version'],version)
+
+    def test_reader_svg_limits_cannot_be_raised_above_v03_format_maxima(self):
+        with self.assertRaisesRegex(ValueError,'cannot exceed v0.3 maxima'):
+            ReaderLimits(max_svg_dimension=8193)
+        with self.assertRaisesRegex(ValueError,'cannot exceed v0.3 maxima'):
+            ReaderLimits(max_svg_pixels=16_000_001)
 
     def test_untrusted_svg_is_rejected_through_archive_reader(self):
         with tempfile.TemporaryDirectory() as tmp:

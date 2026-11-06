@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate experimental MotionPack v0.1/v0.2 projects, including untrusted inputs.
+"""Validate experimental MotionPack v0.1/v0.2/v0.3 projects, including untrusted inputs.
 
 Validation is intentionally conservative; a passing result is NOT a security certificate.
 """
@@ -12,6 +12,7 @@ import stat
 import struct
 import sys
 import zlib
+from decimal import Decimal, InvalidOperation, localcontext
 import xml.etree.ElementTree as ET
 from xml.parsers import expat
 
@@ -45,6 +46,8 @@ MAX_TOTAL_ASSETS = 32 * 1024 * 1024
 MAX_PNG_DIMENSION = 8192
 MAX_PNG_PIXELS = 16_000_000
 MAX_TOTAL_PNG_PIXELS = 64_000_000
+MAX_SVG_DIMENSION = 8192
+MAX_SVG_PIXELS = 16_000_000
 PNG_SPEC_MAX_DIMENSION = 0x7FFFFFFF
 MAX_NODES = 1000
 MAX_ASSETS = 512
@@ -490,8 +493,13 @@ def parse_svg(data):
         raise ValueError("SVG document is empty")
     return root
 
-def validate_svg(data):
+def validate_svg(data, *, require_dimensions=False, max_dimension=MAX_SVG_DIMENSION,
+                 max_pixels=MAX_SVG_PIXELS):
     """Return SVG subset errors; this is validation, not a sanitizer."""
+    if (type(max_dimension) is not int or type(max_pixels) is not int or
+            max_dimension <= 0 or max_pixels <= 0 or
+            max_dimension > MAX_SVG_DIMENSION or max_pixels > MAX_SVG_PIXELS):
+        raise ValueError("SVG validation limits must be positive and cannot exceed v0.3 maxima")
     svg = parse_svg(data)
     errors = []
     def check(ok, message):
@@ -507,6 +515,34 @@ def validate_svg(data):
     root_namespace, root_name = split_name(svg.tag)
     check(root_name == "svg", "root element must be svg")
     check(root_namespace in ("", SVG_NAMESPACE), "unsupported SVG namespace")
+    if require_dimensions:
+        dimensions = []
+        for axis in ("width", "height"):
+            value = svg.attrib.get(axis)
+            if value is None:
+                check(False, "SVG " + axis + " is required")
+                dimensions.append(None)
+                continue
+            if len(value) > 64 or re.fullmatch(r"[0-9]+(?:\.[0-9]+)?(?:px)?", value) is None:
+                check(False, "SVG " + axis + " must be a positive numeric px value")
+                dimensions.append(None)
+                continue
+            try:
+                number = Decimal(value[:-2] if value.endswith("px") else value)
+            except InvalidOperation:
+                number = Decimal(0)
+            if number <= 0:
+                check(False, "SVG " + axis + " must be a positive numeric px value")
+                dimensions.append(None)
+                continue
+            if number > max_dimension:
+                check(False, "SVG dimension limit exceeded for " + axis)
+            dimensions.append(number)
+        if all(number is not None for number in dimensions):
+            with localcontext() as context:
+                context.prec = 128
+                if dimensions[0] * dimensions[1] > max_pixels:
+                    check(False, "SVG pixel limit exceeded")
     ids = {}
     references = []
     for element in svg.iter():
@@ -572,7 +608,8 @@ def check_json_nesting(text):
 
 def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSION,
              max_png_pixels=MAX_PNG_PIXELS, max_total_png_pixels=MAX_TOTAL_PNG_PIXELS,
-             max_raster_dimension=None, max_raster_pixels=None, max_total_raster_pixels=None):
+             max_raster_dimension=None, max_raster_pixels=None, max_total_raster_pixels=None,
+             max_svg_dimension=MAX_SVG_DIMENSION, max_svg_pixels=MAX_SVG_PIXELS):
     # The max_png_* names remain as compatibility aliases for existing callers.
     max_raster_dimension = max_png_dimension if max_raster_dimension is None else max_raster_dimension
     max_raster_pixels = max_png_pixels if max_raster_pixels is None else max_raster_pixels
@@ -580,6 +617,10 @@ def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSIO
     raster_limits = (max_raster_dimension, max_raster_pixels, max_total_raster_pixels)
     if any(type(value) is not int or value <= 0 for value in raster_limits):
         raise ValueError("raster integer limits must be positive")
+    if any(type(value) is not int or value <= 0 or value > maximum
+           for value, maximum in ((max_svg_dimension, MAX_SVG_DIMENSION),
+                                  (max_svg_pixels, MAX_SVG_PIXELS))):
+        raise ValueError("SVG limits must be positive and cannot exceed v0.3 maxima")
     try:
         root = pathlib.Path(folder).resolve()
     except RuntimeError as exc:
@@ -601,7 +642,8 @@ def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSIO
     if not isinstance(m, dict):
         raise ValueError("manifest must be an object")
     check(m.get("format") == "motionpack", "format must be motionpack")
-    check(m.get("version") in ("0.1", "0.2"), "unsupported format version")
+    version = m.get("version")
+    check(version in ("0.1", "0.2", "0.3"), "unsupported format version")
     canvas = m.get("canvas", {})
     if not isinstance(canvas, dict):
         canvas = {}
@@ -687,7 +729,10 @@ def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSIO
                     check(False, "unable to read SVG " + raw_path + ": " + str(exc))
                     continue
             try:
-                for svg_error in validate_svg(svg_bytes):
+                for svg_error in validate_svg(
+                    svg_bytes, require_dimensions=version == "0.3",
+                    max_dimension=max_svg_dimension, max_pixels=max_svg_pixels,
+                ):
                     check(False, "SVG " + raw_path + ": " + svg_error)
             except (ET.ParseError, expat.ExpatError, ValueError) as exc:
                 check(False, "invalid SVG " + raw_path + ": " + str(exc))
