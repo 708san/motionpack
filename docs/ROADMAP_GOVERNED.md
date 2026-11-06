@@ -3,7 +3,7 @@
 Targets are exploratory, not release commitments.
 
 ## v0.2 repository baseline (Issue #2 / PR #3)
-Import portable format 0.1 and 0.2 demonstrations, browser runtime, two-bone IK, offline packager, functional and negative tests.
+Import portable format 0.1 and 0.2 demonstrations, browser runtime, two-bone IK, offline packager, functional and negative tests. Version 0.3 incrementally adds required bounded SVG root dimensions while preserving v0.1/v0.2 validation behavior.
 
 ## v0.3: image to editable asset
 Experimentally evaluate layer segmentation, occluded detail reconstruction, manually correctable masks, rigging, original-source preservation and provenance.

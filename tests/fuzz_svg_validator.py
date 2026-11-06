@@ -22,6 +22,7 @@ MAX_CORPUS_BYTES = 1024 * 1024
 SEED_FILES = (
     "valid_minimal.svg",
     "valid_gradient.svg",
+    "invalid_missing_dimensions.svg",
     "invalid_doctype.svg",
     "invalid_external_reference.svg",
     "invalid_css_url.svg",
@@ -85,7 +86,7 @@ def copy_seed_corpus(source, destination):
 
 def validate_input(data):
     try:
-        return validate_svg(data)
+        return validate_svg(data, require_dimensions=True)
     except ValueError as error:
         if str(error) not in EXPECTED_VALUE_ERRORS:
             raise

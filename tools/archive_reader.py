@@ -21,12 +21,14 @@ import zlib
 try:
     from .validate import (
         MAX_ASSET, MAX_ASSETS, MAX_MANIFEST, MAX_PNG_DIMENSION, MAX_PNG_PIXELS,
-        MAX_TOTAL_ASSETS, MAX_TOTAL_PNG_PIXELS, PNG_SPEC_MAX_DIMENSION, check_json_nesting, validate,
+        MAX_SVG_DIMENSION, MAX_SVG_PIXELS, MAX_TOTAL_ASSETS, MAX_TOTAL_PNG_PIXELS,
+        PNG_SPEC_MAX_DIMENSION, check_json_nesting, validate,
     )
 except ImportError:  # Support direct execution/import from the tools directory.
     from validate import (
         MAX_ASSET, MAX_ASSETS, MAX_MANIFEST, MAX_PNG_DIMENSION, MAX_PNG_PIXELS,
-        MAX_TOTAL_ASSETS, MAX_TOTAL_PNG_PIXELS, PNG_SPEC_MAX_DIMENSION, check_json_nesting, validate,
+        MAX_SVG_DIMENSION, MAX_SVG_PIXELS, MAX_TOTAL_ASSETS, MAX_TOTAL_PNG_PIXELS,
+        PNG_SPEC_MAX_DIMENSION, check_json_nesting, validate,
     )
 
 
@@ -52,6 +54,8 @@ class ReaderLimits:
     max_raster_dimension: Optional[int] = None
     max_raster_pixels: Optional[int] = None
     max_total_raster_pixels: Optional[int] = None
+    max_svg_dimension: int = MAX_SVG_DIMENSION
+    max_svg_pixels: int = MAX_SVG_PIXELS
 
     def __post_init__(self):
         byte_limits = (
@@ -73,6 +77,11 @@ class ReaderLimits:
         raster_limits = (self.max_raster_dimension, self.max_raster_pixels, self.max_total_raster_pixels)
         if any(value is not None and (type(value) is not int or value <= 0) for value in raster_limits):
             raise ValueError("reader raster integer limits must be positive")
+        svg_limits = (self.max_svg_dimension, self.max_svg_pixels)
+        svg_maxima = (MAX_SVG_DIMENSION, MAX_SVG_PIXELS)
+        if any(type(value) is not int or value <= 0 or value > maximum
+               for value, maximum in zip(svg_limits, svg_maxima)):
+            raise ValueError("reader SVG limits must be positive and cannot exceed v0.3 maxima")
         if not isinstance(self.max_compression_ratio, (int, float)) or not math.isfinite(self.max_compression_ratio) or self.max_compression_ratio <= 0:
             raise ValueError("reader compression ratio limit must be finite and positive")
 
@@ -479,7 +488,7 @@ def read_package(path, *, limits=None):
                         loaded_by_entry[info.filename] = data
                     assets[asset_id] = loaded_by_entry[info.filename]
 
-        # Reuse the existing v0.1/v0.2 semantic validator on a private temporary
+        # Reuse the v0.1/v0.2/v0.3 semantic validator on a private temporary
         # tree containing only the manifest and referenced assets. Canonical entry
         # paths ensure aliases of one ZIP entry count once for PNG pixel budgets.
         # No ZIP member controls the temporary path and no caller-selected destination is used.
@@ -508,6 +517,8 @@ def read_package(path, *, limits=None):
                     max_raster_dimension=limits.max_raster_dimension,
                     max_raster_pixels=limits.max_raster_pixels,
                     max_total_raster_pixels=limits.max_total_raster_pixels,
+                    max_svg_dimension=limits.max_svg_dimension,
+                    max_svg_pixels=limits.max_svg_pixels,
                 )
             except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError, OverflowError) as exc:
                 _error("invalid package manifest or assets", exc)

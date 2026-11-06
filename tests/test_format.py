@@ -4,6 +4,7 @@ import contextlib
 import io
 import os
 import pathlib
+import re
 import shutil
 import struct
 import subprocess
@@ -547,10 +548,75 @@ class FormatTests(unittest.TestCase):
             errors,_=validate(d)
             self.assertTrue(any('forbidden SVG' in x or 'unsafe SVG' in x for x in errors),errors)
     def _validate_svg(self,svg):
+        return self._validate_svg_version(svg, '0.2')
+    def _validate_svg_version(self,svg,version):
         with tempfile.TemporaryDirectory() as tmp:
             d=self._copy(tmp)
+            manifest_path=d/'manifest.json'
+            manifest=json.loads(manifest_path.read_text())
+            manifest['version']=version
+            manifest_path.write_text(json.dumps(manifest))
             (d/'assets'/'background.svg').write_text(svg)
             return validate(d)[0]
+    def test_v03_requires_bounded_numeric_svg_dimensions_and_preserves_legacy(self):
+        bare='<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>'
+        for version in ('0.1','0.2'):
+            self.assertEqual(self._validate_svg_version(bare,version),[])
+        errors=self._validate_svg_version(bare,'0.3')
+        self.assertTrue(any('SVG' in error and 'width' in error for error in errors),errors)
+
+    def test_v03_svg_dimension_values_and_limits(self):
+        cases=(
+            ('valid decimal px','<svg width="10.5px" height="4"/>',True,None),
+            ('small positive decimal','<svg width="0.0001" height="4"/>',True,None),
+            ('missing width','<svg height="4"/>',False,'width'),
+            ('missing height','<svg width="4"/>',False,'height'),
+            ('zero','<svg width="0" height="4"/>',False,'width'),
+            ('negative','<svg width="-1" height="4"/>',False,'width'),
+            ('percentage','<svg width="100%" height="4"/>',False,'width'),
+            ('exponent','<svg width="1e2" height="4"/>',False,'width'),
+            ('leading whitespace','<svg width=" 4" height="4"/>',False,'width'),
+            ('uppercase unit','<svg width="4PX" height="4"/>',False,'width'),
+            ('non-px unit','<svg width="4pt" height="4"/>',False,'width'),
+            ('oversized lexical value','<svg width="'+'1'*65+'" height="4"/>',False,'width'),
+            ('edge boundary','<svg width="8192" height="1"/>',True,None),
+            ('edge over','<svg width="8193" height="1"/>',False,'dimension limit'),
+            ('area boundary','<svg width="4000" height="4000"/>',True,None),
+            ('area over','<svg width="4001" height="4000"/>',False,'pixel limit'),
+        )
+        for name,root,accepted,message in cases:
+            svg=root.replace('/>', '><path d="M0 0"/></svg>')
+            with self.subTest(name=name):
+                errors=self._validate_svg_version(svg,'0.3')
+                if accepted:
+                    self.assertEqual(errors,[],errors)
+                else:
+                    self.assertTrue(any(message in error for error in errors),errors)
+    def test_v03_svg_limits_cannot_be_raised_above_format_maxima(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            with self.assertRaisesRegex(ValueError,'cannot exceed v0.3 maxima'):
+                validate(project,max_svg_dimension=8193)
+            with self.assertRaisesRegex(ValueError,'cannot exceed v0.3 maxima'):
+                validate(project,max_svg_pixels=16_000_001)
+    def test_packager_builds_v03_with_explicit_svg_dimensions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            manifest_path=project/'manifest.json'
+            manifest=json.loads(manifest_path.read_text())
+            manifest['version']='0.3'
+            manifest_path.write_text(json.dumps(manifest))
+            for asset_path in set(manifest['assets'].values()):
+                if asset_path.lower().endswith('.svg'):
+                    path=project/asset_path
+                    svg=path.read_text()
+                    svg=re.sub(r'(<svg\b[^>]*?)\swidth="[^"]*"',r'\1',svg,count=1)
+                    svg=re.sub(r'(<svg\b[^>]*?)\sheight="[^"]*"',r'\1',svg,count=1)
+                    svg=svg.replace('<svg','<svg width="800" height="1000"',1)
+                    path.write_text(svg)
+            archive,_=build(project,pathlib.Path(tmp)/'dist')
+            with zipfile.ZipFile(archive) as packaged:
+                self.assertEqual(json.loads(packaged.read('manifest.json'))['version'],'0.3')
     def test_svg_allows_local_gradient_reference(self):
         errors=self._validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="paint"><stop offset="0" stop-color="red"/></linearGradient></defs><path fill="url(#paint)" d="M0 0"/></svg>')
         self.assertEqual(errors,[],errors)

@@ -3,7 +3,7 @@
 MotionPack is experimental pre-alpha software. Do not use its current tools to
 open untrusted packages in a production or high-privilege environment.
 
-The bounded reader in `tools/archive_reader.py` supports experimental v0.1/v0.2
+The bounded reader in `tools/archive_reader.py` supports experimental v0.1/v0.2/v0.3
 packages. It checks ZIP member names and metadata, enforces configurable size
 and compression-ratio limits, and reads only the manifest and referenced image
 assets. It does not extract arbitrary ZIP members. Optional `source/` entries
@@ -42,6 +42,11 @@ ceilings despite no schema or format-version change. Reader callers can adjust
 the tool ceilings with `max_raster_*` settings. Existing `max_png_*` settings
 remain accepted as aliases when the corresponding raster setting is omitted.
 The PNG specification's 2^31−1 maximum dimension is always enforced.
+
+For v0.3, SVG root `width` and `height` are required positive numeric px values.
+The format maxima are 8,192 px per edge and 16,000,000 px per SVG; validator
+and reader settings may lower these limits but cannot raise them. Versions
+v0.1/v0.2 retain their previous behavior and may omit these dimensions.
 
 This reader is not a sandbox or a production security guarantee. The validator
 now rejects XML DTDs/entities, foreign namespaces, unsafe SVG attributes and
