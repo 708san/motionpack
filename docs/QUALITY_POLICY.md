@@ -10,7 +10,7 @@
 - Node mock tests are not pixel-level or aesthetic evaluation.
 - The Issue #5 pilot captures the v0.2 preview in pinned Chromium on Linux at a fixed viewport and animation time. Screenshot candidates are review artifacts until a maintainer approves reference images; only reviewed reference images may gate later runs.
 - The current pilot covers idle, fire, transform, completed form change, and pointer IK. It does not establish cross-browser parity or subjective motion quality.
-- The existing robot demo draws beyond its 800 × 1000 canvas in some states; those pixels are clipped by the canvas and are part of the captured reference unless the demo framing is deliberately changed.
+- The robot demo's v0.2 canvas and background are framed at 1000 × 1000 so the five captured states keep the full character and effects within the reference image.
 - Human reviewers must still assess naturalness and artistic quality; pixel thresholds measure image changes only.
 - Do not claim natural whole-body motion, full mesh deformation or production performance without evidence.
 

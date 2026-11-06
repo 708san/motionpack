@@ -3,7 +3,7 @@
   "version": "0.2",
   "id": "two-bone-ik-rig-demo",
   "canvas": {
-    "width": 800,
+    "width": 1000,
     "height": 1000,
     "background": "#0b1225"
   },
@@ -23,9 +23,9 @@
     {
       "id": "bg",
       "asset": "background",
-      "x": 400,
+      "x": 500,
       "y": 500,
-      "width": 800,
+      "width": 1000,
       "height": 1000,
       "anchor": [
         0.5,
@@ -35,7 +35,7 @@
     },
     {
       "id": "mech",
-      "x": 400,
+      "x": 500,
       "y": 620,
       "z": 1
     },
@@ -214,23 +214,23 @@
           "keys": [
             {
               "time_ms": 0,
-              "value": 400
+              "value": 500
             },
             {
               "time_ms": 590,
-              "value": 400
+              "value": 500
             },
             {
               "time_ms": 820,
-              "value": 378
+              "value": 478
             },
             {
               "time_ms": 1400,
-              "value": 390
+              "value": 490
             },
             {
               "time_ms": 2500,
-              "value": 400
+              "value": 500
             }
           ]
         },
@@ -280,7 +280,7 @@
             0
           ],
           "target": [
-            770,
+            870,
             185
           ],
           "color": "#7df3ff"
@@ -307,19 +307,19 @@
           "keys": [
             {
               "time_ms": 0,
-              "value": 705
+              "value": 805
             },
             {
               "time_ms": 550,
-              "value": 760
+              "value": 860
             },
             {
               "time_ms": 1000,
-              "value": 760
+              "value": 860
             },
             {
               "time_ms": 2500,
-              "value": 705
+              "value": 805
             }
           ]
         },
@@ -486,7 +486,7 @@
         105
       ],
       "target": [
-        705,
+        805,
         410
       ],
       "bend": -1,
