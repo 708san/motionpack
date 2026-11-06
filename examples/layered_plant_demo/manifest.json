@@ -1,0 +1,53 @@
+{
+  "format": "motionpack",
+  "version": "0.3",
+  "id": "layered-plant-demo",
+  "canvas": {
+    "width": 512,
+    "height": 512,
+    "background": "#f5efe2"
+  },
+  "assets": {
+    "foliage": "assets/foliage.svg",
+    "pot": "assets/pot.svg"
+  },
+  "nodes": [
+    {
+      "id": "foliage",
+      "asset": "foliage",
+      "x": 256,
+      "y": 256,
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.5],
+      "z": 0
+    },
+    {
+      "id": "pot",
+      "asset": "pot",
+      "x": 256,
+      "y": 256,
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.5],
+      "z": 1
+    }
+  ],
+  "clips": {
+    "static": {
+      "duration_ms": 1000,
+      "loop": true,
+      "tracks": [],
+      "effects": []
+    }
+  },
+  "variants": {
+    "default": {
+      "nodes": {}
+    }
+  },
+  "defaults": {
+    "clip": "static",
+    "variant": "default"
+  }
+}
