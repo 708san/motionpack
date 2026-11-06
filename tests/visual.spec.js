@@ -67,6 +67,12 @@ async function capture(page, testInfo, name, advanceMs, expectedStatus, options 
   const status = await page.locator('#status').textContent();
   expect(status).toBe(expectedStatus);
   const canvas = page.locator('#stage');
+  const canvasSize = await canvas.evaluate(element => ({
+    cssWidth: element.getBoundingClientRect().width,
+    cssHeight: element.getBoundingClientRect().height,
+    bitmapWidth: element.width,
+    bitmapHeight: element.height
+  }));
   const imagePath = path.join(candidateDir, `${name}.png`);
   await canvas.screenshot({ path: imagePath, animations: 'disabled', scale: 'css' });
   await testInfo.attach(`${name}.png`, { path: imagePath, contentType: 'image/png' });
@@ -87,6 +93,8 @@ async function capture(page, testInfo, name, advanceMs, expectedStatus, options 
 
   fs.appendFileSync(path.join(output, 'capture-metadata.txt'),
     `${name}: ${status}; viewport=1000x1400; deviceScaleFactor=1; ` +
+    `canvasCss=${canvasSize.cssWidth}x${canvasSize.cssHeight}; ` +
+    `canvasBitmap=${canvasSize.bitmapWidth}x${canvasSize.bitmapHeight}; ` +
     `platform=${process.platform}-${process.arch}; ` +
     `playwright=${require('@playwright/test/package.json').version}; ` +
     `chromium=${page.context().browser().version()}\n`);
@@ -105,7 +113,7 @@ test('transform clip at 1008 ms', async ({ page }, testInfo) => {
 });
 
 test('completed form change', async ({ page }, testInfo) => {
-  await capture(page, testInfo, 'form-change', 2130, 'idle | form_b | 16 ms', { button: '#transform' });
+  await capture(page, testInfo, 'form-change', 2912, 'idle | form_b | 800 ms', { button: '#transform' });
 });
 
 test('pointer IK at a fixed canvas coordinate', async ({ page }, testInfo) => {
