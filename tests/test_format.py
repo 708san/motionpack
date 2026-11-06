@@ -10,6 +10,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import traceback
 import unittest
 import warnings
 import zipfile
@@ -146,7 +147,7 @@ class FormatTests(unittest.TestCase):
             with self.subTest(category=category,secret=secret[:12]), tempfile.TemporaryDirectory() as tmp:
                 d=self._copy(tmp)
                 asset_bytes=f'<svg xmlns="http://www.w3.org/2000/svg"><path fill="{secret}"/></svg>'.encode()
-                asset=d/'assets'/f'private_{secret}.svg'
+                asset=d/'assets'/'private_asset.svg'
                 (d/'assets'/'background.svg').rename(asset)
                 manifest_path=d/'manifest.json'
                 manifest=json.loads(manifest_path.read_text())
@@ -165,6 +166,91 @@ class FormatTests(unittest.TestCase):
                 with zipfile.ZipFile(archive) as packaged:
                     self.assertEqual(packaged.read(asset.relative_to(d).as_posix()),asset_bytes)
                 self.assertIn(base64.b64encode(asset_bytes).decode('ascii'),preview.read_text(encoding='utf8'))
+    def test_package_warns_on_secret_like_manifest_metadata_without_disclosing(self):
+        secret='ghp_'+'M'*36
+        with tempfile.TemporaryDirectory() as tmp:
+            d=self._copy(tmp)
+            manifest_path=d/'manifest.json'
+            manifest=json.loads(manifest_path.read_text())
+            manifest['notes']=secret
+            manifest_path.write_text(json.dumps(manifest))
+            stderr=io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                archive,_=build(d,pathlib.Path(tmp)/'dist')
+            self.assertIn('package metadata',stderr.getvalue())
+            self.assertIn('GitHub token-like value',stderr.getvalue())
+            self.assertNotIn(secret,stderr.getvalue())
+            with zipfile.ZipFile(archive) as packaged:
+                self.assertIn(secret,packaged.read('manifest.json').decode())
+    def test_strict_secret_scan_rejects_manifest_and_path_matches_before_outputs(self):
+        secret='ghp_'+'N'*36
+        cases=('manifest','asset path')
+        for case in cases:
+            with self.subTest(case=case),tempfile.TemporaryDirectory() as tmp:
+                d=self._copy(tmp)
+                manifest_path=d/'manifest.json'
+                manifest=json.loads(manifest_path.read_text())
+                if case=='manifest':
+                    manifest['notes']=secret
+                else:
+                    old=d/manifest['assets']['background']
+                    new=old.with_name(f'private_{secret}.svg')
+                    old.rename(new)
+                    manifest['assets']['background']=new.relative_to(d).as_posix()
+                manifest_path.write_text(json.dumps(manifest))
+                out=pathlib.Path(tmp)/'strict-dist'
+                with self.assertRaisesRegex(ValueError,'package metadata') as raised:
+                    build(d,out,fail_on_secret_like=True)
+                self.assertIn('GitHub token-like value',str(raised.exception))
+                self.assertNotIn(secret,str(raised.exception))
+                self.assertFalse(out.exists())
+    def test_invalid_secret_like_asset_path_is_redacted_from_errors(self):
+        secret='ghp_'+'P'*36
+        with tempfile.TemporaryDirectory() as tmp:
+            d=self._copy(tmp)
+            manifest_path=d/'manifest.json'
+            manifest=json.loads(manifest_path.read_text())
+            manifest['assets']['missing']=f'assets/{secret}.svg'
+            manifest_path.write_text(json.dumps(manifest))
+            out=pathlib.Path(tmp)/'cli-output'
+            with self.assertRaises(ValueError) as raised:
+                build(d,out)
+            self.assertNotIn(secret,str(raised.exception))
+            result=subprocess.run(
+                [sys.executable,str(ROOT/'tools'/'package.py'),str(d),'--out',str(out)],
+                capture_output=True,text=True,check=False,
+            )
+            self.assertNotEqual(result.returncode,0)
+            self.assertNotIn(secret,result.stderr)
+            self.assertFalse(out.exists())
+    def test_secret_like_path_is_redacted_from_canonicalization_traceback(self):
+        secret='ghp_'+'Q'*36
+        with tempfile.TemporaryDirectory() as tmp:
+            d=self._copy(tmp)
+            manifest_path=d/'manifest.json'
+            manifest=json.loads(manifest_path.read_text())
+            first=f'assets/{secret}.svg'
+            second=f'Assets/{secret}.svg'
+            first_file=d/first
+            first_file.write_text('<svg><path d="M0 0"/></svg>')
+            second_file=d/second
+            second_file.parent.mkdir(parents=True,exist_ok=True)
+            if not second_file.exists():
+                second_file.write_bytes(first_file.read_bytes())
+            manifest['assets']['background']=first
+            manifest['assets']['duplicate']=second
+            manifest_path.write_text(json.dumps(manifest))
+            try:
+                build(d,pathlib.Path(tmp)/'dist')
+            except ValueError as error:
+                self.assertNotIn(secret,str(error))
+                self.assertNotIn(secret,''.join(traceback.format_exception(
+                    type(error),error,error.__traceback__
+                )))
+                self.assertIsNone(error.__cause__)
+                self.assertIsNone(error.__context__)
+            else:
+                self.fail('casefold-colliding paths should be rejected')
     def test_strict_secret_scan_fails_before_creating_or_replacing_outputs(self):
         secret='ghp_'+'B'*36
         for preexisting in (False,True):
@@ -173,7 +259,7 @@ class FormatTests(unittest.TestCase):
                 manifest_path=d/'manifest.json'
                 manifest=json.loads(manifest_path.read_text())
                 original=d/'assets'/'background.svg'
-                asset=d/'assets'/f'private_{secret}.svg'
+                asset=d/'assets'/'private_asset.svg'
                 original.rename(asset)
                 manifest['assets']['background']=asset.relative_to(d).as_posix()
                 manifest_path.write_text(json.dumps(manifest))
@@ -220,7 +306,7 @@ class FormatTests(unittest.TestCase):
             manifest_path=d/'manifest.json'
             manifest=json.loads(manifest_path.read_text())
             original=d/'assets'/'background.svg'
-            asset=d/'assets'/f'private_{secret}.svg'
+            asset=d/'assets'/'private_asset.svg'
             original.rename(asset)
             manifest['assets']['background']=asset.relative_to(d).as_posix()
             manifest_path.write_text(json.dumps(manifest))
@@ -541,6 +627,25 @@ class FormatTests(unittest.TestCase):
         for assets in cases:
             with self.subTest(assets=assets), self.assertRaisesRegex(ValueError,'path component collision'):
                 package_module.canonicalize_manifest({"assets":assets})
+    def test_canonicalize_manifest_redacts_secret_like_collision_paths(self):
+        secret='ghp_'+'R'*36
+        cases=(
+            ({'first':f'assets/{secret}.svg','second':f'Assets/{secret}.svg'},'casefold collision'),
+            ({'first':f'assets/{secret}/one.svg','second':f'Assets/{secret}/two.svg'},'path component collision'),
+        )
+        for assets,message in cases:
+            with self.subTest(message=message):
+                try:
+                    package_module.canonicalize_manifest({'assets':assets})
+                except ValueError as error:
+                    self.assertIn(message,str(error))
+                    self.assertNotIn(secret,str(error))
+                    rendered=''.join(traceback.format_exception(
+                        type(error),error,error.__traceback__
+                    ))
+                    self.assertNotIn(secret,rendered)
+                else:
+                    self.fail('colliding paths should be rejected')
     def test_reject_svg_remote(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=self._copy(tmp)

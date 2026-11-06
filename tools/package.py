@@ -19,6 +19,12 @@ _SECRET_MARKERS = (
     ("AWS access-key ID-like value", re.compile(rb"(?:AKIA|ASIA)[A-Z0-9]{16}")),
 )
 
+def _redact_secret_like_text(text):
+    message = str(text).encode("utf-8", errors="replace")
+    for _name, pattern in _SECRET_MARKERS:
+        message = pattern.sub(b"[redacted secret-like value]", message)
+    return message.decode("utf-8", errors="replace")
+
 
 def _check_secret_like_assets(asset_data, *, fail_on_secret_like=False):
     for ordinal, data in enumerate(asset_data.values(), start=1):
@@ -32,6 +38,16 @@ def _check_secret_like_assets(asset_data, *, fail_on_secret_like=False):
                 raise ValueError(diagnostic + "; strict scan rejected package")
             print(diagnostic + "; packaging continues and the asset bytes are included", file=sys.stderr)
 
+def _check_secret_like_metadata(manifest_payload, *, fail_on_secret_like=False):
+    payload = manifest_payload.encode("utf-8")
+    categories = [name for name, pattern in _SECRET_MARKERS if pattern.search(payload)]
+    if not categories:
+        return
+    diagnostic = "MotionPack secret-like content in package metadata (" + ", ".join(categories) + ")"
+    if fail_on_secret_like:
+        raise ValueError(diagnostic + "; strict scan rejected package")
+    print(diagnostic + "; packaging continues and the manifest is included", file=sys.stderr)
+
 def canonicalize_manifest(manifest):
     canonical_manifest = json.loads(json.dumps(manifest))
     canonical_paths = {}
@@ -41,7 +57,7 @@ def canonicalize_manifest(manifest):
         folded_path = unicodedata.normalize("NFC", canonical_path).casefold()
         previous_path = canonical_paths.get(folded_path)
         if previous_path is not None and previous_path != canonical_path:
-            raise ValueError("casefold collision for asset path " + canonical_path)
+            raise ValueError("casefold collision for asset path " + _redact_secret_like_text(canonical_path))
         canonical_paths[folded_path] = canonical_path
         parts = PurePosixPath(canonical_path).parts
         for index in range(len(parts)):
@@ -49,7 +65,7 @@ def canonicalize_manifest(manifest):
             prefix_spelling = tuple(unicodedata.normalize("NFC", part) for part in parts[:index + 1])
             previous_spelling = portable_components.get(prefix_key)
             if previous_spelling is not None and previous_spelling != prefix_spelling:
-                raise ValueError("path component collision for asset path " + canonical_path)
+                raise ValueError("path component collision for asset path " + _redact_secret_like_text(canonical_path))
             portable_components[prefix_key] = prefix_spelling
         canonical_manifest["assets"][aid] = canonical_path
     return canonical_manifest
@@ -63,14 +79,21 @@ def build(folder, out, *, fail_on_secret_like=False):
     asset_data_by_manifest_path = {}
     errors, manifest = validate(root, asset_data_sink=asset_data_by_manifest_path)
     if errors:
-        raise ValueError("; ".join(errors))
-    canonical_manifest = canonicalize_manifest(manifest)
+        raise ValueError(_redact_secret_like_text("; ".join(errors)))
+    canonicalization_error = None
+    try:
+        canonical_manifest = canonicalize_manifest(manifest)
+    except ValueError as exc:
+        canonicalization_error = _redact_secret_like_text(exc)
+    if canonicalization_error is not None:
+        raise ValueError(canonicalization_error)
     manifest_payload = json.dumps(canonical_manifest, ensure_ascii=False, indent=2)
     asset_data = {}
     for asset_id, raw_path in manifest["assets"].items():
         rel = canonical_manifest["assets"][asset_id]
         asset_data.setdefault(rel, asset_data_by_manifest_path[raw_path])
 
+    _check_secret_like_metadata(manifest_payload, fail_on_secret_like=fail_on_secret_like)
     _check_secret_like_assets(asset_data, fail_on_secret_like=fail_on_secret_like)
 
     with tempfile.TemporaryDirectory(prefix="motionpack-build-") as snapshot_name:
@@ -82,7 +105,9 @@ def build(folder, out, *, fail_on_secret_like=False):
             destination.write_bytes(data)
         snapshot_errors, _ = validate(snapshot_root)
         if snapshot_errors:
-            raise ValueError("asset snapshot failed validation: " + "; ".join(snapshot_errors))
+            raise ValueError(_redact_secret_like_text(
+                "asset snapshot failed validation: " + "; ".join(snapshot_errors)
+            ))
 
         out.mkdir(parents=True, exist_ok=True)
         package = out / (root.name + ".motionpack")
@@ -122,7 +147,7 @@ if __name__ == "__main__":
     p.add_argument(
         "--fail-on-secret-like",
         action="store_true",
-        help="fail before writing outputs when a referenced asset matches a known secret-like pattern",
+        help="fail before writing outputs when package metadata or a referenced asset matches a known secret-like pattern",
     )
     args = p.parse_args()
     try:
@@ -130,5 +155,5 @@ if __name__ == "__main__":
         print("Built:", a, a.stat().st_size, "bytes")
         print("Built:", b, b.stat().st_size, "bytes")
     except (OSError, ValueError, TypeError) as e:
-        print("Build failed:", str(e), file=sys.stderr)
+        print("Build failed:", _redact_secret_like_text(e), file=sys.stderr)
         sys.exit(1)
