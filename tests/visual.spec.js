@@ -124,6 +124,6 @@ test('completed form change', async ({ page }, testInfo) => {
 
 test('pointer IK at a fixed canvas coordinate', async ({ page }, testInfo) => {
   await capture(page, testInfo, 'pointer-ik', 800, 'idle | form_a | 800 ms', {
-    pointer: { x: 0.78, y: 0.24 }
+    pointer: { x: 0.724, y: 0.24 }
   });
 });
