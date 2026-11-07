@@ -55,7 +55,10 @@ def measure_reader_process(archive):
 
         counters = ProcessMemoryCounters()
         counters.cb = ctypes.sizeof(counters)
-        process = ctypes.WinDLL("kernel32", use_last_error=True).GetCurrentProcess()
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetCurrentProcess.argtypes = []
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        process = kernel32.GetCurrentProcess()
         get_memory_info = ctypes.WinDLL("psapi", use_last_error=True).GetProcessMemoryInfo
         get_memory_info.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessMemoryCounters), wintypes.DWORD]
         get_memory_info.restype = wintypes.BOOL
