@@ -15,8 +15,8 @@
 - Do not claim natural whole-body motion, full mesh deformation or production performance without evidence.
 
 ## Performance
-The Issue #5 Playwright CI run measures package build time, package/preview bytes, archive-reader load time and peak process RSS for the SHA-pinned v0.1 archive and generated v0.2 example. It also reports browser navigation-to-images-ready time and 180 real `requestAnimationFrame` intervals after a 30-frame warm-up in pinned Chromium. The JSON artifact records fixture hashes, sample counts, runtime versions and metric definitions.
-All values are report-only. Reader RSS includes the Python interpreter and is measured in a fresh reader process per fixture; browser frame intervals include host scheduling and page work, not isolated Canvas draw time. The runner host hardware can vary even when the container is pinned. No universal numerical target or regression gate is established.
+The Issue #5 Playwright CI run measures package build time, package/preview bytes, archive-reader load time and peak process RSS for the SHA-pinned v0.1 archive and generated v0.2 example. It also reports browser navigation-to-images-ready time and 180 real `requestAnimationFrame` intervals after a 30-frame warm-up in pinned Chromium. Reader timing uses one warm-up followed by 30 samples per archive in a fresh Python process; samples share filesystem cache state. The JSON artifact records fixture hashes, sample counts, runtime versions and metric definitions.
+Measured values are report-only, with no performance thresholds. Collection must complete and report fields must be valid; the browser test has a 120-second collection timeout. Reader RSS includes the Python interpreter and module baseline; browser frame intervals include host scheduling and page work, not isolated Canvas draw time. The runner host hardware can vary even when the container is pinned. No universal numerical target or regression gate is established.
 
 ## Done means
 Applicable tests pass, compatibility is assessed, security impacts reviewed, known gaps documented, and maintainer approves merge.
