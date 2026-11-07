@@ -137,7 +137,7 @@ def collect(output):
         "definitions": {
             "package_build_ms": "Wall-clock time for tools.package.build() on examples/robot_ik_demo, including validation and preview generation.",
             "archive_reader": "One warm-up read followed by 30 sequential read_package() timing samples in one fresh Python process per archive; p95 uses the nearest-rank definition and samples share filesystem cache state.",
-            "collection_timeout_seconds": "Playwright allows 120 seconds for the complete benchmark test; a timeout means collection failed, not that a performance value exceeded a threshold.",
+            "collection_timeout_seconds": "The cross-platform launcher stops this collector after 60 seconds; Playwright allows 120 seconds for the complete benchmark test. A timeout means collection failed, not that a performance value exceeded a threshold.",
             "reader_subprocess_timeout_seconds": "Each fresh archive-reader process has a 20-second subprocess deadline.",
             "peak_process_rss_bytes": "Process high-water resident memory after reader samples: getrusage ru_maxrss on Unix and PeakWorkingSetSize on Windows. Includes Python interpreter and module baseline; excludes the parent process. OS methods are not directly comparable.",
             "browser_load_to_images_ready_ms": "Playwright wall-clock from before file navigation until every embedded image reports complete with nonzero naturalWidth.",
