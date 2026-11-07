@@ -15,12 +15,12 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[1]
-READER_SAMPLES = 7
+READER_SAMPLES = 30
 
 
 def percentile(values, fraction):
     ordered = sorted(values)
-    index = max(0, min(len(ordered) - 1, int((len(ordered) - 1) * fraction + 0.5)))
+    index = max(0, min(len(ordered) - 1, math.ceil(len(ordered) * fraction) - 1))
     return ordered[index]
 
 
@@ -30,6 +30,7 @@ def measure_reader_process(archive):
     sys.path.insert(0, str(ROOT / "tools"))
     from archive_reader import read_package
 
+    read_package(archive)
     durations = []
     for _ in range(READER_SAMPLES):
         started = time.perf_counter()
@@ -43,7 +44,7 @@ def measure_reader_process(archive):
         peak_bytes = int(peak * 1024)
     return {
         "sample_count": len(durations),
-        "warmup_samples": 0,
+        "warmup_samples": 1,
         "median_ms": statistics.median(durations),
         "p95_ms": percentile(durations, 0.95),
         "samples_ms": durations,
@@ -106,7 +107,8 @@ def collect(output):
         },
         "definitions": {
             "package_build_ms": "Wall-clock time for tools.package.build() on examples/robot_ik_demo, including validation and preview generation.",
-            "archive_reader": "Seven sequential read_package() calls in one fresh Python process per archive; p95 uses nearest-rank-style rounded index.",
+            "archive_reader": "One warm-up read followed by 30 sequential read_package() timing samples in one fresh Python process per archive; p95 uses the nearest-rank definition and samples share filesystem cache state.",
+            "collection_timeout_seconds": "Playwright allows 120 seconds for the complete benchmark test; a timeout means collection failed, not that a performance value exceeded a threshold.",
             "peak_process_rss_bytes": "Process high-water RSS reported by getrusage after the reader samples; includes Python interpreter and module baseline, excludes parent process.",
             "browser_load_to_images_ready_ms": "Playwright wall-clock from before file navigation until every embedded image reports complete with nonzero naturalWidth.",
             "frame_interval_ms": "Real browser requestAnimationFrame timestamp differences after a 30-frame warm-up; interval includes browser scheduling and page work, not isolated Canvas draw time.",
@@ -127,6 +129,7 @@ def collect(output):
            for value in numeric_values):
         raise ValueError("performance report contains an invalid numeric value")
     if any(fixture["archive_reader"]["sample_count"] != READER_SAMPLES
+           or fixture["archive_reader"]["warmup_samples"] != 1
            for fixture in fixture_results.values()):
         raise ValueError("performance report has an incomplete reader sample set")
     destination = output / "performance.json"
