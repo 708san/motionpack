@@ -94,8 +94,14 @@ class ArchiveReaderTests(unittest.TestCase):
         legacy = read_package(frozen_v01)
         self.assertEqual(legacy.manifest["format"], "motionpack")
         self.assertEqual(legacy.manifest["version"], "0.1")
-        self.assertIn("nodes", legacy.manifest)
-        self.assertIn("clips", legacy.manifest)
+        self.assertEqual(legacy.manifest["id"], "legacy-rigid-demo")
+        self.assertEqual(
+            legacy.manifest["canvas"],
+            {"width": 800, "height": 1000, "background": "#0b1225"},
+        )
+        self.assertEqual(len(legacy.manifest["nodes"]), 9)
+        self.assertEqual(set(legacy.manifest["clips"]), {"idle", "fire", "transform"})
+        self.assertEqual(legacy.manifest["defaults"], {"clip": "idle", "variant": "form_a"})
         self.assertNotIn("iks", legacy.manifest)
         self.assertEqual(set(legacy.assets), set(legacy.manifest["assets"]))
         self.assertTrue(all(legacy.assets.values()))
