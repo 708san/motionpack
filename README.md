@@ -44,3 +44,7 @@ python3 tools/package.py examples/layered_plant_demo --out /tmp/motionpack_layer
 ```
 
 Open `/tmp/motionpack_layered_plant/preview.html` locally. This example demonstrates a manual separation workflow; it does not perform automatic segmentation, recover occluded pixels, or define a formal provenance schema.
+
+## Browser visual regression pilot
+
+The Issue #5 pilot uses Playwright 1.65.0 with its matching Chromium build to compare five fixed states from the offline v0.2 preview: idle/fire at 800 ms, transform at 1,008 ms, form change after 800 ms in the new form, and pointer IK at 800 ms. The demo uses a 1000 × 1000 canvas so the character and effects fit in all five reference images. Five maintainer-reviewed Linux Chromium baselines are checked in under `tests/visual.spec.js-snapshots/`. Install with `npm ci` and `npx playwright install chromium`, then run `npm run test:visual`; pixel comparisons run on the pinned Linux reference platform, while other platforms run the capture and behavior checks without comparing pixels. CI compares against the references in the matching Playwright 1.65.0 Ubuntu 24.04 container pinned by digest. Update a baseline only for an intentional visual change, review the new Linux PNGs, and record the reason in the PR; `npm run test:visual -- --update-snapshots=all` writes updated snapshots on Linux. This pilot covers one Chromium/Linux environment and does not add a frozen v0.1 fixture, establish cross-browser parity, or assess natural motion. Performance measurements remain a separate follow-up.

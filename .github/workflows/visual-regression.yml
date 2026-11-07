@@ -1,0 +1,30 @@
+name: Browser visual regression
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual:
+    name: browser-visual-chromium
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.65.0-noble@sha256:6e3fb709361521eb27161606e6da6d2674e5e89fa16516cb37d6fdd91372273d
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install locked test dependency
+        run: npm ci --ignore-scripts
+      - name: Compare reference browser states
+        run: npm run test:visual
+      - name: Upload screenshot candidates and metadata
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: motionpack-visual-candidates
+          path: |
+            test-results/visual/candidate-screenshots/*.png
+            test-results/visual/capture-metadata.txt
+          if-no-files-found: warn
+          retention-days: 14
