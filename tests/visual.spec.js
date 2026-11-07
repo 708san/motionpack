@@ -132,6 +132,7 @@ test('pointer IK at a fixed canvas coordinate', async ({ page }, testInfo) => {
 });
 
 test('collect report-only package, reader and browser performance measurements', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
   const performanceDir = path.join(root, 'test-results', 'performance');
   execFileSync('python3', [
     'tests/performance_report.py', '--out', performanceDir
