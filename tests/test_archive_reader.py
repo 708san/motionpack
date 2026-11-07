@@ -1,5 +1,6 @@
 import json
 import io
+import hashlib
 import os
 import pathlib
 import re
@@ -82,14 +83,40 @@ class ArchiveReaderTests(unittest.TestCase):
                 archive.writestr(name, data)
         return path
 
-    def test_reads_existing_v01_and_v02_packages(self):
-        for project, version in (("robot_demo", "0.1"), ("robot_ik_demo", "0.2")):
-            with self.subTest(project=project), tempfile.TemporaryDirectory() as tmp:
-                archive = self._package(ROOT / "examples" / project, pathlib.Path(tmp) / "out")
-                package = read_package(archive)
-                self.assertEqual(package.manifest["version"], version)
-                self.assertEqual(set(package.assets), set(package.manifest["assets"]))
-                self.assertTrue(all(package.assets.values()))
+    def test_reads_frozen_v01_and_current_v02_packages(self):
+        frozen_v01 = ROOT / "tests" / "fuzz_corpus" / "archive_reader" / "valid_v01.motionpack"
+        self.assertEqual(
+            hashlib.sha256(frozen_v01.read_bytes()).hexdigest(),
+            "e76a7a60c12b3e2c5045ee655b9714995b1f66a7491dfe1584a51c3cd9a48982",
+            "update the frozen v0.1 fixture hash only with an explicit compatibility review",
+        )
+
+        legacy = read_package(frozen_v01)
+        self.assertEqual(legacy.manifest["format"], "motionpack")
+        self.assertEqual(legacy.manifest["version"], "0.1")
+        self.assertEqual(legacy.manifest["id"], "legacy-rigid-demo")
+        self.assertEqual(
+            legacy.manifest["canvas"],
+            {"width": 800, "height": 1000, "background": "#0b1225"},
+        )
+        self.assertEqual(len(legacy.manifest["nodes"]), 9)
+        self.assertEqual(set(legacy.manifest["clips"]), {"idle", "fire", "transform"})
+        self.assertEqual(legacy.manifest["defaults"], {"clip": "idle", "variant": "form_a"})
+        self.assertNotIn("iks", legacy.manifest)
+        self.assertEqual(set(legacy.assets), set(legacy.manifest["assets"]))
+        self.assertTrue(all(legacy.assets.values()))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            current_v02 = self._package(
+                ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "out"
+            )
+            current = read_package(current_v02)
+        self.assertEqual(current.manifest["format"], "motionpack")
+        self.assertEqual(current.manifest["version"], "0.2")
+        self.assertEqual(current.manifest["canvas"]["width"], 1000)
+        self.assertIn("iks", current.manifest)
+        self.assertEqual(set(current.assets), set(current.manifest["assets"]))
+        self.assertTrue(all(current.assets.values()))
 
     def test_reads_v03_and_enforces_svg_dimensions(self):
         with tempfile.TemporaryDirectory() as tmp:

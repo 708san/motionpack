@@ -1,7 +1,7 @@
 # Quality policy
 
 ## Functional
-- Validate v0.1/v0.2 compatibility fixtures and v0.3 schema tests on every PR.
+- Read the SHA-pinned v0.1 archive fixture at `tests/fuzz_corpus/archive_reader/valid_v01.motionpack` and package/read the current v0.2 example on every PR; also run v0.3 schema tests.
 - Test deterministic IK and parent transforms.
 - Run idle, fire, transform, variant and reset smoke tests.
 - Verify offline package creation and local archive manifest integrity.
