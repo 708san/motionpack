@@ -25,8 +25,6 @@ def percentile(values, fraction):
 
 
 def measure_reader_process(archive):
-    import resource
-
     sys.path.insert(0, str(ROOT / "tools"))
     from archive_reader import read_package
 
@@ -37,11 +35,38 @@ def measure_reader_process(archive):
         read_package(archive)
         durations.append((time.perf_counter() - started) * 1000)
 
-    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform == "darwin":
-        peak_bytes = int(peak)
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        class ProcessMemoryCounters(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        counters = ProcessMemoryCounters()
+        counters.cb = ctypes.sizeof(counters)
+        process = ctypes.WinDLL("kernel32", use_last_error=True).GetCurrentProcess()
+        get_memory_info = ctypes.WinDLL("psapi", use_last_error=True).GetProcessMemoryInfo
+        get_memory_info.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessMemoryCounters), wintypes.DWORD]
+        get_memory_info.restype = wintypes.BOOL
+        if not get_memory_info(process, ctypes.byref(counters), counters.cb):
+            raise ctypes.WinError(ctypes.get_last_error())
+        peak_bytes = int(counters.PeakWorkingSetSize)
     else:
-        peak_bytes = int(peak * 1024)
+        import resource
+
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        peak_bytes = int(peak if sys.platform == "darwin" else peak * 1024)
     return {
         "sample_count": len(durations),
         "warmup_samples": 1,
@@ -109,7 +134,7 @@ def collect(output):
             "package_build_ms": "Wall-clock time for tools.package.build() on examples/robot_ik_demo, including validation and preview generation.",
             "archive_reader": "One warm-up read followed by 30 sequential read_package() timing samples in one fresh Python process per archive; p95 uses the nearest-rank definition and samples share filesystem cache state.",
             "collection_timeout_seconds": "Playwright allows 120 seconds for the complete benchmark test; a timeout means collection failed, not that a performance value exceeded a threshold.",
-            "peak_process_rss_bytes": "Process high-water RSS reported by getrusage after the reader samples; includes Python interpreter and module baseline, excludes parent process.",
+            "peak_process_rss_bytes": "Process high-water resident memory after reader samples: getrusage ru_maxrss on Unix and PeakWorkingSetSize on Windows. Includes Python interpreter and module baseline; excludes the parent process. OS methods are not directly comparable.",
             "browser_load_to_images_ready_ms": "Playwright wall-clock from before file navigation until every embedded image reports complete with nonzero naturalWidth.",
             "frame_interval_ms": "Real browser requestAnimationFrame timestamp differences after a 30-frame warm-up; interval includes browser scheduling and page work, not isolated Canvas draw time.",
         },
