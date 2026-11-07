@@ -83,10 +83,13 @@ async function capture(page, testInfo, name, advanceMs, expectedStatus, options 
   await testInfo.attach(`${name}.png`, { path: imagePath, contentType: 'image/png' });
 
   const baselinePath = testInfo.snapshotPath(`${name}.png`);
-  if (fs.existsSync(baselinePath) || testInfo.config.updateSnapshots === 'all') {
+  if (process.platform === 'linux' &&
+      (fs.existsSync(baselinePath) || testInfo.config.updateSnapshots === 'all')) {
     await expect(canvas).toHaveScreenshot(`${name}.png`);
   } else if (process.env.VISUAL_BASELINE_BOOTSTRAP === '1') {
     console.warn(`No reviewed baseline for ${name}; captured candidate artifact only.`);
+  } else if (process.platform !== 'linux') {
+    console.info(`Pixel comparison for ${name} runs only on the pinned Linux reference platform.`);
   } else {
     throw new Error(`Missing reviewed screenshot baseline: ${baselinePath}`);
   }

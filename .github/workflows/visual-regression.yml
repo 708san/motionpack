@@ -10,16 +10,13 @@ jobs:
     runs-on: ubuntu-24.04
     container: mcr.microsoft.com/playwright:v1.65.0-noble@sha256:6e3fb709361521eb27161606e6da6d2674e5e89fa16516cb37d6fdd91372273d
     timeout-minutes: 15
-    env:
-      # Initial screenshot collection only. Remove after a maintainer reviews and checks in baselines.
-      VISUAL_BASELINE_BOOTSTRAP: '1'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - name: Install locked test dependency
         run: npm ci --ignore-scripts
-      - name: Capture reference browser states
+      - name: Compare reference browser states
         run: npm run test:visual
       - name: Upload screenshot candidates and metadata
         if: always()

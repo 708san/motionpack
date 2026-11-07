@@ -8,7 +8,7 @@
 
 ## Visual
 - Node mock tests are not pixel-level or aesthetic evaluation.
-- The Issue #5 pilot captures the v0.2 preview in pinned Chromium on Linux at a fixed viewport and animation time. Screenshot candidates are review artifacts until a maintainer approves reference images; only reviewed reference images may gate later runs.
+- The Issue #5 pilot captures the v0.2 preview in pinned Chromium on Linux at a fixed viewport and animation time. Five maintainer-reviewed reference images are checked in and gate later runs; screenshot artifacts from CI remain available to inspect changes.
 - The current pilot covers idle, fire, transform, completed form change, and pointer IK. It does not establish cross-browser parity or subjective motion quality.
 - The robot demo's v0.2 canvas and background are framed at 1000 × 1000 so the five captured states keep the full character and effects within the reference image.
 - Human reviewers must still assess naturalness and artistic quality; pixel thresholds measure image changes only.
