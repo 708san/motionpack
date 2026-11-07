@@ -15,8 +15,8 @@
 - Do not claim natural whole-body motion, full mesh deformation or production performance without evidence.
 
 ## Performance
-Track file size, preview size, load latency, frame duration and peak memory with fixed fixtures. Hardware/browser must be stated. No universal numerical target has yet been established.
-The initial browser visual pilot does not yet measure performance; add report-only measurements separately before defining numerical gates.
+The Issue #5 Playwright CI run measures package build time, package/preview bytes, archive-reader load time and peak process RSS for the SHA-pinned v0.1 archive and generated v0.2 example. It also reports browser navigation-to-images-ready time and 180 real `requestAnimationFrame` intervals after a 30-frame warm-up in pinned Chromium. Reader timing uses one warm-up followed by 30 samples per archive in a fresh Python process; samples share filesystem cache state. The JSON artifact records fixture hashes, sample counts, runtime versions and metric definitions.
+Measured values are report-only, with no performance thresholds. Collection must complete and report fields must be valid; each reader subprocess has a 20-second deadline, the collector subprocess has a 60-second deadline, and the browser test has a 120-second collection timeout. Reader peak resident memory includes the Python interpreter and module baseline; Unix and Windows use different OS counters and their values are not directly comparable. Browser frame intervals include host scheduling and page work, not isolated Canvas draw time. The runner host hardware can vary even when the container is pinned. No universal numerical target or regression gate is established.
 
 ## Done means
 Applicable tests pass, compatibility is assessed, security impacts reviewed, known gaps documented, and maintainer approves merge.

@@ -130,3 +130,87 @@ test('pointer IK at a fixed canvas coordinate', async ({ page }, testInfo) => {
     pointer: { x: 0.724, y: 0.24 }
   });
 });
+
+test('collect report-only package, reader and browser performance measurements', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  const performanceDir = path.join(root, 'test-results', 'performance');
+  execFileSync('python3', [
+    'tests/run_performance_report.py', '--out', performanceDir
+  ], { cwd: root, stdio: 'inherit', timeout: 65_000 });
+  const reportPath = path.join(performanceDir, 'performance.json');
+  const benchmarkPreview = path.join(performanceDir, 'package', 'preview.html');
+  const externalRequests = [];
+  const pageErrors = [];
+  page.on('request', request => {
+    if (/^https?:/i.test(request.url())) externalRequests.push(request.url());
+  });
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', message => {
+    if (message.type() === 'error') pageErrors.push(message.text());
+  });
+  await page.route(/^https?:\/\//i, route => route.abort());
+
+  const loadStarted = process.hrtime.bigint();
+  await page.goto(pathToFileURL(benchmarkPreview).href);
+  await page.locator('#stage').waitFor({ state: 'visible' });
+  await page.waitForFunction(() =>
+    [...document.images].every(image => image.complete && image.naturalWidth > 0)
+  );
+  const loadReadyMs = Number(process.hrtime.bigint() - loadStarted) / 1e6;
+
+  const frameStats = await page.evaluate(async () => {
+    const warmupFrames = 30;
+    const measuredFrames = 180;
+    const timestamps = [];
+    await new Promise(resolve => {
+      function sample(timestamp) {
+        timestamps.push(timestamp);
+        if (timestamps.length < warmupFrames + measuredFrames + 1) {
+          requestAnimationFrame(sample);
+        } else {
+          resolve();
+        }
+      }
+      requestAnimationFrame(sample);
+    });
+    const intervals = [];
+    for (let index = warmupFrames + 1; index < timestamps.length; index++) {
+      intervals.push(timestamps[index] - timestamps[index - 1]);
+    }
+    const ordered = [...intervals].sort((a, b) => a - b);
+    const median = ordered.length % 2
+      ? ordered[(ordered.length - 1) / 2]
+      : (ordered[ordered.length / 2 - 1] + ordered[ordered.length / 2]) / 2;
+    const p95Index = Math.min(ordered.length - 1, Math.ceil(ordered.length * 0.95) - 1);
+    return {
+      sample_count: intervals.length,
+      warmup_frames: warmupFrames,
+      measured_duration_ms: intervals.reduce((sum, value) => sum + value, 0),
+      median_ms: median,
+      p95_ms: ordered[p95Index],
+      max_ms: Math.max(...intervals),
+      intervals_over_16_7ms: intervals.filter(value => value > 16.7).length,
+      samples_ms: intervals
+    };
+  });
+  expect(frameStats.sample_count).toBe(180);
+  expect(frameStats.samples_ms.every(value => Number.isFinite(value) && value >= 0)).toBe(true);
+  expect(Number.isFinite(loadReadyMs) && loadReadyMs >= 0).toBe(true);
+  expect([frameStats.median_ms, frameStats.p95_ms, frameStats.max_ms,
+    frameStats.measured_duration_ms].every(value => Number.isFinite(value) && value >= 0)).toBe(true);
+  expect(externalRequests, 'preview must not make runtime network requests').toEqual([]);
+  expect(pageErrors, 'preview must not raise uncaught browser errors').toEqual([]);
+
+  const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+  report.environment.playwright = require('@playwright/test/package.json').version;
+  report.environment.chromium = page.context().browser().version();
+  report.environment.viewport = '1000x1400';
+  report.environment.device_scale_factor = 1;
+  report.browser = {
+    load_to_images_ready_ms: loadReadyMs,
+    frame_interval_ms: frameStats,
+    notes: 'Headless CI measurements are informational and include host scheduling noise.'
+  };
+  fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+  await testInfo.attach('performance.json', { path: reportPath, contentType: 'application/json' });
+});
