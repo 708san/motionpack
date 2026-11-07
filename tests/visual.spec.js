@@ -135,8 +135,8 @@ test('collect report-only package, reader and browser performance measurements',
   test.setTimeout(120_000);
   const performanceDir = path.join(root, 'test-results', 'performance');
   execFileSync('python3', [
-    'tests/performance_report.py', '--out', performanceDir
-  ], { cwd: root, stdio: 'inherit', timeout: 60_000 });
+    'tests/run_performance_report.py', '--out', performanceDir
+  ], { cwd: root, stdio: 'inherit', timeout: 65_000 });
   const reportPath = path.join(performanceDir, 'performance.json');
   const benchmarkPreview = path.join(performanceDir, 'package', 'preview.html');
   const externalRequests = [];
