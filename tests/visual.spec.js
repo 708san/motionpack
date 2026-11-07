@@ -136,7 +136,7 @@ test('collect report-only package, reader and browser performance measurements',
   const performanceDir = path.join(root, 'test-results', 'performance');
   execFileSync('python3', [
     'tests/performance_report.py', '--out', performanceDir
-  ], { cwd: root, stdio: 'inherit' });
+  ], { cwd: root, stdio: 'inherit', timeout: 60_000 });
   const reportPath = path.join(performanceDir, 'performance.json');
   const benchmarkPreview = path.join(performanceDir, 'package', 'preview.html');
   const externalRequests = [];
@@ -178,14 +178,16 @@ test('collect report-only package, reader and browser performance measurements',
       intervals.push(timestamps[index] - timestamps[index - 1]);
     }
     const ordered = [...intervals].sort((a, b) => a - b);
-    const at = fraction => ordered[Math.min(ordered.length - 1,
-      Math.max(0, Math.round((ordered.length - 1) * fraction)))];
+    const median = ordered.length % 2
+      ? ordered[(ordered.length - 1) / 2]
+      : (ordered[ordered.length / 2 - 1] + ordered[ordered.length / 2]) / 2;
+    const p95Index = Math.min(ordered.length - 1, Math.ceil(ordered.length * 0.95) - 1);
     return {
       sample_count: intervals.length,
       warmup_frames: warmupFrames,
       measured_duration_ms: intervals.reduce((sum, value) => sum + value, 0),
-      median_ms: at(0.5),
-      p95_ms: at(0.95),
+      median_ms: median,
+      p95_ms: ordered[p95Index],
       max_ms: Math.max(...intervals),
       intervals_over_16_7ms: intervals.filter(value => value > 16.7).length,
       samples_ms: intervals
