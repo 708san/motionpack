@@ -432,6 +432,16 @@ class ArchiveReaderTests(unittest.TestCase):
             result = read_package(package)
             self.assertNotIn("source/original.zip", result.assets)
 
+    def test_root_entry_named_source_is_not_treated_as_source_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("source", bytes.fromhex("504b0304") + b"not under source directory"))
+            package = self._zip(pathlib.Path(tmp) / "root-source-file.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(package)
+
     def test_archive_signature_sniffer_recognizes_supported_container_headers(self):
         for payload in (
             b"PK\x03\x04payload", b"\x1f\x8bpayload", b"BZh9payload",
