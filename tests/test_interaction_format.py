@@ -66,8 +66,8 @@ class InteractionFormatTests(unittest.TestCase):
         project = ROOT / "examples" / "interaction_demo"
         errors, validated = validate(project)
         self.assertEqual(errors, [], errors)
-        self.assertEqual(validated["manifest"]["version"], "0.4")
-        self.assertEqual(len(validated["manifest"]["nodes"]), 4)
+        self.assertEqual(validated["version"], "0.4")
+        self.assertEqual(len(validated["nodes"]), 4)
 
         with tempfile.TemporaryDirectory() as tmp:
             archive, _ = build(project, pathlib.Path(tmp) / "out")
