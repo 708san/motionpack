@@ -541,7 +541,7 @@ def read_package(path, *, limits=None):
                         loaded_by_entry[info.filename] = data
                     assets[asset_id] = loaded_by_entry[info.filename]
 
-        # Reuse the v0.1/v0.2/v0.3 semantic validator on a private temporary
+        # Reuse the v0.1-v0.4 semantic validator on a private temporary
         # tree containing only the manifest and referenced assets. Canonical entry
         # paths ensure aliases of one ZIP entry count once for PNG pixel budgets.
         # No ZIP member controls the temporary path and no caller-selected destination is used.
