@@ -125,7 +125,7 @@ class ArchiveReaderTests(unittest.TestCase):
             "0.3": "06ad0b8b4b05e8212573784cbdda00a6c8dee9cfe8a9840888feb50cbf6611ea",
             "0.4": "c98a270b566a6792748fc479a63af484fc1c9378d3a4e7c638db96704943bcb8",
         }
-        fixture_dir = ROOT / "tests" / "fuzz_corpus" / "archive_reader"
+        fixture_dir = ROOT / "tests" / "fixtures" / "compatibility_archive_reader"
         for version, expected_hash in expected_hashes.items():
             with self.subTest(version=version):
                 fixture = fixture_dir / f"valid_v{version.replace('.', '')}.motionpack"
