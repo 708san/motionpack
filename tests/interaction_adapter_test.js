@@ -124,6 +124,29 @@ nestedTarget.fire('pointermove', pointer('mouse', 13, 50, 50));
 assert.strictEqual(nestedEvents.filter(event => event.type === 'hoverenter' && event.nodeId === 'b').length, 1,
   'nested transitions away and back cannot duplicate hoverenter');
 
+const sameTargetTarget = new Target();
+const sameTargetEvents = [];
+let sameTargetMove;
+const sameTargetAdapter = interaction.create({ target: sameTargetTarget, globalTarget: new Target(),
+  manifest: { version: '0.4', canvas: { width: 100, height: 100 }, nodes: [
+    node('a', 20, 0, { hover: true }), node('b', 50, 1, { hover: true })
+  ] }, getPose: () => ({ nodes: new Map([
+    ['a', node('a', 20, 0, { hover: true })], ['b', node('b', 50, 1, { hover: true })]
+  ]) }), assetSizes: {}, hitTest, emit(event) {
+    sameTargetEvents.push(event);
+    if (event.type === 'hoverleave' && event.nodeId === 'a') {
+      sameTargetMove(pointer('mouse', 30, 50, 50));
+    }
+  }
+});
+sameTargetMove = sameTargetTarget.listeners.get('pointermove');
+sameTargetMove(pointer('mouse', 30, 20, 50));
+sameTargetMove(pointer('mouse', 30, 50, 50));
+assert.deepStrictEqual(sameTargetEvents.map(event => [event.type, event.nodeId]), [
+  ['hoverenter', 'a'], ['hoverleave', 'a'], ['hoverenter', 'b']
+], 'same-target reentrant movement preserves the pending hoverenter');
+sameTargetAdapter.dispose();
+
 const simultaneous = setup([node('a', 20, 0, { hover: true }), node('b', 80, 1, { hover: true })]);
 simultaneous.target.fire('pointermove', pointer('mouse', 20, 20, 50));
 simultaneous.target.fire('pointermove', pointer('pen', 21, 80, 50));
