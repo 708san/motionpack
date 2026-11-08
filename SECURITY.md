@@ -3,7 +3,7 @@
 MotionPack is experimental pre-alpha software. Do not use its current tools to
 open untrusted packages in a production or high-privilege environment.
 
-The bounded reader in `tools/archive_reader.py` supports experimental v0.1/v0.2/v0.3
+The bounded reader in `tools/archive_reader.py` supports experimental v0.1/v0.2/v0.3/v0.4
 packages. It checks ZIP member names and metadata, enforces configurable size
 and compression-ratio limits, and reads only the manifest and referenced image
 assets. It does not extract arbitrary ZIP members. Optional `source/` entries
