@@ -39,4 +39,4 @@
 ## Browser visual CI
 - `.github/workflows/visual-regression.yml` は Playwright 1.65.0 のnpm依存をlockfile/integrity hashで固定し、npm lifecycle scriptsを実行せずに導入する。対応Chromiumを含むUbuntu 24.04コンテナはPlaywrightのバージョンとOCI digestの両方で固定する。Workflowは `contents: read` のみで、checkout credentialsを永続化せず、secretsを渡さない。
 - ブラウザ上では preview のHTTP(S)要求を遮断して検査するが、これはrunner全体のegress制限ではない。依存・コンテナ取得にはCI setup時のネットワークが必要であり、Visual Workflow内のPRコードも通常のPR trust boundaryで実行される。
-- Artifactには候補スクリーンショットPNGとブラウザ/時刻メタデータだけを14日間保存する。Artifactはリポジトリアクセス権を持つ利用者が取得可能な情報として扱い、秘密情報を含めない。
+- Artifactには候補スクリーンショットPNG、ブラウザ/時刻メタデータ、性能計測JSONを14日間保存する。Artifactはリポジトリアクセス権を持つ利用者が取得可能な情報として扱い、秘密情報を含めない。

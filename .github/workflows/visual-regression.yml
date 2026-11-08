@@ -26,5 +26,6 @@ jobs:
           path: |
             test-results/visual/candidate-screenshots/*.png
             test-results/visual/capture-metadata.txt
+            test-results/performance/performance.json
           if-no-files-found: warn
           retention-days: 14
