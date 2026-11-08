@@ -18,6 +18,7 @@ node tests/interaction_adapter_test.js
 node tests/interaction_preview_smoke.js
 node tests/pointer_ik_adapter_test.js
 node tests/preview_facade_test.js
+node tests/viewport_adapter_test.js
 node tests/runtime_smoke.js
 node tests/runtime_ik_smoke.js
 python3 -m unittest discover -s tests -v
@@ -68,6 +69,12 @@ window.addEventListener('motionpack:interaction', event => console.log(event.det
 ```
 
 The host chooses what the events do. To map a host-provided keyboard control to the `click_only` node, call `window.MotionPackInteractions.activate('click_only')`.
+
+## Experimental viewport sizing
+
+The preview keeps the manifest canvas as logical coordinates and defaults to centered `contain` fitting. Hosts may resize the preview viewport in CSS, then call `window.MotionPackViewport.configure({fit, alignX, alignY})` with `contain`, `cover`, or `stretch`; alignment values range from 0 (start) to 1 (end). The logical-to-screen mapping is shared by drawing, pointer IK and v0.4 interactions. The backing bitmap is capped at device-pixel ratio (DPR) 2, 16 megapixels and 8,192 pixels per edge. The format manifest remains unchanged.
+
+The viewport adapter tests include a generic 91:55 canvas ratio, letterboxing, cropping, alignment, CSS-to-logical input mapping and bitmap limits.
 
 ## Browser visual regression pilot
 

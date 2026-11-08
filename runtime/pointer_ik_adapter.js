@@ -10,7 +10,7 @@
     if (!options || typeof options !== 'object' || Array.isArray(options)) {
       throw new TypeError('pointer IK adapter options are required');
     }
-    const { target, controller, ikId, logicalWidth, logicalHeight } = options;
+    const { target, controller, ikId, logicalWidth, logicalHeight, mapClientToLogical } = options;
     if (!target || typeof target.addEventListener !== 'function'
         || typeof target.removeEventListener !== 'function'
         || typeof target.getBoundingClientRect !== 'function') {
@@ -23,6 +23,10 @@
         || !Number.isFinite(logicalWidth) || logicalWidth <= 0
         || !Number.isFinite(logicalHeight) || logicalHeight <= 0) {
       throw new TypeError('pointer IK adapter dimensions and chain ID must be valid');
+    }
+
+    if (mapClientToLogical !== undefined && typeof mapClientToLogical !== 'function') {
+      throw new TypeError('mapClientToLogical must be a function');
     }
 
     let enabled = false;
@@ -42,6 +46,17 @@
     }
 
     function update(event) {
+      if (mapClientToLogical) {
+        let mapped;
+        try { mapped = mapClientToLogical(event); } catch (_) { mapped = null; }
+        if (!Array.isArray(mapped) || mapped.length !== 2 || !mapped.every(Number.isFinite)) {
+          clearTarget();
+          return;
+        }
+        controller.setIKTarget(ikId, mapped);
+        hasTarget = true;
+        return;
+      }
       let rect;
       try {
         rect = target.getBoundingClientRect();
