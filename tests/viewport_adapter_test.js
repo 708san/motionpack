@@ -29,7 +29,9 @@ assert(Math.abs(center[1] - 275) < 1e-9);
 view.configure({ fit: 'cover' });
 state = view.getState();
 assert.strictEqual(state.fit, 'cover');
-assert.strictEqual(view.clientToLogical(11, 520), null, 'cropped content outside logical bounds must not hit');
+const croppedLeft = view.clientToLogical(11, 520);
+assert(croppedLeft && Math.abs(croppedLeft[0] - 180) < 1,
+  'cover maps visible viewport pixels to the corresponding cropped logical region');
 assert(Math.abs(view.clientToLogical(510, 520)[0] - 455) < 1e-9);
 
 view.configure({ fit: 'stretch' });
