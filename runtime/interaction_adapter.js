@@ -32,6 +32,8 @@
       .map(node => [node.id, node]));
     const hasHoverOptIn = manifest.nodes.some(node => node && node.interaction?.hover === true);
     let hovered = null;
+    let hoverOwner = null;
+    let hoverGeneration = 0;
     let touch = null;
     let disposed = false;
 
@@ -69,13 +71,20 @@
       try { emit(Object.freeze({ type, nodeId, input })); } catch (_) { /* Host callback failures do not escape into rendering. */ }
     }
 
-    function updateHover(nodeId, input) {
+    function updateHover(nodeId, input, pointerId) {
       const next = nodeId && optedIn(nodeId, 'hover') ? nodeId : null;
-      if (next === hovered) return;
       const previous = hovered;
+      const previousOwner = hoverOwner;
+      if (next === previous) {
+        hoverOwner = next ? { id: pointerId, input } : null;
+        hoverGeneration += 1;
+        return;
+      }
       hovered = next;
-      if (previous) send('hoverleave', previous, input);
-      if (disposed || hovered !== next) return;
+      hoverOwner = next ? { id: pointerId, input } : null;
+      const generation = ++hoverGeneration;
+      if (previous) send('hoverleave', previous, previousOwner?.input || input);
+      if (disposed || generation !== hoverGeneration) return;
       if (hovered) send('hoverenter', hovered, input);
     }
 
@@ -84,13 +93,14 @@
           || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')) return;
       if (!hasHoverOptIn && !hovered) return;
       const nodeId = topNode(event);
-      updateHover(nodeId, event.pointerType);
+      updateHover(nodeId, event.pointerType, event.pointerId);
     }
 
     function onPointerLeave(event) {
       if (disposed || event.isPrimary === false
           || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')) return;
-      updateHover(null, event.pointerType);
+      if (hoverOwner && hoverOwner.id !== event.pointerId) return;
+      updateHover(null, event.pointerType, event.pointerId);
     }
 
     function onPointerDown(event) {
@@ -142,6 +152,8 @@
         }
         touch = null;
         hovered = null;
+        hoverOwner = null;
+        hoverGeneration += 1;
       }
     });
   }
