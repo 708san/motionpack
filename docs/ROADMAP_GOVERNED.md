@@ -1,6 +1,6 @@
 # Governed MotionPack roadmap
 
-Targets are exploratory, not release commitments. This plan is reconciled with `main` at `2c85e2d` (2026-11-08); update its evidence links as implementation and CI change.
+Targets are exploratory, not release commitments. This plan is reconciled with `main` at `d3e1e37`, which includes PR #38 (2026-11-08); update its evidence links as implementation and CI change.
 
 ## Current implementation status
 
@@ -27,7 +27,7 @@ The isolated-reader Actions run [42455065352](https://github.com/708san/motionpa
 
 ## Phase B — define runtime and compatibility contracts
 
-1. Extract a stateless pose evaluator that accepts a manifest, clip, variant, and millisecond timestamp; preserve generated preview behavior through the existing `window.MotionPackPlayer` facade. **Implemented on PR #38; the PR remains unmerged.**
+1. Extract a stateless pose evaluator that accepts a manifest, clip, variant, and millisecond timestamp; preserve generated preview behavior through the existing `window.MotionPackPlayer` facade. **PR #38 merged into main as `d3e1e37`.**
 2. Define the host-driven lifecycle controller contract and keep it experimental until it has been exercised and accepted; the API proposal is documented and received Architect review on the follow-up branch.
 3. Review the proposed [v1.0 compatibility policy](COMPATIBILITY_POLICY_DRAFT.md) before stabilizing format or runtime APIs. Manage file-format, runtime and authoring-tool versions separately; document required/optional capabilities, migration, deprecation, unsupported-feature errors and fallback export.
 4. Keep v0.1–v0.3 experimental. Specify whether/how they migrate into v1.0; keep frozen fixtures and compare both sampled state and rendered output.
@@ -36,7 +36,7 @@ The isolated-reader Actions run [42455065352](https://github.com/708san/motionpa
 
 ## Phase C — reusable playback and interaction
 
-1. Build on the evaluator to add a host-owned player controller and rendering adapters. A DOM-free controller prototype now provides per-instance clip/variant/time state, play/pause/resume/stop/seek, state queries and disposal; preview integration, loading/unloading, parameter updates, resizing and rendering adapters remain open.
+1. Build on the evaluator to add a host-owned player controller and rendering adapters. A DOM-free controller prototype with per-instance clip/variant/time state, play/pause/resume/stop/seek, state queries and disposal is implemented on PR #39; preview-facade integration, loading/unloading, parameter updates, resizing and rendering adapters remain open.
 2. Add pointer/touch input with canvas-to-logical coordinate mapping, then hit tests, dragging, long press and swipe. Keep host actions permissioned by the consuming application; never execute package JavaScript.
 3. Separate logical canvas size from viewport policy (contain, cover, stretch, alignment and high-DPI scaling). Include 91:55 as a generic aspect-ratio test, not a product-specific feature.
 4. Add an offline export path only after the player API and asset lifecycle are stable.
