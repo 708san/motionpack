@@ -17,6 +17,7 @@ import unittest
 import zipfile
 import zlib
 from unittest import mock
+from tests.jpeg_fixtures import jpeg_with_dnl_defined_height
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
@@ -693,6 +694,22 @@ class ArchiveReaderTests(unittest.TestCase):
             entries.append((path,jpeg_header(320,0)))
             entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else data) for name,data in entries]
             archive=self._zip(pathlib.Path(tmp)/'zero-height.motionpack',entries)
+            with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid JPEG header'):
+                read_package(archive)
+
+    def test_archive_reader_rejects_jpeg_dnl_defined_height(self):
+        path='assets/dnl-height.jpg'
+        data=jpeg_with_dnl_defined_height()
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets']['dnl_height']=path
+            entries.append((path,data))
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else content)
+                     for name,content in entries]
+            archive=self._zip(pathlib.Path(tmp)/'dnl-height.motionpack',entries)
             with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid JPEG header'):
                 read_package(archive)
 

@@ -8,6 +8,7 @@ import unittest
 from unittest import mock
 
 from tools import isolated_raster_decoder as decoder
+from tests.jpeg_fixtures import jpeg_with_dnl_defined_height
 
 try:
     from PIL import Image
@@ -111,6 +112,14 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
 
 
 class RasterDecoderInputValidationTests(unittest.TestCase):
+    def test_rejects_dnl_defined_jpeg_height_before_starting_worker(self):
+        with mock.patch.object(decoder.subprocess, 'Popen') as popen:
+            with self.assertRaises(decoder.RasterDecodeError):
+                decoder.decode_raster_assets_isolated(
+                    {'asset': jpeg_with_dnl_defined_height()}, {'asset': 'assets/asset.jpg'}
+                )
+        popen.assert_not_called()
+
     def test_rejects_non_raster_source_and_mismatched_mapping(self):
         with self.assertRaises(ValueError):
             decoder.decode_raster_assets_isolated(
