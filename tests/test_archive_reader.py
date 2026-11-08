@@ -120,6 +120,61 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertEqual(set(current.assets), set(current.manifest["assets"]))
         self.assertTrue(all(current.assets.values()))
 
+    def test_reads_frozen_v03_and_v04_packages(self):
+        expected_hashes = {
+            "0.3": "06ad0b8b4b05e8212573784cbdda00a6c8dee9cfe8a9840888feb50cbf6611ea",
+            "0.4": "c98a270b566a6792748fc479a63af484fc1c9378d3a4e7c638db96704943bcb8",
+        }
+        fixture_dir = ROOT / "tests" / "fixtures" / "compatibility_archive_reader"
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tests" / "build_compatibility_fixtures.py"),
+                    "--output-dir",
+                    tmp,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            for version, expected_hash in expected_hashes.items():
+                filename = f"valid_v{version.replace('.', '')}.motionpack"
+                regenerated = pathlib.Path(tmp) / filename
+                committed = fixture_dir / filename
+                self.assertEqual(hashlib.sha256(regenerated.read_bytes()).hexdigest(), expected_hash)
+                self.assertEqual(regenerated.read_bytes(), committed.read_bytes())
+
+        for version, expected_hash in expected_hashes.items():
+            with self.subTest(version=version):
+                fixture = fixture_dir / f"valid_v{version.replace('.', '')}.motionpack"
+                self.assertEqual(hashlib.sha256(fixture.read_bytes()).hexdigest(), expected_hash)
+                package = read_package(fixture)
+                self.assertEqual(package.manifest["version"], version)
+                self.assertEqual(set(package.assets), set(package.manifest["assets"]))
+                self.assertTrue(all(package.assets.values()))
+                with zipfile.ZipFile(fixture) as archive:
+                    self.assertEqual(
+                        set(archive.namelist()),
+                        {"manifest.json", *package.manifest["assets"].values()},
+                    )
+                    self.assertFalse(any(name.casefold().startswith("source/") for name in archive.namelist()))
+
+        v03 = read_package(fixture_dir / "valid_v03.motionpack")
+        self.assertEqual(v03.manifest["id"], "layered-plant-demo")
+        self.assertEqual(set(v03.assets), {"foliage", "pot"})
+
+        v04 = read_package(fixture_dir / "valid_v04.motionpack")
+        self.assertEqual(v04.manifest["id"], "node-interaction-demo")
+        interactions = {
+            node["id"]: node.get("interaction")
+            for node in v04.manifest["nodes"]
+        }
+        self.assertEqual(interactions["hover_only"], {"hover": True})
+        self.assertEqual(interactions["tap_only"], {"tap": True})
+        self.assertEqual(interactions["click_only"], {"click": True})
+        self.assertIsNone(interactions["disabled"])
+
     def test_reads_v03_and_enforces_svg_dimensions(self):
         with tempfile.TemporaryDirectory() as tmp:
             packaged=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')

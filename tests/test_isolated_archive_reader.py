@@ -26,7 +26,8 @@ from isolated_archive_reader import (
 
 class IsolatedArchiveReaderTests(unittest.TestCase):
     def _valid_fixture(self, folder, version):
-        seed = ROOT / "tests" / "fuzz_corpus" / "archive_reader" / f"valid_v{version.replace('.', '')}.motionpack"
+        fixture_dir = "fuzz_corpus/archive_reader" if version in ("0.1", "0.2") else "fixtures/compatibility_archive_reader"
+        seed = ROOT / "tests" / fixture_dir / f"valid_v{version.replace('.', '')}.motionpack"
         target = pathlib.Path(folder) / f"valid-v{version}.motionpack"
         shutil.copyfile(seed, target)
         return target
@@ -92,9 +93,9 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             time.sleep(0.05)
         self.fail("isolated worker remains alive after wrapper returned")
 
-    def test_reads_v01_and_v02_packages(self):
+    def test_reads_v01_through_v04_packages(self):
         with tempfile.TemporaryDirectory() as tmp:
-            for project, version in (("robot_demo", "0.1"), ("robot_ik_demo", "0.2")):
+            for version in ("0.1", "0.2", "0.3", "0.4"):
                 with self.subTest(version=version):
                     archive = self._valid_fixture(tmp, version)
                     direct_result = read_package(archive)
