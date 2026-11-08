@@ -20,3 +20,8 @@ A read-only review of the Issue #4 controls and negative-test definitions found 
 - A possible mismatch between the Windows memory-limit test and worker error mapping was raised by static inspection. The Windows `isolated-reader-windows-2025` job passed in PR #27; the macOS job was canceled before setup and provides no test evidence.
 
 The review was static and did not execute tests or fuzzing. See the repository CI evidence and test files for execution results; the review itself is not a formal certification.
+
+## Cross-platform execution evidence (2026-11-09)
+
+After the 2026-11-06 static review, PR #50 repaired the workflow YAML and replaced the retired macOS 14 runner label. Main Actions run [#175](https://github.com/708san/motionpack/actions/runs/42509255143) on commit `f1fe82c` passed the isolated raster decoder, isolated archive reader, and report-only metrics steps on `ubuntu-24.04`, `macos-15`, and `windows-2025`. This records execution of the current test suite on all three operating systems; it does not remove the documented process-isolation limits or certify the reader as a sandbox.
+
