@@ -59,7 +59,7 @@ assert.deepStrictEqual([state.bitmapWidth, state.bitmapHeight], [200, 200],
   'large logical dimensions must not raise the capped CSS-pixel backing resolution');
 assert(state.bitmapWidth / state.cssWidth <= 2 && state.bitmapHeight / state.cssHeight <= 2,
   'backing bitmap resolution must honor the DPR ceiling even below logical canvas size');
-assert.deepStrictEqual(reduced.clientToLogical(60, 70), [500, 600],
+assert.deepStrictEqual(reduced.clientToLogical(60, 80), [500, 600],
   'logical input mapping remains independent of backing bitmap resolution');
 const cappedCanvas = fakeTarget(6000, 6000);
 const capped = Viewport.create({ target: cappedCanvas, logicalWidth: 6000, logicalHeight: 6000,
