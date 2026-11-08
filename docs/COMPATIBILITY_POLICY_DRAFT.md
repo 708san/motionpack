@@ -23,9 +23,9 @@ Use semantic versioning as a starting point for stable runtime and tool APIs: PA
 
 ## Experimental v0.x input
 
-The v0.1, v0.2, v0.3 and v0.4 formats do not receive a formal backward-compatibility guarantee. Keep the repository's frozen v0.1 package and current v0.2/v0.3/v0.4 fixtures as regression references. v0.4 adds optional per-node host interaction flags and does not add executable behavior to manifests. The selected v1.0 importer scope covers all four versions. It must report unsupported or lossy features and preserve source material and provenance where present. Conversion must not silently discard fields or rewrite original files. Whether import is read-only or converts into the v1.0 representation remains open.
+The v0.1, v0.2, v0.3 and v0.4 formats do not receive a formal backward-compatibility guarantee. Keep the repository's frozen, checksummed v0.1–v0.4 package fixtures as regression references. v0.1/v0.2 are retained in the archive-reader fuzz seed corpus; v0.3/v0.4 fixtures are generated from the layered plant and interaction examples. v0.4 adds optional per-node host interaction flags and does not add executable behavior to manifests. The selected v1.0 importer scope covers all four versions. It must report unsupported or lossy features and preserve source material and provenance where present. Conversion must not silently discard fields or rewrite original files. Whether import is read-only or converts into the v1.0 representation remains open.
 
-Rejection of a legacy file for a security reason must name the reason and provide a documented migration path where feasible. The selected v0.1–v0.4 coverage still needs frozen, checksummed fixtures for each version; the current repository has fixed package fixtures for v0.1/v0.2, while v0.3/v0.4 currently have examples and schema tests.
+Rejection of a legacy file for a security reason must name the reason and provide a documented migration path where feasible. The repository now has fixed, checksummed package fixtures for all four selected versions. A reviewed feature inventory for each version remains required before format freeze.
 
 ## Proposed v1 format rules
 
