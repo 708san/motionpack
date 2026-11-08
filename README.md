@@ -61,7 +61,7 @@ python3 tools/validate.py examples/interaction_demo
 python3 tools/package.py examples/interaction_demo --out /tmp/motionpack_interaction_demo
 ```
 
-Open the preview, then run this host-side listener in its browser console to inspect notifications:
+Open `/tmp/motionpack_interaction_demo/preview.html`, then run this host-side listener in its browser console to inspect notifications:
 
 ```js
 window.addEventListener('motionpack:interaction', event => console.log(event.detail));
