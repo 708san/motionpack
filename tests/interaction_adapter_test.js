@@ -85,4 +85,34 @@ click.adapter.dispose();
 click.target.fire('click', pointer('mouse', 6, 50, 50));
 assert.strictEqual(click.events.length, 2, 'disposed adapter detaches event handling');
 
+const reentrantTarget = new Target(), reentrantEvents = [];
+let reentrantAdapter;
+reentrantAdapter = interaction.create({ target: reentrantTarget, globalTarget: new Target(),
+  manifest: { version: '0.4', canvas: { width: 100, height: 100 }, nodes: [
+    node('a', 20, 0, { hover: true }), node('b', 80, 1, { hover: true })
+  ] }, getPose: () => ({ nodes: new Map([
+    ['a', node('a', 20, 0, { hover: true })], ['b', node('b', 80, 1, { hover: true })]
+  ]) }), assetSizes: {}, hitTest, emit(event) {
+    reentrantEvents.push(event);
+    if (event.type === 'hoverleave') reentrantAdapter.dispose();
+  }
+});
+reentrantTarget.fire('pointermove', pointer('mouse', 11, 20, 50));
+reentrantTarget.fire('pointermove', pointer('mouse', 11, 80, 50));
+assert.deepStrictEqual(reentrantEvents.map(event => event.type), ['hoverenter', 'hoverleave'],
+  'disposing inside hoverleave cannot emit a later hoverenter');
+
+let noHoverQueries = 0;
+const noHoverTarget = new Target();
+const noHoverNodes = Array.from({ length: 1000 }, (_, index) => node(`n${index}`, index % 100, 0, {}));
+const noHoverAdapter = interaction.create({ target: noHoverTarget, globalTarget: new Target(),
+  manifest: { version: '0.4', canvas: { width: 100, height: 100 }, nodes: noHoverNodes },
+  getPose: () => ({ nodes: new Map() }), assetSizes: {},
+  hitTest: { hitTest() { noHoverQueries += 1; return null; } }, emit() {} });
+for (let index = 0; index < 500; index++) {
+  noHoverTarget.fire('pointermove', pointer('mouse', 12, index % 100, 50));
+}
+assert.strictEqual(noHoverQueries, 0, 'packages without hover opt-in skip pointer-move hit tests');
+noHoverAdapter.dispose();
+
 console.log('OK: opt-in host events, hover transitions, touch taps, input separation and occlusion');
