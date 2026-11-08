@@ -62,5 +62,21 @@ class InteractionFormatTests(unittest.TestCase):
                                     for error in errors), errors)
 
 
+    def test_v04_interaction_example_validates_and_packages(self):
+        project = ROOT / "examples" / "interaction_demo"
+        errors, validated = validate(project)
+        self.assertEqual(errors, [], errors)
+        self.assertEqual(validated["version"], "0.4")
+        self.assertEqual(len(validated["nodes"]), 4)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            archive, _ = build(project, pathlib.Path(tmp) / "out")
+            packaged = read_package(archive)
+            nodes = {node["id"]: node for node in packaged.manifest["nodes"]}
+            self.assertEqual(nodes["hover_only"]["interaction"], {"hover": True})
+            self.assertEqual(nodes["tap_only"]["interaction"], {"tap": True})
+            self.assertEqual(nodes["click_only"]["interaction"], {"click": True})
+            self.assertNotIn("interaction", nodes["disabled"])
+
 if __name__ == "__main__":
     unittest.main()

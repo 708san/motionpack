@@ -29,7 +29,7 @@ Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam fir
 
 - `runtime/`: experimental Canvas2D preview, stateless pose evaluator, host-driven player controller, hit-test and node-interaction helpers, pointer-to-IK adapter and IK solver
 - `tools/`: editable package validator and builder
-- `examples/`: demonstration layered assets and manifests for versions 0.1–0.3
+- `examples/`: demonstration layered assets and manifests for versions 0.1–0.4
 - `tests/`: functional and basic malicious-input regression tests
 - `.codex/agents/`: eleven development subagent definitions (not consumer asset-authoring agents)
 - `docs/`: format specification, architecture and development governance
@@ -51,6 +51,23 @@ python3 tools/package.py examples/layered_plant_demo --out /tmp/motionpack_layer
 ```
 
 Open `/tmp/motionpack_layered_plant/preview.html` locally. This example demonstrates a manual separation workflow; it does not perform automatic segmentation, recover occluded pixels, or define a formal provenance schema.
+
+## v0.4 node interaction example
+
+`examples/interaction_demo` reuses one image on four nodes: hover-only, tap-only, click-only, and disabled by default. Validate and package it with:
+
+```sh
+python3 tools/validate.py examples/interaction_demo
+python3 tools/package.py examples/interaction_demo --out /tmp/motionpack_interaction_demo
+```
+
+Open `/tmp/motionpack_interaction_demo/preview.html`, then run this host-side listener in its browser console to inspect notifications:
+
+```js
+window.addEventListener('motionpack:interaction', event => console.log(event.detail));
+```
+
+The host chooses what the events do. To map a host-provided keyboard control to the `click_only` node, call `window.MotionPackInteractions.activate('click_only')`.
 
 ## Browser visual regression pilot
 
