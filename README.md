@@ -13,6 +13,7 @@ python3 tools/package.py examples/robot_ik_demo --out dist
 node tests/ik_test.js
 node tests/evaluator_test.js
 node tests/player_controller_test.js
+node tests/hit_test_test.js
 node tests/pointer_ik_adapter_test.js
 node tests/preview_facade_test.js
 node tests/runtime_smoke.js
@@ -24,7 +25,7 @@ Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam fir
 
 ## Project layout
 
-- `runtime/`: experimental Canvas2D preview, stateless pose evaluator, host-driven player controller, pointer-to-IK adapter and IK solver
+- `runtime/`: experimental Canvas2D preview, stateless pose evaluator, host-driven player controller, hit-test helper, pointer-to-IK adapter and IK solver
 - `tools/`: editable package validator and builder
 - `examples/`: demonstration layered assets and manifests for versions 0.1–0.3
 - `tests/`: functional and basic malicious-input regression tests
