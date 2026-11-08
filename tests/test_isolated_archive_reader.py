@@ -26,7 +26,8 @@ from isolated_archive_reader import (
 
 class IsolatedArchiveReaderTests(unittest.TestCase):
     def _valid_fixture(self, folder, version):
-        seed = ROOT / "tests" / "fuzz_corpus" / "archive_reader" / f"valid_v{version.replace('.', '')}.motionpack"
+        fixture_dir = "fuzz_corpus/archive_reader" if version in ("0.1", "0.2") else "fixtures/compatibility_archive_reader"
+        seed = ROOT / "tests" / fixture_dir / f"valid_v{version.replace('.', '')}.motionpack"
         target = pathlib.Path(folder) / f"valid-v{version}.motionpack"
         shutil.copyfile(seed, target)
         return target
