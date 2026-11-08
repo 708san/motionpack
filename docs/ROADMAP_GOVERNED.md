@@ -1,13 +1,13 @@
 # Governed MotionPack roadmap
 
-Targets are exploratory, not release commitments. This plan is reconciled with `main` after PR #47 (2026-11-09). Update its evidence links as implementation and CI change.
+Targets are exploratory, not release commitments. This plan is reconciled with `main` after PR #50 (2026-11-09). Update its evidence links as implementation and CI change.
 
 ## Current implementation status
 
 | Area | Status | Evidence and limit |
 |---|---|---|
 | Experimental format | Implemented, verification incomplete | v0.1–v0.4 manifests, validator and frozen v0.1 fixture exist. v0.4 adds opt-in node hover/tap/click notifications; no stable v1.0 compatibility promise or migration tool exists. |
-| Offline preview | Implemented, browser-specific | Packager emits a self-contained Canvas 2D preview. Its legacy facade is backed by the experimental host-driven controller (PR #40). PR #47 adds host-configurable contain/cover/stretch viewport fitting, centered contain by default, logical coordinate mapping, DPR cap 2 and 16 MP backing-buffer cap (8192 px per edge); cross-browser parity, mobile Safari/Chrome and real-device behavior are not established. |
+| Offline preview | Implemented, browser-specific | Packager emits a self-contained Canvas 2D preview. Its legacy facade is backed by the experimental host-driven controller (PR #40). PR #47 adds host-configurable contain/cover/stretch viewport fitting, centered contain by default and logical coordinate mapping; PR #49 ensures the CSS-pixel backing buffer respects the DPR cap of 2 even when the logical canvas is larger. The backing-buffer caps remain 16 MP and 8192 px per edge; cross-browser parity, mobile Safari/Chrome and real-device behavior are not established. |
 | Motion | Partial | Keyframes, clips, variants, effects and two-bone IK work. No mesh skinning, blend graph, independent scale axes or authoring editor. |
 | Package tooling | Partial | Validator, packager and bounded archive inspection exist. The ordinary reader is in-process; the isolated ZIP reader and optional raster decoder are opt-in worker processes, not complete OS sandboxes. |
 | Untrusted input security (Issue #4) | Partial, open | ZIP, SVG and raster header checks, bounded fuzz targets and isolated worker APIs exist; PR #41 adds valid DNL-defined JPEG rejection coverage. Browser preview still uses browser image decoding. Issue #4's production-readiness acceptance has not been closed. |
@@ -15,11 +15,11 @@ Targets are exploratory, not release commitments. This plan is reconciled with `
 | Layered source workflow | Demonstrated, not a production authoring pipeline | A manually separated v0.3 plant sample preserves source and provenance notes. Import, masks, editable rigging, and stable authoring APIs are missing. |
 | AI assistance and distribution | Not implemented / undecided | No AI authoring workflow or license selection. AI is optional and should follow stable authoring APIs; license choice requires maintainer decision. |
 
-The isolated-reader Actions run [42455065352](https://github.com/708san/motionpack/actions/runs/42455065352) on the older `2c85e2d` baseline is marked failed but has zero jobs, zero artifacts and no job logs. GitHub refused a rerun because the run has no jobs, and PR #47 checks did not include this matrix. No successful Linux/macOS/Windows isolated-reader matrix run has been recorded. The cause of the older run is unknown and it is not evidence of a reader test failure. A fresh successful matrix run is required before claiming cross-platform verification.
+The isolated-reader matrix passed on main commit [`f1fe82c`](https://github.com/708san/motionpack/commit/f1fe82cca4a2f95247995ae0294695e37c0cc5f0) in [Actions run #175](https://github.com/708san/motionpack/actions/runs/42509255143): `ubuntu-24.04`, `macos-15`, and `windows-2025` each passed the pinned Pillow install, isolated raster decoder tests, isolated archive-reader tests, and report-only metrics. PR #50 restored execution after earlier runs #72, #167 and #172 failed before creating jobs. The causes were an unquoted `--only-binary=:all:` YAML scalar and the retired `macos-14` runner label. Those failures did not execute reader tests.
 
 ## Phase A — stabilize the experimental baseline
 
-1. Obtain a successful isolated-reader matrix run and retain the run URL and per-OS test results. If a later run fails, diagnose its actual job log before changing code.
+1. **Completed in PR #50:** obtain a successful isolated-reader matrix run and retain the run URL and per-OS test results. The successful main run is #175. If a later run fails, diagnose its actual job log before changing code.
 2. Keep Issue #4 open. Resolve its remaining acceptance items in small changes with adversarial regression tests and independent security review. Track path races, memory containment gaps, SVG renderer limits, private source handling, and browser-native decoder exposure separately.
 3. Maintain existing v0.1–v0.4 fixtures and run the current functional, negative, isolated-process, visual and performance-report checks.
 
