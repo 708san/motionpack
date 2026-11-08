@@ -23,4 +23,4 @@ jobs:
       - name: Verify isolated archive reader
         run: python -m unittest discover -s tests -p test_isolated_archive_reader.py -v
       - name: Verify report-only reader metrics on this OS
-        run: python tests/performance_report.py --out "${{ runner.temp }}/motionpack-performance"
+        run: python tests/run_performance_report.py --out test-results/performance
