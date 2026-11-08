@@ -265,7 +265,6 @@ def _preflight_end_record(stream, file_size, limits):
 _ARCHIVE_PREFIXES = (
     b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08",  # ZIP
     b"\x1f\x8b",  # gzip
-    b"BZh",  # bzip2
     b"\xfd7zXZ\x00",  # xz
     b"7z\xbc\xaf\x27\x1c",  # 7-Zip
     b"Rar!\x1a\x07\x00", b"Rar!\x1a\x07\x01\x00",  # RAR
@@ -275,6 +274,9 @@ _ARCHIVE_PREFIX_BYTES = 512
 
 def _looks_like_archive(data):
     if any(data.startswith(signature) for signature in _ARCHIVE_PREFIXES):
+        return True
+    # bzip2 requires a block-size digit after the three-byte "BZh" marker.
+    if data.startswith(b"BZh") and len(data) >= 4 and data[3:4] in b"123456789":
         return True
     # tar has no fixed leading signature. Validate its header checksum to avoid
     # treating arbitrary files containing the word "ustar" as archives.
