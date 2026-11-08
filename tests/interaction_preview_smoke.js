@@ -14,7 +14,7 @@ const listeners = new Map();
 const canvas = { getContext() { return ctx; }, addEventListener(type, listener) { listeners.set(type, listener); },
   removeEventListener(type) { listeners.delete(type); }, fire(type, event) { listeners.get(type)?.(event); },
   getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; } };
-const controls = { stage: canvas, status: { textContent: '' }, idle: {}, fire: {}, transform: {}, reset: {}, aim: { textContent: '' } };
+const controls = { stage: canvas, viewport: { style: {} }, status: { textContent: '' }, idle: {}, fire: {}, transform: {}, reset: {}, aim: { textContent: '' } };
 const sandbox = {
   window: { __MOTIONPACK__: manifest, dispatchEvent(event) { events.push(event); } },
   document: { getElementById(id) { return controls[id]; }, body: {} },
@@ -28,6 +28,7 @@ sandbox.window.MotionPackEvaluator = require(path.join(root, 'runtime/evaluator.
 sandbox.window.MotionPackPlayerController = require(path.join(root, 'runtime/player_controller.js'));
 sandbox.window.MotionPackHitTest = require(path.join(root, 'runtime/hit_test.js'));
 sandbox.window.MotionPackInteractionAdapter = require(path.join(root, 'runtime/interaction_adapter.js'));
+sandbox.window.MotionPackViewportAdapter = require(path.join(root, 'runtime/viewport_adapter.js'));
 vm.runInNewContext(fs.readFileSync(path.join(root, 'runtime/viewer.js'), 'utf8'), sandbox);
 assert(sandbox.window.MotionPackInteractions, 'v0.4 preview exposes a separate interaction facade');
 assert.strictEqual(typeof sandbox.window.MotionPackPlayer.setPointerIK, 'function', 'legacy player facade remains available');
