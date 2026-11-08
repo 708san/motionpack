@@ -12,9 +12,9 @@ A `.motionpack` is a ZIP archive containing `manifest.json`, referenced runtime 
 - `canvas` has logical pixel width, height and optional background.
 - `assets` maps IDs to local SVG/PNG/JPEG/WebP image paths; no executable scripts or remote images.
 - `nodes` describe image layers, parent IDs, anchor, transform, dimensions, opacity and Z-order.
-- `clips` supply duration, looping, keyframe tracks, timed declarative effects and optional IK tracks.
+- `clips` supply duration, an optional boolean `loop` flag (default `false`), keyframe tracks, timed declarative effects and optional IK tracks. A present non-boolean `loop` value is invalid.
 - `variants` store sparse visual node overrides; `defaults` choose initial clip and variant.
-- Version `0.2` adds optional `iks`: two-bone chains with lengths, target, bend and blend weight.
+- Version `0.2` adds optional `iks`: two-bone chains with lengths, target, bend and optional finite numeric `weight` (default `1`). The runtime clamps finite weights to `[0,1]`; a nonnumeric or non-finite weight is invalid.
 - Version `0.3` requires every referenced SVG root to declare positive numeric `width` and `height` in px. Values use unsigned decimal notation with an optional lowercase `px` suffix (for example, `24`, `24.5`, or `24px`); signs, exponents, percentages, other units, and whitespace are rejected. Each value is limited to 8,192 px and their product to 16,000,000 px. These are v0.3 format maxima; validator and reader callers may apply lower limits but cannot raise them. The maxima do not bound arbitrary renderer behavior or guarantee decoder resource use. Versions 0.1 and 0.2 continue to accept SVGs without these root dimensions.
 - Effect primitives supported: beam, ring and burst. Track properties: x, y, scale, rotation, opacity.
 

@@ -125,6 +125,24 @@ class FormatTests(unittest.TestCase):
         for project in ('robot_demo','robot_ik_demo'):
             errors,m=validate(ROOT/'examples'/project)
             self.assertEqual(errors,[],errors)
+    def test_validator_rejects_non_boolean_loop_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            manifest_path=project/'manifest.json'
+            manifest=json.loads(manifest_path.read_text())
+            manifest['clips']['idle']['loop']='false'
+            manifest_path.write_text(json.dumps(manifest))
+            errors,_=validate(project)
+            self.assertTrue(any('invalid loop flag' in error for error in errors),errors)
+    def test_validator_rejects_non_numeric_ik_weight(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            manifest_path=project/'manifest.json'
+            manifest=json.loads(manifest_path.read_text())
+            manifest['iks'][0]['weight']='bad'
+            manifest_path.write_text(json.dumps(manifest))
+            errors,_=validate(project)
+            self.assertTrue(any('invalid IK weight' in error for error in errors),errors)
     def test_package_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
             archive,preview=build(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'dist')
@@ -728,10 +746,13 @@ class FormatTests(unittest.TestCase):
             _,preview=build(project,pathlib.Path(tmp)/'dist')
             html=preview.read_text()
             evaluator_marker='Stateless MotionPack pose evaluator'
+            controller_marker='Host-driven MotionPack playback state'
             viewer_marker='experimental offline Canvas2D renderer'
             self.assertIn(evaluator_marker,html)
+            self.assertIn(controller_marker,html)
             self.assertIn(viewer_marker,html)
             self.assertLess(html.index(evaluator_marker),html.index(viewer_marker))
+            self.assertLess(html.index(controller_marker),html.index(viewer_marker))
     def test_svg_allows_local_gradient_reference(self):
         errors=self._validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="paint"><stop offset="0" stop-color="red"/></linearGradient></defs><path fill="url(#paint)" d="M0 0"/></svg>')
         self.assertEqual(errors,[],errors)

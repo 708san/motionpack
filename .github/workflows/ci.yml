@@ -24,6 +24,7 @@ jobs:
         run: |
           node tests/ik_test.js
           node tests/evaluator_test.js
+          node tests/player_controller_test.js
           node tests/runtime_smoke.js
           node tests/runtime_ik_smoke.js
   security:

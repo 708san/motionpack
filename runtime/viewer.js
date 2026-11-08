@@ -5,6 +5,7 @@ const S=window.__MOTIONPACK__,Rig=window.MotionPackRig,Evaluator=window.MotionPa
 if(!S){document.body.textContent='Missing MotionPack asset';return;}
 const canvas=document.getElementById('stage'),ctx=canvas.getContext('2d');canvas.width=S.canvas.width;canvas.height=S.canvas.height;
 let assetDecodeFailed=false;
+let playbackFailed=false;
 const reportAssetDecodeFailure=()=>{if(assetDecodeFailed)return;assetDecodeFailed=true;const status=document.getElementById('asset-error');if(status){status.textContent='Image decode failed';status.hidden=false;}};
 const images={};for(const [id,src] of Object.entries(S.assets)){const im=new Image();im.onerror=reportAssetDecodeFailure;im.src=src;images[id]=im;}
 let clip=S.defaults.clip,variant=S.defaults.variant,started=performance.now(),transition=null,pointerIK=false,pointer=null;
@@ -12,10 +13,13 @@ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),mix=(a,b,t)=>a+(b-a)*t,identity={
 function mm(a,b){return {a:a.a*b.a+a.c*b.b,b:a.b*b.a+a.d*b.b,c:a.a*b.c+a.c*b.d,d:a.b*b.c+a.d*b.d,e:a.a*b.e+a.c*b.f+a.e,f:a.b*b.e+a.d*b.f+a.f};}
 function matrix(n){const r=(n.rotation||0)*Math.PI/180,s=n.scale??1;return {a:Math.cos(r)*s,b:Math.sin(r)*s,c:-Math.sin(r)*s,d:Math.cos(r)*s,e:n.x||0,f:n.y||0};}
 function frame(time){
+ if(playbackFailed)return;
  let active=S.clips[clip],t=time-started;
  if(active.loop)t=((t%active.duration_ms)+active.duration_ms)%active.duration_ms;
  else if(t>active.duration_ms){if(transition){variant=transition;transition=null;}clip=S.defaults.clip;started=time;active=S.clips[clip];t=0;}
- const pose=Evaluator.sample(S,{clip,variant,timeMs:t,ikTargets:pointerIK&&pointer&&S.iks?.length?{[S.iks[0].id]:pointer}:{}},Rig);
+ let pose;
+ try{pose=Evaluator.sample(S,{clip,variant,timeMs:t,ikTargets:pointerIK&&pointer&&S.iks?.length?{[S.iks[0].id]:pointer}:{}},Rig);}
+ catch(_){playbackFailed=true;document.getElementById('status').textContent='Playback stopped: invalid animation data';return;}
  const nodes=pose.nodes;
  const world=new Map();
  function resolve(id){if(world.has(id))return world.get(id);const n=nodes.get(id);const m=mm(n.parent?resolve(n.parent):identity,matrix(n));world.set(id,m);return m;}
