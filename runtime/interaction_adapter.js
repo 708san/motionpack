@@ -30,6 +30,7 @@
     const globalTarget = options.globalTarget || root.window || target;
     const nodes = new Map(manifest.nodes.filter(node => node && typeof node.id === 'string')
       .map(node => [node.id, node]));
+    const hasHoverOptIn = manifest.nodes.some(node => node && node.interaction?.hover === true);
     let hovered = null;
     let touch = null;
     let disposed = false;
@@ -71,14 +72,17 @@
     function updateHover(nodeId, input) {
       const next = nodeId && optedIn(nodeId, 'hover') ? nodeId : null;
       if (next === hovered) return;
-      if (hovered) send('hoverleave', hovered, input);
+      const previous = hovered;
       hovered = next;
+      if (previous) send('hoverleave', previous, input);
+      if (disposed || hovered !== next) return;
       if (hovered) send('hoverenter', hovered, input);
     }
 
     function onPointerMove(event) {
       if (disposed || event.isPrimary === false
           || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')) return;
+      if (!hasHoverOptIn && !hovered) return;
       const nodeId = topNode(event);
       updateHover(nodeId, event.pointerType);
     }
