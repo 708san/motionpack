@@ -15,7 +15,7 @@ from package import canonicalize_manifest
 from validate import validate
 
 EXAMPLES = (("layered_plant_demo", "0.3"), ("interaction_demo", "0.4"))
-FIXTURE_DIR = ROOT / "tests" / "fuzz_corpus" / "archive_reader"
+FIXTURE_DIR = ROOT / "tests" / "fixtures" / "compatibility_archive_reader"
 FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 
 
