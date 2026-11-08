@@ -1,21 +1,21 @@
 # Governed MotionPack roadmap
 
-Targets are exploratory, not release commitments. This plan is reconciled with `main` at `d3e1e37`, which includes PR #38 (2026-11-08); update its evidence links as implementation and CI change.
+Targets are exploratory, not release commitments. This plan is reconciled with `main` at `aec619e` (2026-11-08), after PRs #39–#41. Update its evidence links as implementation and CI change.
 
 ## Current implementation status
 
 | Area | Status | Evidence and limit |
 |---|---|---|
 | Experimental format | Implemented, verification incomplete | v0.1, v0.2 and v0.3 manifests, examples, validator and frozen v0.1 fixture exist. No stable v1.0 compatibility promise or migration tool exists. |
-| Offline preview | Implemented, browser-specific | Packager emits a self-contained Canvas 2D preview. Cross-browser parity, mobile Safari/Chrome and real-device behavior are not established. |
+| Offline preview | Implemented, browser-specific | Packager emits a self-contained Canvas 2D preview. Its legacy facade is backed by the experimental host-driven controller (PR #40); cross-browser parity, mobile Safari/Chrome and real-device behavior are not established. |
 | Motion | Partial | Keyframes, clips, variants, effects and two-bone IK work. No mesh skinning, blend graph, independent scale axes or authoring editor. |
 | Package tooling | Partial | Validator, packager and bounded archive inspection exist. The ordinary reader is in-process; the isolated ZIP reader and optional raster decoder are opt-in worker processes, not complete OS sandboxes. |
-| Untrusted input security (Issue #4) | Partial, open | ZIP, SVG and raster header checks, bounded fuzz targets and isolated worker APIs exist. Browser preview still uses browser image decoding. Issue #4's production-readiness acceptance has not been closed. |
+| Untrusted input security (Issue #4) | Partial, open | ZIP, SVG and raster header checks, bounded fuzz targets and isolated worker APIs exist; PR #41 adds valid DNL-defined JPEG rejection coverage. Browser preview still uses browser image decoding. Issue #4's production-readiness acceptance has not been closed. |
 | Visual and performance QA (Issue #5) | Pilot implemented, verification incomplete | Linux Chromium screenshot baselines and report-only timing/memory measurements exist. No mobile or cross-browser matrix, human motion-quality gate, or numeric performance thresholds exist. |
 | Layered source workflow | Demonstrated, not a production authoring pipeline | A manually separated v0.3 plant sample preserves source and provenance notes. Import, masks, editable rigging, and stable authoring APIs are missing. |
 | AI assistance and distribution | Not implemented / undecided | No AI authoring workflow or license selection. AI is optional and should follow stable authoring APIs; license choice requires maintainer decision. |
 
-The isolated-reader Actions run [42455065352](https://github.com/708san/motionpack/actions/runs/42455065352) on this baseline is marked failed but has zero jobs, zero artifacts and no job logs. The same commit's functional, validation, security-negative and governance checks succeeded. The run cannot be retried through the available GitHub API. Its cause is unknown; it is not evidence of a reader test failure. A new successful Linux/macOS/Windows matrix run is required before claiming cross-platform verification.
+The isolated-reader Actions run [42455065352](https://github.com/708san/motionpack/actions/runs/42455065352) on the older `d3e1e37` baseline is marked failed but has zero jobs, zero artifacts and no job logs. PRs #39–#41 did not produce a successful Linux/macOS/Windows isolated-reader matrix run. The cause of the older run is unknown and it is not evidence of a reader test failure. A new successful matrix run is required before claiming cross-platform verification.
 
 ## Phase A — stabilize the experimental baseline
 
@@ -28,7 +28,7 @@ The isolated-reader Actions run [42455065352](https://github.com/708san/motionpa
 ## Phase B — define runtime and compatibility contracts
 
 1. Extract a stateless pose evaluator that accepts a manifest, clip, variant, and millisecond timestamp; preserve generated preview behavior through the existing `window.MotionPackPlayer` facade. **PR #38 merged into main as `d3e1e37`.**
-2. Define the host-driven lifecycle controller contract and keep it experimental until it has been exercised and accepted; the API proposal is documented and received Architect review on the follow-up branch.
+2. Define the host-driven lifecycle controller contract and keep it experimental until it has been exercised and accepted. The prototype was added in PR #39 and integrated into the generated preview facade in PR #40; the controller is not yet a stable public API.
 3. Review the proposed [v1.0 compatibility policy](COMPATIBILITY_POLICY_DRAFT.md) before stabilizing format or runtime APIs. Manage file-format, runtime and authoring-tool versions separately; document required/optional capabilities, migration, deprecation, unsupported-feature errors and fallback export.
 4. Keep v0.1–v0.3 experimental. Specify whether/how they migrate into v1.0; keep frozen fixtures and compare both sampled state and rendered output.
 
@@ -36,7 +36,7 @@ The isolated-reader Actions run [42455065352](https://github.com/708san/motionpa
 
 ## Phase C — reusable playback and interaction
 
-1. Build on the evaluator to add a host-owned player controller and rendering adapters. A DOM-free controller prototype with per-instance clip/variant/time state, play/pause/resume/stop/seek, state queries and disposal is implemented on PR #39; the current follow-up integrates controller clock/state into the generated preview while preserving the legacy facade; loading/unloading, parameter updates, resizing and rendering adapters remain open.
+1. Build on the evaluator to add a host-owned player controller and rendering adapters. PR #39 added a DOM-free controller prototype with per-instance clip/variant/time state, play/pause/resume/stop/seek, state queries and disposal; PR #40 connected it to the generated preview while preserving the legacy facade. Loading/unloading, parameter updates, resizing and rendering adapters remain open.
 2. The generated preview maps pointer input to canvas logical coordinates and uses it for optional IK. Add host-facing touch input, hit tests, dragging, long press and swipe next; keep host actions permissioned by the consuming application and never execute package JavaScript.
 3. Separate logical canvas size from viewport policy (contain, cover, stretch, alignment and high-DPI scaling). Include 91:55 as a generic aspect-ratio test, not a product-specific feature.
 4. Add an offline export path only after the player API and asset lifecycle are stable.
