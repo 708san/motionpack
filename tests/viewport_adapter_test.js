@@ -50,6 +50,17 @@ const hidpi = Viewport.create({ target: hidpiCanvas, logicalWidth: 800, logicalH
   getDevicePixelRatio: () => 3 });
 state = hidpi.update();
 assert.deepStrictEqual([state.bitmapWidth, state.bitmapHeight], [1600, 1200]);
+
+const reducedCanvas = fakeTarget(100, 100);
+const reduced = Viewport.create({ target: reducedCanvas, logicalWidth: 1000, logicalHeight: 1000,
+  getDevicePixelRatio: () => 3 });
+state = reduced.update();
+assert.deepStrictEqual([state.bitmapWidth, state.bitmapHeight], [200, 200],
+  'large logical dimensions must not raise the capped CSS-pixel backing resolution');
+assert(state.bitmapWidth / state.cssWidth <= 2 && state.bitmapHeight / state.cssHeight <= 2,
+  'backing bitmap resolution must honor the DPR ceiling even below logical canvas size');
+assert.deepStrictEqual(reduced.clientToLogical(60, 70), [500, 600],
+  'logical input mapping remains independent of backing bitmap resolution');
 const cappedCanvas = fakeTarget(6000, 6000);
 const capped = Viewport.create({ target: cappedCanvas, logicalWidth: 6000, logicalHeight: 6000,
   maxPixels: 16000000, maxDimension: 8192, getDevicePixelRatio: () => 2 });
