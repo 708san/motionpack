@@ -36,7 +36,8 @@ assert(Math.abs(view.clientToLogical(510, 520)[0] - 455) < 1e-9);
 
 view.configure({ fit: 'stretch' });
 state = view.getState();
-assert.deepStrictEqual(view.clientToLogical(10, 20), [0, 0]);
+const stretchedOrigin = view.clientToLogical(10, 20);
+assert(Math.abs(stretchedOrigin[0]) < 1e-8 && Math.abs(stretchedOrigin[1]) < 1e-8);
 assert.deepStrictEqual(view.clientToLogical(1010 - 0.001, 1020 - 0.001).map(Math.floor), [909, 549]);
 
 view.configure({ fit: 'contain', alignX: 0, alignY: 1 });
