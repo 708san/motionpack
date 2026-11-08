@@ -6,8 +6,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   'use strict';
 
-  const DEFAULTS = Object.freeze({ fit: 'contain', alignX: 0.5, alignY: 0.5, maxDpr: 2,
-    maxPixels: 16000000, maxDimension: 8192 });
+  const HARD_LIMITS = Object.freeze({ maxDpr: 2, maxPixels: 16000000, maxDimension: 8192 });
+  const DEFAULTS = Object.freeze({ fit: 'contain', alignX: 0.5, alignY: 0.5, ...HARD_LIMITS });
 
   function validateOptions(options) {
     const next = { ...options };
@@ -20,9 +20,11 @@
       }
     }
     for (const key of ['maxDpr', 'maxPixels', 'maxDimension']) {
-      if (next[key] !== undefined && (!Number.isFinite(next[key]) || next[key] <= 0)) {
-        throw new RangeError(key + ' must be a finite positive number');
-      }
+      if (next[key] === undefined) continue;
+      const valid = key === 'maxDpr'
+        ? Number.isFinite(next[key]) && next[key] > 0 && next[key] <= HARD_LIMITS.maxDpr
+        : Number.isInteger(next[key]) && next[key] >= 1 && next[key] <= HARD_LIMITS[key];
+      if (!valid) throw new RangeError(key + ' exceeds its supported viewport limit');
     }
     return next;
   }
@@ -50,7 +52,7 @@
     function update() {
       if (disposed) throw new Error('viewport has been disposed');
       let rect;
-      try { rect = target.getBoundingClientRect(); } catch (_) { return null; }
+      try { rect = target.getBoundingClientRect(); } catch (_) { state = null; return null; }
       if (!rect || ![rect.left, rect.top, rect.width, rect.height].every(Number.isFinite)
           || rect.width <= 0 || rect.height <= 0) {
         state = null;
@@ -121,7 +123,7 @@
         settings = { ...settings, ...validateOptions(next || {}) };
         return update();
       },
-      getState() { return state; },
+      getState() { return disposed ? null : update(); },
       dispose() { disposed = true; state = null; }
     });
   }
