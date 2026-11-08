@@ -13,6 +13,7 @@ python3 tools/package.py examples/robot_ik_demo --out dist
 node tests/ik_test.js
 node tests/evaluator_test.js
 node tests/player_controller_test.js
+node tests/preview_facade_test.js
 node tests/runtime_smoke.js
 node tests/runtime_ik_smoke.js
 python3 -m unittest discover -s tests -v

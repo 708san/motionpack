@@ -1,25 +1,40 @@
 /* MotionPack experimental offline Canvas2D renderer, animation player and visual effects */
 (function(){
 'use strict';
-const S=window.__MOTIONPACK__,Rig=window.MotionPackRig,Evaluator=window.MotionPackEvaluator;
+const S=window.__MOTIONPACK__,Rig=window.MotionPackRig,Controller=window.MotionPackPlayerController;
 if(!S){document.body.textContent='Missing MotionPack asset';return;}
 const canvas=document.getElementById('stage'),ctx=canvas.getContext('2d');canvas.width=S.canvas.width;canvas.height=S.canvas.height;
 let assetDecodeFailed=false;
 let playbackFailed=false;
 const reportAssetDecodeFailure=()=>{if(assetDecodeFailed)return;assetDecodeFailed=true;const status=document.getElementById('asset-error');if(status){status.textContent='Image decode failed';status.hidden=false;}};
 const images={};for(const [id,src] of Object.entries(S.assets)){const im=new Image();im.onerror=reportAssetDecodeFailure;im.src=src;images[id]=im;}
-let clip=S.defaults.clip,variant=S.defaults.variant,started=performance.now(),transition=null,pointerIK=false,pointer=null;
+let player;
+try{player=Controller.create({manifest:S,rig:Rig});player.play();}
+catch(_){document.getElementById('status').textContent='Playback stopped: invalid animation data';return;}
+let transition=null,pointerIK=false,pointer=null,previousFrameTime=performance.now();
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),mix=(a,b,t)=>a+(b-a)*t,identity={a:1,b:0,c:0,d:1,e:0,f:0};
 function mm(a,b){return {a:a.a*b.a+a.c*b.b,b:a.b*b.a+a.d*b.b,c:a.a*b.c+a.c*b.d,d:a.b*b.c+a.d*b.d,e:a.a*b.e+a.c*b.f+a.e,f:a.b*b.e+a.d*b.f+a.f};}
 function matrix(n){const r=(n.rotation||0)*Math.PI/180,s=n.scale??1;return {a:Math.cos(r)*s,b:Math.sin(r)*s,c:-Math.sin(r)*s,d:Math.cos(r)*s,e:n.x||0,f:n.y||0};}
 function frame(time){
  if(playbackFailed)return;
- let active=S.clips[clip],t=time-started;
- if(active.loop)t=((t%active.duration_ms)+active.duration_ms)%active.duration_ms;
- else if(t>active.duration_ms){if(transition){variant=transition;transition=null;}clip=S.defaults.clip;started=time;active=S.clips[clip];t=0;}
- let pose;
- try{pose=Evaluator.sample(S,{clip,variant,timeMs:t,ikTargets:pointerIK&&pointer&&S.iks?.length?{[S.iks[0].id]:pointer}:{}},Rig);}
- catch(_){playbackFailed=true;document.getElementById('status').textContent='Playback stopped: invalid animation data';return;}
+ let pose,state,t;
+ const delta=time-previousFrameTime;previousFrameTime=time;
+ try{
+  if(pointerIK&&pointer&&S.iks?.length)player.setIKTarget(S.iks[0].id,pointer);
+  const before=player.getState();
+  pose=player.advance(delta);
+  const crossedEnd=!before.loop&&(
+   (before.state==='ended'&&delta>0)||
+   (before.state==='playing'&&before.timeMs+delta>before.durationMs)
+  );
+  if(crossedEnd){
+   if(transition&&Object.prototype.hasOwnProperty.call(S.variants,transition))player.setVariant(transition);
+   transition=null;
+   pose=player.play(S.defaults.clip);
+  }
+  state=player.getState();t=pose.timeMs;
+ }catch(_){playbackFailed=true;document.getElementById('status').textContent='Playback stopped: invalid animation data';return;}
+ const clip=state.clip,variant=state.variant;
  const nodes=pose.nodes;
  const world=new Map();
  function resolve(id){if(world.has(id))return world.get(id);const n=nodes.get(id);const m=mm(n.parent?resolve(n.parent):identity,matrix(n));world.set(id,m);return m;}
@@ -39,14 +54,21 @@ function frame(time){
  ctx.restore();}
  document.getElementById('status').textContent=clip+' | '+variant+' | '+Math.round(t)+' ms';requestAnimationFrame(frame);
 }
-function playClip(name,next){if(!S.clips[name])return;clip=name;started=performance.now();transition=next||null;}
+function playClip(name,next){if(!Object.prototype.hasOwnProperty.call(S.clips,name))return;player.play(name);previousFrameTime=performance.now();transition=next||null;}
 document.getElementById('idle').onclick=()=>playClip('idle');
 document.getElementById('fire').onclick=()=>playClip('fire');
-document.getElementById('transform').onclick=()=>playClip('transform',variant==='form_a'?'form_b':'form_a');
-document.getElementById('reset').onclick=()=>{variant=S.defaults.variant;playClip(S.defaults.clip);};
-const aim=document.getElementById('aim');if(aim&&S.iks?.length)aim.onclick=()=>{pointerIK=!pointerIK;pointer=null;aim.textContent=pointerIK?'Pointer IK: ON':'Pointer IK: OFF';};
-canvas.addEventListener?.('pointermove',e=>{if(!pointerIK)return;const r=canvas.getBoundingClientRect();pointer=[(e.clientX-r.left)*canvas.width/r.width,(e.clientY-r.top)*canvas.height/r.height];});
-canvas.addEventListener?.('pointerleave',()=>{pointer=null;});
-window.MotionPackPlayer=Object.freeze({playClip,setVariant:name=>{if(S.variants[name])variant=name;},playTransition:playClip,setPointerIK:v=>{pointerIK=!!v;pointer=null;},getState:()=>({clip,variant,pointerIK})});
+document.getElementById('transform').onclick=()=>playClip('transform',player.getState().variant==='form_a'?'form_b':'form_a');
+document.getElementById('reset').onclick=()=>{player.setVariant(S.defaults.variant);playClip(S.defaults.clip);};
+const aim=document.getElementById('aim');if(aim&&S.iks?.length)aim.onclick=()=>{pointerIK=!pointerIK;pointer=null;player.setIKTarget(S.iks[0].id,null);aim.textContent=pointerIK?'Pointer IK: ON':'Pointer IK: OFF';};
+canvas.addEventListener?.('pointermove',e=>{
+ if(!pointerIK)return;
+ const r=canvas.getBoundingClientRect();
+ if(!r||!Number.isFinite(r.width)||!Number.isFinite(r.height)||r.width<=0||r.height<=0){pointer=null;if(S.iks?.length)player.setIKTarget(S.iks[0].id,null);return;}
+ const x=(e.clientX-r.left)*canvas.width/r.width,y=(e.clientY-r.top)*canvas.height/r.height;
+ if(!Number.isFinite(x)||!Number.isFinite(y)){pointer=null;if(S.iks?.length)player.setIKTarget(S.iks[0].id,null);return;}
+ pointer=[x,y];
+});
+canvas.addEventListener?.('pointerleave',()=>{pointer=null;if(S.iks?.length)player.setIKTarget(S.iks[0].id,null);});
+window.MotionPackPlayer=Object.freeze({playClip,setVariant:name=>{if(Object.prototype.hasOwnProperty.call(S.variants,name))player.setVariant(name);},playTransition:playClip,setPointerIK:v=>{pointerIK=!!v;pointer=null;if(S.iks?.length)player.setIKTarget(S.iks[0].id,null);},getState:()=>{const state=player.getState();return {clip:state.clip,variant:state.variant,pointerIK};}});
 requestAnimationFrame(frame);
 })();
