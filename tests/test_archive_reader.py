@@ -126,6 +126,25 @@ class ArchiveReaderTests(unittest.TestCase):
             "0.4": "c98a270b566a6792748fc479a63af484fc1c9378d3a4e7c638db96704943bcb8",
         }
         fixture_dir = ROOT / "tests" / "fixtures" / "compatibility_archive_reader"
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tests" / "build_compatibility_fixtures.py"),
+                    "--output-dir",
+                    tmp,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            for version, expected_hash in expected_hashes.items():
+                filename = f"valid_v{version.replace('.', '')}.motionpack"
+                regenerated = pathlib.Path(tmp) / filename
+                committed = fixture_dir / filename
+                self.assertEqual(hashlib.sha256(regenerated.read_bytes()).hexdigest(), expected_hash)
+                self.assertEqual(regenerated.read_bytes(), committed.read_bytes())
+
         for version, expected_hash in expected_hashes.items():
             with self.subTest(version=version):
                 fixture = fixture_dir / f"valid_v{version.replace('.', '')}.motionpack"
