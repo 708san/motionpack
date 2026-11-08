@@ -7,7 +7,7 @@
 - The v1.0 importer is to support all current experimental versions: v0.1, v0.2, v0.3 and v0.4. This direction requires a frozen, checksummed package fixture and reviewed feature inventory for each version before format freeze.
 - v1.0 will declare capabilities, and a reader must reject an unknown required capability before loading assets or starting playback.
 
-These are scope and behavior decisions, not approval of a specific manifest encoding, extension registry, importer workflow, or v1.0 contract.
+These are scope and behavior decisions. The capability field layout and unknown-field policy below are also approved directions, but the overall v1.0 schema, importer workflow and format contract remain drafts.
 
 ## Version independently evolving components
 
@@ -35,9 +35,9 @@ Rejection of a legacy file for a security reason must name the reason and provid
 - Unknown required capabilities cause a clear unsupported-feature error before loading assets or playback. Unknown optional capabilities may be ignored only when the specification defines that omission as semantically safe; otherwise the reader must fail clearly.
 - Format revisions must state the minimum compatible runtime capability set. Runtime releases publish the format versions and optional capabilities they implement.
 
-### Candidate capability and extension encoding — not yet approved
+### Approved capability and extension direction
 
-Architect review recommends a v1.0 top-level declaration with separate required and optional identifiers:
+The v1.0 manifest declares capabilities using separate required and optional identifier arrays:
 
 ```json
 "capabilities": {
@@ -46,9 +46,11 @@ Architect review recommends a v1.0 top-level declaration with separate required 
 }
 ```
 
-It also recommends putting opaque vendor data under a top-level `extensions` object keyed by stable reverse-domain identifiers, rejecting unknown fields in core objects, and preserving unknown optional declarations and extension payloads when round-tripping. An identifier would keep the same meaning permanently; it would never cause a network lookup, code execution, or external resource load.
+The selected standard identifiers are `org.motionpack.ik.two-bone` for the v0.2 two-bone IK feature and `org.motionpack.interaction` for v0.4 node interaction. Unknown required identifiers must fail before assets are loaded or playback starts. Unknown optional identifiers may be ignored only when the v1.0 specification defines omission as safe; writers preserve the declaration and associated opaque data when round-tripping.
 
-This encoding and identifier registry are proposals only. Maintainers still need to approve the exact field names, namespace owner and registration process, strict handling of unknown core fields, and which standard capability IDs represent the existing v0.2 IK and v0.4 interaction features. Do not add capability fields to v0.1–v0.4 manifests; a v1.0 importer derives their capabilities from their version and contents.
+A top-level `extensions` object uses reverse-domain keys to hold opaque extension data. Unknown fields in core objects are rejected. Extension identifiers and payloads never trigger network lookup, code execution, shader execution or external resource loading. Writers that cannot preserve opaque extension data must warn or refuse a lossy save, and downgrade conversion must report unsupported capabilities.
+
+These directions apply to v1.0 only. A v1.0 importer derives the corresponding capabilities from v0.1–v0.4 version and contents; it does not add fields to legacy manifests. The exact identifier grammar and namespace registration process remain open release-design details. The schema and format are still drafts, not a stable public contract.
 
 ## Reader/writer and forward-compatibility behavior
 
@@ -80,8 +82,7 @@ Once v1.0 is published, retain its normative specification, fixtures and compati
 ## Decisions still required before v1.0
 
 - Whether v1.0 import is read-only or converts into a v1.0 representation, and the format of loss/preservation reports.
-- The exact capability field encoding, extension namespace owner and identifier registration process.
-- Whether unknown core fields are rejected and which standard capability identifiers represent current v0.2/v0.4 features.
+- The exact capability identifier grammar, extension namespace owner and identifier registration process.
 - How reader resource limits differ from format validity and whether v1.0 defines conformance/resource profiles.
 - The support window for each format and API family.
 - Which runtimes/platforms are in the initial support matrix.
