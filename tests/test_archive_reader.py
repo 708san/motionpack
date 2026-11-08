@@ -696,6 +696,22 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid JPEG header'):
                 read_package(archive)
 
+    def test_archive_reader_rejects_jpeg_dnl_defined_height(self):
+        path='assets/dnl-height.jpg'
+        data=jpeg_header(320,0)+b'\xff\xdc\x00\x04\x00\xf0'
+        with tempfile.TemporaryDirectory() as tmp:
+            packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
+            with zipfile.ZipFile(packed) as original:
+                manifest=json.loads(original.read('manifest.json'))
+                entries=[(item.filename,original.read(item)) for item in original.infolist()]
+            manifest['assets']['dnl_height']=path
+            entries.append((path,data))
+            entries=[(name,json.dumps(manifest).encode() if name=='manifest.json' else content)
+                     for name,content in entries]
+            archive=self._zip(pathlib.Path(tmp)/'dnl-height.motionpack',entries)
+            with self.assertRaisesRegex(ArchiveError,'invalid package manifest or assets.*invalid JPEG header'):
+                read_package(archive)
+
     def test_archive_reader_counts_unicode_path_aliases_as_one_png_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
             packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')

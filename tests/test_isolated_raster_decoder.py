@@ -111,6 +111,17 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
 
 
 class RasterDecoderInputValidationTests(unittest.TestCase):
+    def test_rejects_dnl_defined_jpeg_height_before_starting_worker(self):
+        frame = b'\x08' + struct.pack('>HHB', 0, 320, 3) + b'\x01\x11\x00\x02\x11\x00\x03\x11\x00'
+        data = (b'\xff\xd8\xff\xc0' + struct.pack('>H', len(frame) + 2) + frame
+                + b'\xff\xda\x00\x02\xff\xdc\x00\x04\x00\xf0')
+        with mock.patch.object(decoder.subprocess, 'Popen') as popen:
+            with self.assertRaises(decoder.RasterDecodeError):
+                decoder.decode_raster_assets_isolated(
+                    {'asset': data}, {'asset': 'assets/asset.jpg'}
+                )
+        popen.assert_not_called()
+
     def test_rejects_non_raster_source_and_mismatched_mapping(self):
         with self.assertRaises(ValueError):
             decoder.decode_raster_assets_isolated(
