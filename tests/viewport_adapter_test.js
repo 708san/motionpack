@@ -58,6 +58,9 @@ assert(state.bitmapWidth * state.bitmapHeight <= 16000000);
 assert(state.bitmapWidth <= 8192 && state.bitmapHeight <= 8192);
 assert.throws(() => capped.configure({ alignX: 2 }), /alignX/);
 assert.throws(() => capped.configure({ fit: 'fill' }), /fit/);
+assert.throws(() => capped.configure({ maxDpr: 3 }), /maxDpr/);
+assert.throws(() => capped.configure({ maxPixels: 16000001 }), /maxPixels/);
+assert.throws(() => capped.configure({ maxDimension: 8193 }), /maxDimension/);
 
 let transform;
 assert.strictEqual(hidpi.apply({ setTransform(...args) { transform = args; } }), true);
