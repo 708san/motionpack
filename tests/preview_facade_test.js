@@ -8,10 +8,11 @@ const rig = require(path.join(root, 'runtime/rig.js'));
 const evaluator = require(path.join(root, 'runtime/evaluator.js'));
 const controllerApi = require(path.join(root, 'runtime/player_controller.js'));
 
-function makePreview(example) {
+function makePreview(example, prepareManifest = () => {}, controllerOverride = null) {
   const manifest = JSON.parse(fs.readFileSync(
     path.join(root, 'examples', example, 'manifest.json'), 'utf8'
   ));
+  prepareManifest(manifest);
   const context = new Proxy({}, {
     get(target, key) {
       if (key === 'canvas') return { width: manifest.canvas.width, height: manifest.canvas.height };
@@ -54,7 +55,7 @@ function makePreview(example) {
       __MOTIONPACK__: manifest,
       MotionPackRig: rig,
       MotionPackEvaluator: evaluator,
-      MotionPackPlayerController: playerController
+      MotionPackPlayerController: controllerOverride || playerController
     },
     document: { getElementById: id => controls[id], body: {} },
     performance: { now: () => now },
@@ -78,6 +79,19 @@ function makePreview(example) {
     setNow(time) { now = time; }
   };
 }
+
+const invalidStartup = makePreview('robot_demo', manifest => { manifest.defaults.clip = 'missing'; });
+assert.strictEqual(invalidStartup.controls.status.textContent,
+  'Playback stopped: invalid animation data', 'invalid controller startup fails with a generic status');
+assert.strictEqual(invalidStartup.frames.length, 0, 'invalid startup does not schedule frames');
+const failingPlayController = Object.freeze({
+  create: () => ({ play() { throw new Error('internal failure detail'); } })
+});
+const failedInitialPlay = makePreview('robot_demo', () => {}, failingPlayController);
+assert.strictEqual(failedInitialPlay.controls.status.textContent,
+  'Playback stopped: invalid animation data', 'initial play errors are hidden behind generic status');
+assert.strictEqual(failedInitialPlay.frames.length, 0, 'failed initial play does not schedule frames');
+assert(!failedInitialPlay.controls.status.textContent.includes('internal failure detail'));
 
 const basic = makePreview('robot_demo');
 basic.frame(0);
