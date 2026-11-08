@@ -722,6 +722,16 @@ class FormatTests(unittest.TestCase):
             archive,_=build(project,pathlib.Path(tmp)/'dist')
             with zipfile.ZipFile(archive) as packaged:
                 self.assertEqual(json.loads(packaged.read('manifest.json'))['version'],'0.3')
+    def test_packaged_preview_embeds_evaluator_before_viewer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            _,preview=build(project,pathlib.Path(tmp)/'dist')
+            html=preview.read_text()
+            evaluator_marker='Stateless MotionPack pose evaluator'
+            viewer_marker='experimental offline Canvas2D renderer'
+            self.assertIn(evaluator_marker,html)
+            self.assertIn(viewer_marker,html)
+            self.assertLess(html.index(evaluator_marker),html.index(viewer_marker))
     def test_svg_allows_local_gradient_reference(self):
         errors=self._validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="paint"><stop offset="0" stop-color="red"/></linearGradient></defs><path fill="url(#paint)" d="M0 0"/></svg>')
         self.assertEqual(errors,[],errors)
