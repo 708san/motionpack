@@ -143,8 +143,10 @@ python -m unittest discover -s tests -p test_isolated_raster_decoder.py -v
 ```
 
 The worker uses a 512 MiB address-space ceiling on Linux and a 512 MiB Job
-Object committed-memory limit on Windows. macOS has no hard whole-process
-memory cap here. Process separation and these resource controls do not reduce
+Object committed-memory limit on Windows. The Windows Job Object is assigned
+after process creation but before any asset bytes are sent, so Python startup
+is outside that memory limit. macOS has no hard whole-process memory cap here.
+Process separation and these resource controls do not reduce
 the worker's OS file or network permissions; this adapter is not a sandbox or a
 production-safe import guarantee. Pillow's bundled native codecs remain part
 of the attack surface and require version/security updates.

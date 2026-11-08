@@ -22,7 +22,7 @@ jobs:
           python-version: '3.12'
       - name: Install optional pinned decoder
         run: python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r requirements-image.txt
-      - name: Test isolated raster decoder and archive-reader process helpers
-        run: |
-          python -m unittest discover -s tests -p test_isolated_raster_decoder.py -v
-          python -m unittest discover -s tests -p test_isolated_archive_reader.py -v
+      - name: Test isolated raster decoder
+        run: python -m unittest discover -s tests -p test_isolated_raster_decoder.py -v
+      - name: Test isolated archive-reader process helpers
+        run: python -m unittest discover -s tests -p test_isolated_archive_reader.py -v
