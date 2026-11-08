@@ -447,6 +447,7 @@ class ArchiveReaderTests(unittest.TestCase):
             member.size = 1
             nested.addfile(member, io.BytesIO(b"x"))
         self.assertTrue(archive_reader._looks_like_archive(tar_buffer.getvalue()[:512]))
+        self.assertFalse(archive_reader._looks_like_archive(b"BZh-not-a-valid-bzip-header"))
 
     def test_rejects_invalid_reader_limits(self):
         with self.assertRaisesRegex(ValueError, "positive"):
