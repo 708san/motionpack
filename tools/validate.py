@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate experimental MotionPack v0.1/v0.2/v0.3 projects, including untrusted inputs.
+"""Validate experimental MotionPack v0.1-v0.4 projects, including untrusted inputs.
 
 Validation is intentionally conservative; a passing result is NOT a security certificate.
 """
@@ -643,7 +643,7 @@ def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSIO
         raise ValueError("manifest must be an object")
     check(m.get("format") == "motionpack", "format must be motionpack")
     version = m.get("version")
-    check(version in ("0.1", "0.2", "0.3"), "unsupported format version")
+    check(version in ("0.1", "0.2", "0.3", "0.4"), "unsupported format version")
     canvas = m.get("canvas", {})
     if not isinstance(canvas, dict):
         canvas = {}
@@ -730,7 +730,7 @@ def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSIO
                     continue
             try:
                 for svg_error in validate_svg(
-                    svg_bytes, require_dimensions=version == "0.3",
+                    svg_bytes, require_dimensions=version in ("0.3", "0.4"),
                     max_dimension=max_svg_dimension, max_pixels=max_svg_pixels,
                 ):
                     check(False, "SVG " + raw_path + ": " + svg_error)
@@ -776,6 +776,18 @@ def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSIO
           "invalid or duplicate node IDs")
     lookup = {n["id"]: n for n in nodes if isinstance(n, dict) and isinstance(n.get("id"), str)}
     for nid, n in lookup.items():
+        if "interaction" in n:
+            interaction = n["interaction"]
+            if version != "0.4":
+                check(False, "interaction requires format version 0.4 for " + nid)
+            if not isinstance(interaction, dict):
+                check(False, "invalid interaction for " + nid)
+            else:
+                for flag, enabled in interaction.items():
+                    if flag not in ("hover", "tap", "click"):
+                        check(False, "unknown interaction flag " + str(flag) + " for " + nid)
+                    elif type(enabled) is not bool:
+                        check(False, "invalid interaction " + flag + " for " + nid)
         parent = n.get("parent")
         check(parent is None or parent in lookup, "missing parent " + nid)
         check(n.get("asset") is None or n["asset"] in assets, "missing asset for " + nid)
