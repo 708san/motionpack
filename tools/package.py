@@ -125,6 +125,8 @@ def build(folder, out, *, fail_on_secret_like=False):
         evaluator = (runtime / "evaluator.js").read_text(encoding="utf-8")
         player_controller = (runtime / "player_controller.js").read_text(encoding="utf-8")
         pointer_ik_adapter = (runtime / "pointer_ik_adapter.js").read_text(encoding="utf-8")
+        hit_test = (runtime / "hit_test.js").read_text(encoding="utf-8")
+        interaction_adapter = (runtime / "interaction_adapter.js").read_text(encoding="utf-8")
         viewer = (runtime / "viewer.js").read_text(encoding="utf-8")
         payload = json.dumps(embedded, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
         # No untrusted source code or arbitrary scripts are allowed inside the bundle.
@@ -138,7 +140,7 @@ button{padding:10px;background:#345f8e;color:white;border:1px solid #78a2c9;bord
 </style></head><body><div class="shell"><h2>MotionPack experimental preview</h2><div class="panel">
 <canvas id="stage"></canvas><div><button id="idle">Idle</button><button id="fire">Fire beam</button>
 <button id="transform">Switch form</button><button id="reset">Reset</button><button id="aim">Pointer IK: OFF</button></div>
-<p id="asset-error" role="status" aria-live="polite" hidden></p><p id="status"></p></div></div><script>window.__MOTIONPACK__=""" + payload + ";</script><script>" + rig + "</script><script>" + evaluator + "</script><script>" + player_controller + "</script><script>" + pointer_ik_adapter + "</script><script>" + viewer + "</script></body></html>"
+<p id="asset-error" role="status" aria-live="polite" hidden></p><p id="status"></p></div></div><script>window.__MOTIONPACK__=""" + payload + ";</script><script>" + rig + "</script><script>" + evaluator + "</script><script>" + player_controller + "</script><script>" + pointer_ik_adapter + "</script><script>" + hit_test + "</script><script>" + interaction_adapter + "</script><script>" + viewer + "</script></body></html>"
         preview = out / "preview.html"
         preview.write_text(page, encoding="utf-8")
     return package, preview
