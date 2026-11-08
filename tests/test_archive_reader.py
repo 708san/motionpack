@@ -11,6 +11,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import tarfile
 import warnings
 import unittest
 import zipfile
@@ -410,6 +411,54 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError, "nested archive"):
                 read_package(path)
 
+    def test_rejects_misnamed_and_unreferenced_nested_archives(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            # No manifest reference, and the filename hides the archive type.
+            entries.append(("extras/data.bin", b"PK\x03\x04" + b"nested zip payload"))
+            disguised = self._zip(pathlib.Path(tmp) / "disguised.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(disguised)
+
+    def test_source_archive_entries_remain_opaque(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("source/original.zip", b"PK\x03\x04" + b"opaque source bytes"))
+            package = self._zip(pathlib.Path(tmp) / "source-opaque.motionpack", entries)
+            result = read_package(package)
+            self.assertNotIn("source/original.zip", result.assets)
+
+    def test_root_entry_named_source_is_not_treated_as_source_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("source", bytes.fromhex("504b0304") + b"not under source directory"))
+            package = self._zip(pathlib.Path(tmp) / "root-source-file.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(package)
+
+    def test_archive_signature_sniffer_recognizes_supported_container_headers(self):
+        for payload in (
+            b"PK\x03\x04payload", b"\x1f\x8bpayload", b"BZh9payload",
+            b"\xfd7zXZ\x00payload", b"7z\xbc\xaf\x27\x1c",
+            b"Rar!\x1a\x07\x00payload", b"Rar!\x1a\x07\x01\x00payload",
+        ):
+            with self.subTest(payload=payload[:8]):
+                self.assertTrue(archive_reader._looks_like_archive(payload))
+
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as nested:
+            member = tarfile.TarInfo("item")
+            member.size = 1
+            nested.addfile(member, io.BytesIO(b"x"))
+        self.assertTrue(archive_reader._looks_like_archive(tar_buffer.getvalue()[:512]))
+        self.assertFalse(archive_reader._looks_like_archive(b"BZh-not-a-valid-bzip-header"))
+
     def test_rejects_invalid_reader_limits(self):
         with self.assertRaisesRegex(ValueError, "positive"):
             ReaderLimits(max_entries=0)
@@ -654,7 +703,7 @@ class ArchiveReaderTests(unittest.TestCase):
             compressed_data_offset = offset + 30 + filename_length + extra_length
             data[compressed_data_offset] ^= 0xFF
             path.write_bytes(data)
-            with self.assertRaisesRegex(ArchiveError, "unable to read manifest"):
+            with self.assertRaisesRegex(ArchiveError, "unable to inspect archive entry"):
                 read_package(path)
 
     def test_deterministic_archive_mutations_reject_or_return_consistent_package(self):

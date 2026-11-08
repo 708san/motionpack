@@ -262,6 +262,52 @@ def _preflight_end_record(stream, file_size, limits):
         _error("ZIP end record entry count does not match directory")
 
 
+_ARCHIVE_PREFIXES = (
+    b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08",  # ZIP
+    b"\x1f\x8b",  # gzip
+    b"\xfd7zXZ\x00",  # xz
+    b"7z\xbc\xaf\x27\x1c",  # 7-Zip
+    b"Rar!\x1a\x07\x00", b"Rar!\x1a\x07\x01\x00",  # RAR
+)
+_ARCHIVE_PREFIX_BYTES = 512
+
+
+def _looks_like_archive(data):
+    if any(data.startswith(signature) for signature in _ARCHIVE_PREFIXES):
+        return True
+    # bzip2 requires a block-size digit after the three-byte "BZh" marker.
+    if data.startswith(b"BZh") and len(data) >= 4 and data[3:4] in b"123456789":
+        return True
+    # tar has no fixed leading signature. Validate its header checksum to avoid
+    # treating arbitrary files containing the word "ustar" as archives.
+    if len(data) < _ARCHIVE_PREFIX_BYTES or data == b"\0" * _ARCHIVE_PREFIX_BYTES:
+        return False
+    checksum_field = data[148:156].strip(b"\0 ")
+    try:
+        expected = int(checksum_field, 8)
+    except ValueError:
+        return False
+    header_sum = sum(data[:148]) + 8 * ord(" ") + sum(data[156:_ARCHIVE_PREFIX_BYTES])
+    return header_sum == expected
+
+
+def _bounded_prefix_read(archive, info, limit=_ARCHIVE_PREFIX_BYTES):
+    """Read only a small decompressed prefix of an entry for format sniffing."""
+    chunks = []
+    remaining = limit
+    try:
+        with archive.open(info, "r") as member:
+            while remaining:
+                chunk = member.read(remaining)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+    except (OSError, RuntimeError, EOFError, zipfile.BadZipFile, NotImplementedError, zlib.error) as exc:
+        _error("unable to inspect archive entry", exc)
+    return b"".join(chunks)
+
+
 def _preflight(archive, limits):
     infos = archive.infolist()
     if len(infos) > limits.max_entries:
@@ -333,6 +379,13 @@ def _preflight(archive, limits):
             ratio = math.inf if not info.compress_size else info.file_size / info.compress_size
             if ratio > limits.max_compression_ratio:
                 _error("archive compression ratio exceeds limit")
+
+        # Keep source/ opaque. Prefix reads elsewhere are bounded and include
+        # unreferenced entries, so disguised nested archives cannot bypass checks.
+        source_tree_payload = _is_source_path(name) and len(parts) > 1
+        if not info.is_dir() and not source_tree_payload:
+            if _looks_like_archive(_bounded_prefix_read(archive, info)):
+                _error("nested archive entries are unsupported")
 
     manifests = [item for item in infos if item.filename == "manifest.json"]
     if len(manifests) != 1 or manifests[0].is_dir():
