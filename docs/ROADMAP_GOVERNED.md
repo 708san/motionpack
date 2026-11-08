@@ -1,6 +1,6 @@
 # Governed MotionPack roadmap
 
-Targets are exploratory, not release commitments. This plan is reconciled with `main` at `aec619e` (2026-11-08), after PRs #39–#41. Update its evidence links as implementation and CI change.
+Targets are exploratory, not release commitments. This plan is reconciled with `main` at `679e32a` (2026-11-08), after PRs #39–#42. Update its evidence links as implementation and CI change.
 
 ## Current implementation status
 
@@ -37,7 +37,7 @@ The isolated-reader Actions run [42455065352](https://github.com/708san/motionpa
 ## Phase C — reusable playback and interaction
 
 1. Build on the evaluator to add a host-owned player controller and rendering adapters. PR #39 added a DOM-free controller prototype with per-instance clip/variant/time state, play/pause/resume/stop/seek, state queries and disposal; PR #40 connected it to the generated preview while preserving the legacy facade. Loading/unloading, parameter updates, resizing and rendering adapters remain open.
-2. The generated preview maps pointer input to canvas logical coordinates and uses it for optional IK. Add host-facing touch input, hit tests, dragging, long press and swipe next; keep host actions permissioned by the consuming application and never execute package JavaScript.
+2. The generated preview uses an experimental pointer-to-IK adapter: mouse and pen hover remain supported, primary touch tracks while pressed, and browser-native gestures remain enabled. Add reusable host input, hit tests, dragging, long press and swipe next; keep host actions permissioned by the consuming application and never execute package JavaScript.
 3. Separate logical canvas size from viewport policy (contain, cover, stretch, alignment and high-DPI scaling). Include 91:55 as a generic aspect-ratio test, not a product-specific feature.
 4. Add an offline export path only after the player API and asset lifecycle are stable.
 
