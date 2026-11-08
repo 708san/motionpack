@@ -382,7 +382,8 @@ def _preflight(archive, limits):
 
         # Keep source/ opaque. Prefix reads elsewhere are bounded and include
         # unreferenced entries, so disguised nested archives cannot bypass checks.
-        if not info.is_dir() and not _is_source_path(name):
+        source_tree_payload = _is_source_path(name) and len(parts) > 1
+        if not info.is_dir() and not source_tree_payload:
             if _looks_like_archive(_bounded_prefix_read(archive, info)):
                 _error("nested archive entries are unsupported")
 
