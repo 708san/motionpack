@@ -8,6 +8,7 @@ const rig = require(path.join(root, 'runtime/rig.js'));
 const evaluator = require(path.join(root, 'runtime/evaluator.js'));
 const controllerApi = require(path.join(root, 'runtime/player_controller.js'));
 const pointerAdapterApi = require(path.join(root, 'runtime/pointer_ik_adapter.js'));
+const viewportAdapterApi = require(path.join(root, 'runtime/viewport_adapter.js'));
 
 function makePreview(example, prepareManifest = () => {}, controllerOverride = null) {
   const manifest = JSON.parse(fs.readFileSync(
@@ -34,6 +35,7 @@ function makePreview(example, prepareManifest = () => {}, controllerOverride = n
   };
   const controls = {
     stage: canvas,
+    viewport: { style: {} },
     status: { textContent: '' },
     'asset-error': { textContent: '', hidden: true },
     idle: {}, fire: {}, transform: {}, reset: {}, aim: { textContent: '' }
@@ -58,7 +60,8 @@ function makePreview(example, prepareManifest = () => {}, controllerOverride = n
       MotionPackRig: rig,
       MotionPackEvaluator: evaluator,
       MotionPackPlayerController: controllerOverride || playerController,
-      MotionPackPointerIKAdapter: pointerAdapterApi
+      MotionPackPointerIKAdapter: pointerAdapterApi,
+      MotionPackViewportAdapter: viewportAdapterApi
     },
     document: { getElementById: id => controls[id], body: {} },
     performance: { now: () => now },
@@ -144,6 +147,8 @@ assert(basic.controls.status.textContent.startsWith(`${basic.manifest.defaults.c
 const ikPreview = makePreview('robot_ik_demo');
 ikPreview.frame(0);
 const ikFacade = ikPreview.sandbox.window.MotionPackPlayer;
+assert.strictEqual(ikPreview.sandbox.window.MotionPackViewport.getState().fit, 'contain');
+ikPreview.sandbox.window.MotionPackViewport.configure({ fit: 'stretch' });
 ikFacade.setPointerIK(true);
 ikPreview.controls.aim.onclick();
 assert.strictEqual(ikFacade.getState().pointerIK, false,
