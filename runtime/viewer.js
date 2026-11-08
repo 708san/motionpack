@@ -4,7 +4,8 @@
 const S=window.__MOTIONPACK__,Rig=window.MotionPackRig;
 if(!S){document.body.textContent='Missing MotionPack asset';return;}
 const canvas=document.getElementById('stage'),ctx=canvas.getContext('2d');canvas.width=S.canvas.width;canvas.height=S.canvas.height;
-const images={};for(const [id,src] of Object.entries(S.assets)){const im=new Image();im.src=src;images[id]=im;}
+let assetDecodeFailed=false;
+const images={};for(const [id,src] of Object.entries(S.assets)){const im=new Image();im.addEventListener('error',()=>{assetDecodeFailed=true;});im.src=src;images[id]=im;}
 let clip=S.defaults.clip,variant=S.defaults.variant,started=performance.now(),transition=null,pointerIK=false,pointer=null;
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),mix=(a,b,t)=>a+(b-a)*t,identity={a:1,b:0,c:0,d:1,e:0,f:0};
 function sample(keys,t){if(t<=keys[0].time_ms)return keys[0].value;for(let i=1;i<keys.length;i++)if(t<=keys[i].time_ms){const a=keys[i-1],b=keys[i],u=clamp((t-a.time_ms)/(b.time_ms-a.time_ms),0,1);return mix(a.value,b.value,u*u*(3-2*u));}return keys[keys.length-1].value;}
@@ -37,7 +38,7 @@ function frame(time){
  else if(fx.kind==='ring'){ctx.globalAlpha=1-u;ctx.lineWidth=5;ctx.beginPath();ctx.arc(...pos,12+u*(fx.radius||180),0,2*Math.PI);ctx.stroke();}
  else if(fx.kind==='burst'){ctx.globalAlpha=1-u;const count=Math.min(fx.count||28,200);for(let i=0;i<count;i++){const a=i*2.399963+(fx.seed||0),r=u*(fx.radius||130)*(.45+(i*37%100)/160);ctx.beginPath();ctx.arc(pos[0]+r*Math.cos(a),pos[1]+r*Math.sin(a),2+i%4,0,2*Math.PI);ctx.fill();}}
  ctx.restore();}
- document.getElementById('status').textContent=clip+' | '+variant+' | '+Math.round(t)+' ms';requestAnimationFrame(frame);
+ document.getElementById('status').textContent=(assetDecodeFailed?'Image decode failed | ':'')+clip+' | '+variant+' | '+Math.round(t)+' ms';requestAnimationFrame(frame);
 }
 function playClip(name,next){if(!S.clips[name])return;clip=name;started=performance.now();transition=next||null;}
 document.getElementById('idle').onclick=()=>playClip('idle');
