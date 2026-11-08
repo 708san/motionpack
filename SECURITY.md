@@ -14,6 +14,8 @@ referenced assets, 40 MiB total declared expansion, and a 100:1 compression
 ratio. These are configurable tool defaults, not format-wide limits. ZIP64 and
 multi-disk archives are rejected.
 
+For each non-directory entry outside `source/`, the reader inspects at most 512 decompressed bytes for common ZIP, gzip, bzip2, xz, 7-Zip, RAR, and tar headers. Recognized nested archives are rejected even when unreferenced or renamed. This is bounded signature detection, not general file-format identification; uncommon variants and polyglot files may not be recognized. `source/` remains opaque and is not decompressed or inspected.
+
 Before opening an archive path, the reader checks that it currently resolves to
 a regular file, then checks the opened descriptor again. It uses
 `O_NONBLOCK` where the operating system exposes that flag. The path check and
