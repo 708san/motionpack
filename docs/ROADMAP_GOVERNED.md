@@ -6,7 +6,7 @@ Targets are exploratory, not release commitments. This plan is reconciled with `
 
 | Area | Status | Evidence and limit |
 |---|---|---|
-| Experimental format | Implemented, verification incomplete | v0.1–v0.4 manifests, validator and frozen v0.1 fixture exist. v0.4 adds opt-in node hover/tap/click notifications; no stable v1.0 compatibility promise or migration tool exists. |
+| Experimental format | Implemented, verification incomplete | Frozen, checksummed package fixtures and direct/isolated reader regression coverage now cover v0.1–v0.4 (PR #57). The fixtures establish a regression baseline, not a stable v1.0 compatibility promise; importer migration semantics remain open. v0.4 adds opt-in node hover/tap/click notifications. |
 | Offline preview | Implemented, browser-specific | Packager emits a self-contained Canvas 2D preview. Its legacy facade is backed by the experimental host-driven controller (PR #40). PR #47 adds host-configurable contain/cover/stretch viewport fitting, centered contain by default and logical coordinate mapping; PR #49 ensures the CSS-pixel backing buffer respects the DPR cap of 2 even when the logical canvas is larger. The backing-buffer caps remain 16 MP and 8192 px per edge; cross-browser parity, mobile Safari/Chrome and real-device behavior are not established. |
 | Motion | Partial | Keyframes, clips, variants, effects and two-bone IK work. No mesh skinning, blend graph, independent scale axes or authoring editor. |
 | Package tooling | Partial | Validator, packager and bounded archive inspection exist. The ordinary reader is in-process; the isolated ZIP reader and optional raster decoder are opt-in worker processes, not complete OS sandboxes. |
@@ -21,7 +21,7 @@ The isolated-reader matrix passed on main commit [`f1fe82c`](https://github.com/
 
 1. **Completed in PR #50:** obtain a successful isolated-reader matrix run and retain the run URL and per-OS test results. The successful main run is #175. If a later run fails, diagnose its actual job log before changing code.
 2. Keep Issue #4 open. Resolve its remaining acceptance items in small changes with adversarial regression tests and independent security review. Track path races, memory containment gaps, SVG renderer limits, private source handling, and browser-native decoder exposure separately.
-3. Maintain existing v0.1–v0.4 fixtures and run the current functional, negative, isolated-process, visual and performance-report checks.
+3. **Updated in PR #57:** keep frozen, checksummed package fixtures and direct/isolated reader regression tests for v0.1–v0.4; run the current functional, negative, isolated-process, visual and performance-report checks.
 
 **Exit evidence:** green required checks on a named commit; no unsupported claim of a complete sandbox or browser decoder isolation.
 
