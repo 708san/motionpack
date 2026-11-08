@@ -442,6 +442,40 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError, "nested archive"):
                 read_package(package)
 
+    def test_reader_rejects_each_supported_nested_archive_signature(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            tar_buffer = io.BytesIO()
+            with tarfile.open(fileobj=tar_buffer, mode="w") as nested:
+                member = tarfile.TarInfo("item")
+                member.size = 1
+                nested.addfile(member, io.BytesIO(b"x"))
+            signatures = (
+                ("zip", b"PK\x03\x04payload"), ("gzip", b"\x1f\x8bpayload"),
+                ("bzip2", b"BZh9payload"), ("xz", b"\xfd7zXZ\x00payload"),
+                ("7zip", b"7z\xbc\xaf\x27\x1c"),
+                ("rar4", b"Rar!\x1a\x07\x00payload"),
+                ("rar5", b"Rar!\x1a\x07\x01\x00payload"),
+                ("tar", tar_buffer.getvalue()[:512]),
+            )
+            for name, payload in signatures:
+                with self.subTest(format=name):
+                    candidate = self._zip(
+                        pathlib.Path(tmp) / f"nested-{name}.motionpack",
+                        entries + [("extras/payload.bin", payload)],
+                    )
+                    with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                        read_package(candidate)
+
+            ordinary = self._zip(
+                pathlib.Path(tmp) / "ordinary-bzh.motionpack",
+                entries + [("extras/notes.bin", b"BZh-not-a-valid-bzip-header")],
+            )
+            result = read_package(ordinary)
+            self.assertNotIn("extras/notes.bin", result.assets)
+
     def test_archive_signature_sniffer_recognizes_supported_container_headers(self):
         for payload in (
             b"PK\x03\x04payload", b"\x1f\x8bpayload", b"BZh9payload",
