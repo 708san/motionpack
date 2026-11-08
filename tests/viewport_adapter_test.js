@@ -58,7 +58,7 @@ assert.throws(() => capped.configure({ fit: 'fill' }), /fit/);
 
 let transform;
 assert.strictEqual(hidpi.apply({ setTransform(...args) { transform = args; } }), true);
-assert.strictEqual(transform[0], state === hidpi.getState() ? hidpi.getState().scaleX : transform[0]);
+assert.strictEqual(transform[0], hidpi.getState().scaleX);
 view.dispose();
 assert.strictEqual(view.clientToLogical(10, 20), null);
 assert.throws(() => view.update(), /disposed/);
