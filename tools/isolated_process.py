@@ -1,0 +1,145 @@
+"""Shared low-level process containment helpers for optional worker APIs."""
+import ctypes
+import os
+import signal
+import subprocess
+
+
+DEFAULT_MEMORY_LIMIT_BYTES = 512 * 1024 * 1024
+
+
+def apply_linux_memory_limit(memory_limit_bytes):
+    if not memory_limit_bytes:
+        return
+    import resource
+
+    limit = resource.RLIMIT_AS
+    _, hard = resource.getrlimit(limit)
+    if hard != resource.RLIM_INFINITY:
+        memory_limit_bytes = min(memory_limit_bytes, hard)
+    resource.setrlimit(limit, (memory_limit_bytes, memory_limit_bytes))
+
+
+def windows_job(process, memory_limit_bytes):
+    """Assign a Windows worker to a kill-on-close Job Object."""
+    from ctypes import wintypes
+
+    class BasicLimitInformation(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_longlong),
+            ("PerJobUserTimeLimit", ctypes.c_longlong),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", ctypes.c_ulong),
+            ("SchedulingClass", ctypes.c_ulong),
+        ]
+
+    class IoCounters(ctypes.Structure):
+        _fields_ = [(name, ctypes.c_ulonglong) for name in (
+            "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+            "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
+        )]
+
+    class ExtendedLimitInformation(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", BasicLimitInformation),
+            ("IoInfo", IoCounters),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+    kernel32.SetInformationJobObject.restype = wintypes.BOOL
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+    kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    job = kernel32.CreateJobObjectW(None, None)
+    if not job:
+        raise OSError(ctypes.get_last_error(), "CreateJobObjectW failed")
+    process_handle = None
+    try:
+        information = ExtendedLimitInformation()
+        flags = 0x00002000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if memory_limit_bytes:
+            flags |= 0x00000100  # JOB_OBJECT_LIMIT_PROCESS_MEMORY
+            information.ProcessMemoryLimit = memory_limit_bytes
+        information.BasicLimitInformation.LimitFlags = flags
+        if not kernel32.SetInformationJobObject(
+            job, 9, ctypes.byref(information), ctypes.sizeof(information)
+        ):
+            raise OSError(ctypes.get_last_error(), "SetInformationJobObject failed")
+        access = 0x0001 | 0x0100 | 0x0400  # terminate, set quota, query
+        process_handle = kernel32.OpenProcess(access, False, process.pid)
+        if not process_handle:
+            raise OSError(ctypes.get_last_error(), "OpenProcess failed")
+        if not kernel32.AssignProcessToJobObject(job, process_handle):
+            raise OSError(ctypes.get_last_error(), "AssignProcessToJobObject failed")
+        return job, kernel32.CloseHandle
+    except BaseException:
+        kernel32.CloseHandle(job)
+        raise
+    finally:
+        if process_handle:
+            kernel32.CloseHandle(process_handle)
+
+
+def kill_worker(process, windows_job=None):
+    if os.name == "nt":
+        if process.poll() is None:
+            try:
+                process.kill()
+            except OSError:
+                pass
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            if process.poll() is None:
+                try:
+                    process.kill()
+                except OSError:
+                    pass
+    if process.poll() is None:
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+    if windows_job is not None:
+        handle, close_handle = windows_job
+        close_handle(handle)
+
+
+def read_bounded_output(stream, output, overflow, process, max_bytes):
+    total = 0
+    while True:
+        chunk = stream.read1(64 * 1024)
+        if not chunk:
+            return
+        total += len(chunk)
+        if total > max_bytes:
+            overflow.set()
+            if process.poll() is None:
+                try:
+                    process.kill()
+                except OSError:
+                    pass
+        elif not overflow.is_set():
+            if hasattr(output, "write"):
+                output.write(chunk)
+            else:
+                output.extend(chunk)
