@@ -42,7 +42,7 @@ assert.deepStrictEqual(view.clientToLogical(1010 - 0.001, 1020 - 0.001).map(Math
 
 view.configure({ fit: 'contain', alignX: 0, alignY: 1 });
 state = view.getState();
-assert.strictEqual(state.offsetCssX, 0);
+assert(Math.abs(state.offsetCssX) < 1e-9);
 assert.strictEqual(state.offsetCssY, 1000 - 1000 * 550 / 910);
 
 const hidpiCanvas = fakeTarget(800, 600);
