@@ -166,9 +166,14 @@ test('collect report-only package, reader and browser performance measurements',
   await page.goto(pathToFileURL(benchmarkPreview).href);
   await page.locator('#stage').waitFor({ state: 'visible' });
   await page.waitForFunction(() =>
-    window.__motionPackTrackedImages?.length > 0 &&
-    window.__motionPackTrackedImages.every(image => image.complete && image.naturalWidth > 0)
+    (() => {
+      const expectedCount = Object.keys(window.__MOTIONPACK__?.assets || {}).length;
+      const images = window.__motionPackTrackedImages || [];
+      return expectedCount > 0 && images.length === expectedCount &&
+        images.every(image => image.complete && image.naturalWidth > 0);
+    })()
   );
+  const trackedImageCount = await page.evaluate(() => window.__motionPackTrackedImages.length);
   const loadReadyMs = Number(process.hrtime.bigint() - loadStarted) / 1e6;
 
   const frameStats = await page.evaluate(async () => {
@@ -221,6 +226,7 @@ test('collect report-only package, reader and browser performance measurements',
   report.environment.device_scale_factor = 1;
   report.browser = {
     load_to_images_ready_ms: loadReadyMs,
+    tracked_image_count: trackedImageCount,
     frame_interval_ms: frameStats,
     notes: 'Headless CI measurements are informational and include host scheduling noise.'
   };
