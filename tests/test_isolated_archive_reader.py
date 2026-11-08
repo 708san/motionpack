@@ -92,9 +92,9 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             time.sleep(0.05)
         self.fail("isolated worker remains alive after wrapper returned")
 
-    def test_reads_v01_and_v02_packages(self):
+    def test_reads_v01_through_v04_packages(self):
         with tempfile.TemporaryDirectory() as tmp:
-            for project, version in (("robot_demo", "0.1"), ("robot_ik_demo", "0.2")):
+            for version in ("0.1", "0.2", "0.3", "0.4"):
                 with self.subTest(version=version):
                     archive = self._valid_fixture(tmp, version)
                     direct_result = read_package(archive)
