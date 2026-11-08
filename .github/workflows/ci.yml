@@ -25,6 +25,7 @@ jobs:
           node tests/ik_test.js
           node tests/evaluator_test.js
           node tests/player_controller_test.js
+          node tests/hit_test_test.js
           node tests/pointer_ik_adapter_test.js
           node tests/preview_facade_test.js
           node tests/runtime_smoke.js
