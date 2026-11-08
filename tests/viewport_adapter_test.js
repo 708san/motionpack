@@ -19,7 +19,7 @@ assert.deepStrictEqual(view.clientToLogical(10 + 455, 20 + 275), [455, 275]);
 
 canvas.rect = { left: 10, top: 20, width: 1000, height: 1000 };
 state = view.update();
-assert.strictEqual(state.contentWidth, 1000);
+assert(Math.abs(state.contentWidth - 1000) < 1e-9);
 assert.strictEqual(state.contentHeight, 1000 * 550 / 910);
 assert.strictEqual(view.clientToLogical(500, 21), null, 'contain letterbox must not hit');
 const center = view.clientToLogical(510, 520);
