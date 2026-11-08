@@ -71,6 +71,11 @@ assert.strictEqual(centered.hitTest(pose(node('flat', { scale: 0 })), [0, 0]), n
   'singular transforms do not hit');
 assert.strictEqual(centered.hitTest(pose(node('bad', { x: NaN })), [0, 0]), null,
   'non-finite node geometry does not hit');
+assert.strictEqual(centered.hitTest(pose(node('self_cycle', { parent: 'self_cycle' })), [0, 0]), null,
+  'self-referential parent chains do not hit');
+assert.strictEqual(centered.hitTest(pose(
+  node('cycle_a', { parent: 'cycle_b' }), node('cycle_b', { parent: 'cycle_a' })
+), [0, 0]), null, 'mutually recursive parent chains do not hit');
 assert.strictEqual(centered.hitTest(pose(node('box')), [NaN, 0]), null,
   'non-finite canvas points do not hit');
 assert.strictEqual(centered.hitTest({ nodes: [] }, [0, 0]), null,
