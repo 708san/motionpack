@@ -69,6 +69,16 @@ for (const endEvent of ['pointercancel', 'pointerleave']) {
   assert.deepStrictEqual(ended.calls.map(call => call.point), [[200, 100], null], endEvent);
 }
 
+const leftTouch = makeAdapter();
+leftTouch.adapter.enable();
+leftTouch.target.emit('pointerdown', pointer(12, 'touch'));
+leftTouch.calls.length = 0;
+leftTouch.target.emit('pointerleave', pointer(12, 'touch'));
+assert.deepStrictEqual(leftTouch.calls.pop(), { id: 'aim', point: null });
+leftTouch.target.emit('pointermove', pointer(12, 'touch', { clientX: 210 }));
+assert.strictEqual(leftTouch.calls.length, 0,
+  'leaving the target ends the active touch sequence until another pointerdown');
+
 const invalid = makeAdapter();
 invalid.adapter.enable();
 invalid.target.emit('pointermove', pointer(2));
