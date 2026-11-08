@@ -1,6 +1,6 @@
 # MotionPack
 
-**Experimental pre-alpha**: portable, editable 2D visual-motion format, offline browser player, two-bone inverse kinematics (IK) and bounded visual effects.
+**Experimental pre-alpha**: portable, editable 2D visual-motion format, offline browser player, two-bone inverse kinematics (IK), bounded visual effects, and opt-in v0.4 node interaction events.
 
 MotionPack is intentionally **not** a card-game format. The runtime does not require AI services or network access. The current preview is a reference demo, not a production SDK.
 
@@ -14,6 +14,8 @@ node tests/ik_test.js
 node tests/evaluator_test.js
 node tests/player_controller_test.js
 node tests/hit_test_test.js
+node tests/interaction_adapter_test.js
+node tests/interaction_preview_smoke.js
 node tests/pointer_ik_adapter_test.js
 node tests/preview_facade_test.js
 node tests/runtime_smoke.js
@@ -25,7 +27,7 @@ Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam fir
 
 ## Project layout
 
-- `runtime/`: experimental Canvas2D preview, stateless pose evaluator, host-driven player controller, hit-test helper, pointer-to-IK adapter and IK solver
+- `runtime/`: experimental Canvas2D preview, stateless pose evaluator, host-driven player controller, hit-test and node-interaction helpers, pointer-to-IK adapter and IK solver
 - `tools/`: editable package validator and builder
 - `examples/`: demonstration layered assets and manifests for versions 0.1–0.3
 - `tests/`: functional and basic malicious-input regression tests
@@ -35,7 +37,7 @@ Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam fir
 ## Security, compatibility and licensing
 
 See [format specification](docs/FORMAT_SPEC.md), [security policy](docs/SECURITY_POLICY.md) and [development governance](docs/DEVELOPMENT_GOVERNANCE_V1.md).
-`tools/archive_reader.py` adds a bounded, read-only ZIP inspection path for v0.1/v0.2/v0.3 packages. v0.3 requires bounded numeric-px dimensions on SVG roots; older versions continue accepting dimensionless SVG. `read_package_isolated()` is an opt-in subprocess wrapper with a wall-clock deadline and bounded result protocol; memory enforcement is platform-specific (Linux address space, Windows committed memory, none on macOS). Neither reader extracts arbitrary entries or reads optional `source/` entries. The packager emits only manifest-referenced runtime assets, uses the bytes validated for both the ZIP and preview, and rejects runtime references into `source/`. It scans serialized manifest metadata, including asset paths, and referenced-asset bytes for a small set of private-key and credential-like patterns. By default it warns and continues; pass `--fail-on-secret-like` to stop before writing outputs on a match. The heuristic can miss secrets or produce false positives. The validator checks a limited static SVG subset and header dimensions for PNG/JPEG/WebP assets by filename extension, with raster pixel ceilings; neither makes the reader a production security boundary. Bounded Atheris targets exercise ZIP reading, SVG validation, and PNG/JPEG/WebP header parsers (15 seconds per target on PRs, 300 seconds per target weekly/manual); this is smoke coverage, not sustained fuzzing or a security guarantee. `decode_raster_assets_isolated()` is a separate opt-in adapter for static PNG/JPEG/WebP assets; it returns RGBA pixels from an optional Pillow subprocess, rejects animated WebP, and does not replace the browser decoder used by offline preview. Install Pillow with `python -m pip install -r requirements-image.txt`. Neither process is an OS permission sandbox. See [SECURITY.md](SECURITY.md).
+`tools/archive_reader.py` adds a bounded, read-only ZIP inspection path for v0.1–v0.4 packages. v0.3 and v0.4 require bounded numeric-px dimensions on SVG roots; older versions continue accepting dimensionless SVG. v0.4 adds per-node opt-in `hover`, `tap` and `click` booleans. The generated preview emits host-facing `motionpack:interaction` events only; host applications choose any resulting behavior. Its separate `MotionPackInteractions.activate(nodeId)` hook lets accessible host controls map keyboard activation to an opted-in click event. `read_package_isolated()` is an opt-in subprocess wrapper with a wall-clock deadline and bounded result protocol; memory enforcement is platform-specific (Linux address space, Windows committed memory, none on macOS). Neither reader extracts arbitrary entries or reads optional `source/` entries. The packager emits only manifest-referenced runtime assets, uses the bytes validated for both the ZIP and preview, and rejects runtime references into `source/`. It scans serialized manifest metadata, including asset paths, and referenced-asset bytes for a small set of private-key and credential-like patterns. By default it warns and continues; pass `--fail-on-secret-like` to stop before writing outputs on a match. The heuristic can miss secrets or produce false positives. The validator checks a limited static SVG subset and header dimensions for PNG/JPEG/WebP assets by filename extension, with raster pixel ceilings; neither makes the reader a production security boundary. Bounded Atheris targets exercise ZIP reading, SVG validation, and PNG/JPEG/WebP header parsers (15 seconds per target on PRs, 300 seconds per target weekly/manual); this is smoke coverage, not sustained fuzzing or a security guarantee. `decode_raster_assets_isolated()` is a separate opt-in adapter for static PNG/JPEG/WebP assets; it returns RGBA pixels from an optional Pillow subprocess, rejects animated WebP, and does not replace the browser decoder used by offline preview. Install Pillow with `python -m pip install -r requirements-image.txt`. Neither process is an OS permission sandbox. See [SECURITY.md](SECURITY.md).
 
 Public repository visibility does not grant software reuse rights. **No software license has been selected yet.**
 

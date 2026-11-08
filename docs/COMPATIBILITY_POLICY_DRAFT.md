@@ -1,6 +1,6 @@
 # MotionPack compatibility policy — proposal
 
-**Status: draft for Architect and maintainer review.** This document proposes a policy; it does not declare a stable public contract. MotionPack formats 0.1–0.3 remain experimental until a v1.0 release decision accepts and publishes a versioned specification.
+**Status: draft for Architect and maintainer review.** This document proposes a policy; it does not declare a stable public contract. MotionPack formats 0.1–0.4 remain experimental until a v1.0 release decision accepts and publishes a versioned specification.
 
 ## Version independently evolving components
 
@@ -16,7 +16,7 @@ Use semantic versioning as a starting point for stable runtime and tool APIs: PA
 
 ## Experimental v0.x input
 
-The v0.1, v0.2 and v0.3 formats do not receive a formal backward-compatibility guarantee. Keep the repository's frozen v0.1 package and current v0.2/v0.3 fixtures as regression references. A v1.0 migration plan should provide an explicit importer/converter for each legacy version that is accepted at release time, report unsupported or lossy features, and preserve source material and provenance where present. Conversion must not silently discard fields or rewrite original files.
+The v0.1, v0.2, v0.3 and v0.4 formats do not receive a formal backward-compatibility guarantee. Keep the repository's frozen v0.1 package and current v0.2/v0.3/v0.4 fixtures as regression references. v0.4 adds optional per-node host interaction flags and does not add executable behavior to manifests. A v1.0 migration plan should provide an explicit importer/converter for each legacy version that is accepted at release time, report unsupported or lossy features, and preserve source material and provenance where present. Conversion must not silently discard fields or rewrite original files.
 
 Maintainers must choose the exact legacy versions and fixtures supported by the v1.0 importer before format freeze. Rejection of a legacy file for a security reason must name the reason and provide a documented migration path where feasible.
 
