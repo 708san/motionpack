@@ -49,6 +49,12 @@ assert.throws(() => evaluator.sample(manifest, { variant: 'missing' }, rig), /un
 assert.throws(() => evaluator.sample(manifest, { clip: 'toString' }, rig), /unknown clip/);
 assert.throws(() => evaluator.sample(manifest, { variant: 'toString' }, rig), /unknown variant/);
 assert.throws(() => evaluator.sample(manifest, { timeMs: Infinity }, rig), /timeMs/);
+const invalidLoopManifest = JSON.parse(JSON.stringify(manifest));
+invalidLoopManifest.clips.idle.loop = 'false';
+assert.throws(() => evaluator.sample(invalidLoopManifest, { clip: 'idle' }, rig), /loop must be a boolean/);
+const invalidIkWeightManifest = JSON.parse(JSON.stringify(manifest));
+invalidIkWeightManifest.iks[0].weight = 'bad';
+assert.throws(() => evaluator.sample(invalidIkWeightManifest, { clip: 'idle' }, rig), /Invalid IK weight/);
 assert.throws(() => evaluator.sample(manifest, {
   ikTargets: { missing: [1, 2] }
 }, rig), /invalid IK target/);

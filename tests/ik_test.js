@@ -13,4 +13,8 @@ R.applyIK(nodes,[{id:'arm',upper:'upper',lower:'lower',lengths:[100,80],target:[
 const a=nodes.get('upper').rotation*Math.PI/180,b=(nodes.get('upper').rotation+nodes.get('lower').rotation)*Math.PI/180;
 near(70+100*Math.cos(a)+80*Math.cos(b),160);near(70+100*Math.sin(a)+80*Math.sin(b),100);
 assert.throws(()=>R.solveTwoBone([0,0],[Infinity,0],100,80));
+assert.throws(()=>R.solveTwoBone([0,0],[10,0],1e308,1e308),/numeric range/);
+const invalidWeightNodes=new Map([['upper',{id:'upper',x:0,y:0}],['lower',{id:'lower',parent:'upper',x:0,y:0}]]);
+assert.throws(()=>R.applyIK(invalidWeightNodes,[{upper:'upper',lower:'lower',lengths:[100,80],target:[120,30],weight:'bad'}]),/Invalid IK weight/);
+assert.throws(()=>R.applyIK(invalidWeightNodes,[{upper:'upper',lower:'lower',lengths:[100,80],target:[120,30],weight:null}]),/Invalid IK weight/);
 console.log('OK: two-bone IK, reach limits, determinism and parent transforms');

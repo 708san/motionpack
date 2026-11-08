@@ -35,6 +35,9 @@
     const requestedTime = options.timeMs ?? 0;
     if (!clip) throw new RangeError(`unknown clip: ${clipName}`);
     if (!variant) throw new RangeError(`unknown variant: ${variantName}`);
+    if (hasOwn(clip, 'loop') && typeof clip.loop !== 'boolean') {
+      throw new TypeError('clip loop must be a boolean');
+    }
     if (!Number.isFinite(requestedTime) || requestedTime < 0) {
       throw new RangeError('timeMs must be a finite nonnegative number');
     }

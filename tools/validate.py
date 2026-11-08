@@ -807,6 +807,7 @@ def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSIO
         check(isinstance(lengths, list) and len(lengths) == 2 and all(num(v) and v > 0 for v in lengths), "invalid IK lengths")
         check(isinstance(target, list) and len(target) == 2 and all(num(v) for v in target), "invalid IK target")
         check(ik.get("bend", 1) in (-1, 1), "invalid IK bend")
+        check(num(ik.get("weight", 1)), "invalid IK weight")
     check(len(ikids) == len(set(map(str, ikids))), "duplicate IK ID")
     tracks_total, effects_total = 0, 0
     for name, clip in clips.items():
@@ -816,6 +817,8 @@ def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSIO
         duration = clip.get("duration_ms")
         if not check(type(duration) is int and 0 < duration <= 3600000, "invalid clip duration " + str(name)):
             continue
+        if "loop" in clip:
+            check(type(clip["loop"]) is bool, "invalid loop flag in " + str(name))
         for track in clip.get("tracks", []) + clip.get("ik_tracks", []):
             tracks_total += 1
             if "node" in track:

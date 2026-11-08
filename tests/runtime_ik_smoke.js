@@ -14,5 +14,11 @@ controls.transform.onclick();frame(1600);assert(controls.status.textContent.incl
 frame(3000);assert(controls.status.textContent.includes('form_b'));
 controls.reset.onclick();frame(5100);assert(controls.status.textContent.includes('form_a'));
 assert(typeof sandbox.window.MotionPackPlayer.playClip==='function');
-if(m.iks){controls.aim.onclick();assert(controls.aim.textContent.includes('ON'));}
+if(m.iks){
+ controls.aim.onclick();assert(controls.aim.textContent.includes('ON'));
+ m.iks[0].lengths=[1e308,1e308];
+ frame(6000);
+ assert.strictEqual(controls.status.textContent,'Playback stopped: invalid animation data');
+ assert.strictEqual(frames.length,0,'failed playback stops scheduling frames');
+}
 console.log('OK: robot_ik_demo runtime smoke');

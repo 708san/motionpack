@@ -12,6 +12,7 @@ python3 tools/validate.py examples/robot_demo
 python3 tools/package.py examples/robot_ik_demo --out dist
 node tests/ik_test.js
 node tests/evaluator_test.js
+node tests/player_controller_test.js
 node tests/runtime_smoke.js
 node tests/runtime_ik_smoke.js
 python3 -m unittest discover -s tests -v
@@ -21,7 +22,7 @@ Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam fir
 
 ## Project layout
 
-- `runtime/`: experimental Canvas2D preview, stateless pose evaluator and IK solver
+- `runtime/`: experimental Canvas2D preview, stateless pose evaluator, host-driven player controller and IK solver
 - `tools/`: editable package validator and builder
 - `examples/`: demonstration layered assets and manifests for versions 0.1–0.3
 - `tests/`: functional and basic malicious-input regression tests
