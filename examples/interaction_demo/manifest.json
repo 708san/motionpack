@@ -1,0 +1,69 @@
+{
+  "format": "motionpack",
+  "version": "0.4",
+  "id": "node-interaction-demo",
+  "canvas": {
+    "width": 480,
+    "height": 300,
+    "background": "#101a2d"
+  },
+  "assets": {
+    "pill": "assets/pill.svg"
+  },
+  "nodes": [
+    {
+      "id": "hover_only",
+      "asset": "pill",
+      "x": 65,
+      "y": 150,
+      "width": 100,
+      "height": 64,
+      "z": 1,
+      "interaction": { "hover": true }
+    },
+    {
+      "id": "tap_only",
+      "asset": "pill",
+      "x": 180,
+      "y": 150,
+      "width": 100,
+      "height": 64,
+      "z": 2,
+      "interaction": { "tap": true }
+    },
+    {
+      "id": "click_only",
+      "asset": "pill",
+      "x": 295,
+      "y": 150,
+      "width": 100,
+      "height": 64,
+      "z": 3,
+      "interaction": { "click": true }
+    },
+    {
+      "id": "disabled",
+      "asset": "pill",
+      "x": 410,
+      "y": 150,
+      "width": 100,
+      "height": 64,
+      "z": 4
+    }
+  ],
+  "clips": {
+    "static": {
+      "duration_ms": 1000,
+      "loop": true,
+      "tracks": [],
+      "effects": []
+    }
+  },
+  "variants": {
+    "default": { "nodes": {} }
+  },
+  "defaults": {
+    "clip": "static",
+    "variant": "default"
+  }
+}
