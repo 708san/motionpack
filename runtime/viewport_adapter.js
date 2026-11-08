@@ -49,8 +49,9 @@
 
     function update() {
       if (disposed) throw new Error('viewport has been disposed');
-      const rect = target.getBoundingClientRect();
-      if (!rect || ![rect.left, rect.top, rect.width, rect.height].every(Number.isFinite)
+      let rect;
+      try { rect = target.getBoundingClientRect(); } catch (_) { return null; }
+      if (!rect || ![rect.left, rect.top, rect.width, rect.height].every(Number.isFinite
           || rect.width <= 0 || rect.height <= 0) {
         state = null;
         return null;
