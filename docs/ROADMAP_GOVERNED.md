@@ -36,8 +36,8 @@ The isolated-reader Actions run [42455065352](https://github.com/708san/motionpa
 
 ## Phase C — reusable playback and interaction
 
-1. Build on the evaluator to add a host-owned player controller and rendering adapters. A DOM-free controller prototype with per-instance clip/variant/time state, play/pause/resume/stop/seek, state queries and disposal is implemented on PR #39; preview-facade integration, loading/unloading, parameter updates, resizing and rendering adapters remain open.
-2. Add pointer/touch input with canvas-to-logical coordinate mapping, then hit tests, dragging, long press and swipe. Keep host actions permissioned by the consuming application; never execute package JavaScript.
+1. Build on the evaluator to add a host-owned player controller and rendering adapters. A DOM-free controller prototype with per-instance clip/variant/time state, play/pause/resume/stop/seek, state queries and disposal is implemented on PR #39; the current follow-up integrates controller clock/state into the generated preview while preserving the legacy facade; loading/unloading, parameter updates, resizing and rendering adapters remain open.
+2. The generated preview maps pointer input to canvas logical coordinates and uses it for optional IK. Add host-facing touch input, hit tests, dragging, long press and swipe next; keep host actions permissioned by the consuming application and never execute package JavaScript.
 3. Separate logical canvas size from viewport policy (contain, cover, stretch, alignment and high-DPI scaling). Include 91:55 as a generic aspect-ratio test, not a product-specific feature.
 4. Add an offline export path only after the player API and asset lifecycle are stable.
 

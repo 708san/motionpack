@@ -31,6 +31,7 @@
       this._timeMs = 0;
       this._state = 'stopped';
       this._disposed = false;
+      this._ikTargets = Object.create(null);
       this._clipInfo(this._clip);
       this._variantInfo(this._variant);
       this.getPose();
@@ -137,12 +138,35 @@
       return this.getPose();
     }
 
+    setIKTarget(ikId, targetOrNull) {
+      this._assertActive();
+      const iks = Array.isArray(this._manifest.iks) ? this._manifest.iks : [];
+      if (!iks.some(ik => ik && ik.id === ikId)) {
+        throw new RangeError(`unknown IK chain: ${ikId}`);
+      }
+      if (targetOrNull === null) {
+        delete this._ikTargets[ikId];
+      } else {
+        if (!Array.isArray(targetOrNull) || targetOrNull.length !== 2) {
+          throw new RangeError(`invalid IK target: ${ikId}`);
+        }
+        const x = targetOrNull[0];
+        const y = targetOrNull[1];
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          throw new RangeError(`invalid IK target: ${ikId}`);
+        }
+        this._ikTargets[ikId] = [x, y];
+      }
+      return this.getPose();
+    }
+
     getPose() {
       this._assertActive();
       return Evaluator.sample(this._manifest, {
         clip: this._clip,
         variant: this._variant,
-        timeMs: this._timeMs
+        timeMs: this._timeMs,
+        ikTargets: this._ikTargets
       }, this._rig);
     }
 
@@ -167,6 +191,7 @@
       this._rig = null;
       this._clip = null;
       this._variant = null;
+      this._ikTargets = null;
       this._timeMs = 0;
       this._state = 'disposed';
       this._disposed = true;

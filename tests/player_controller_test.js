@@ -69,6 +69,43 @@ assert.strictEqual(player.getState().variant, 'form_b');
 assert.strictEqual(player.getPose().nodes.get('body').asset, 'torso_power');
 assert.throws(() => player.play('missing'), /unknown clip/);
 assert.throws(() => player.setVariant('missing'), /unknown variant/);
+
+const manifestWithoutIKTracks = JSON.parse(JSON.stringify(manifest));
+manifestWithoutIKTracks.clips.idle.ik_tracks = [];
+const ikPlayer = create({ manifest: manifestWithoutIKTracks, rig });
+const defaultIKPose = ikPlayer.getPose();
+const requestedTarget = [900, 250];
+const overriddenIKPose = ikPlayer.setIKTarget('aim_right', requestedTarget);
+assert.notStrictEqual(overriddenIKPose.nodes.get('right_upper').rotation,
+  defaultIKPose.nodes.get('right_upper').rotation,
+  'an IK override changes the sampled pose');
+requestedTarget[0] = 1;
+assert.strictEqual(ikPlayer.getPose().nodes.get('right_upper').rotation,
+  overriddenIKPose.nodes.get('right_upper').rotation,
+  'the controller copies the target on set');
+assert.deepStrictEqual(ikPlayer.setIKTarget('aim_right', null), defaultIKPose,
+  'clearing an override restores the manifest and animation target');
+assert.throws(() => ikPlayer.setIKTarget('missing', [1, 2]), /unknown IK chain/);
+let getterReads = 0;
+const getterTarget = [0, 0];
+Object.defineProperty(getterTarget, 0, { get() { getterReads++; return getterReads === 1 ? 321 : NaN; } });
+assert.deepStrictEqual(ikPlayer.setIKTarget('aim_right', getterTarget),
+  ikPlayer.getPose(), 'target values are snapshotted before storage');
+assert.strictEqual(getterReads, 1, 'each target coordinate getter is read once');
+const trackedIKPlayer = create({ manifest, rig });
+const trackedDefaultPose = trackedIKPlayer.getPose();
+trackedIKPlayer.setIKTarget('aim_right', [900, 250]);
+const restoredTrackPose = trackedIKPlayer.setIKTarget('aim_right', null);
+assert.deepStrictEqual(restoredTrackPose.nodes.get('right_upper'),
+  trackedDefaultPose.nodes.get('right_upper'),
+  'clearing an override restores clip IK-track values');
+trackedIKPlayer.dispose();
+for (const invalidTarget of [undefined, {}, [1], [1, 2, 3], [1, NaN], [Infinity, 2], [, 2]]) {
+  assert.throws(() => ikPlayer.setIKTarget('aim_right', invalidTarget), /invalid IK target/);
+}
+ikPlayer.dispose();
+assert.throws(() => ikPlayer.setIKTarget('aim_right', [1, 2]), /disposed/);
+
 const inheritedDefaultsManifest = { ...manifest, defaults: Object.create({ clip: 'idle', variant: 'form_a' }) };
 assert.throws(() => create({ manifest: inheritedDefaultsManifest, rig }), /unknown clip/);
 const invalidLoopManifest = JSON.parse(JSON.stringify(manifest));
