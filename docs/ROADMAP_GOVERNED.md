@@ -29,10 +29,10 @@ The isolated-reader Actions run [42455065352](https://github.com/708san/motionpa
 
 1. Extract a stateless pose evaluator that accepts a manifest, clip, variant, and millisecond timestamp; preserve generated preview behavior through the existing `window.MotionPackPlayer` facade.
 2. Define the later host player lifecycle API, clock ownership, load/unload behavior, playback interruption, events, resizing and disposal after the evaluator is independently testable.
-3. Draft the v1.0 compatibility policy before stabilizing format or runtime APIs. Manage file-format, runtime and authoring-tool versions separately; document required/optional capabilities, migration, deprecation, unsupported-feature errors and fallback export.
+3. Review the proposed [v1.0 compatibility policy](COMPATIBILITY_POLICY_DRAFT.md) before stabilizing format or runtime APIs. Manage file-format, runtime and authoring-tool versions separately; document required/optional capabilities, migration, deprecation, unsupported-feature errors and fallback export.
 4. Keep v0.1–v0.3 experimental. Specify whether/how they migrate into v1.0; keep frozen fixtures and compare both sampled state and rendered output.
 
-**Exit evidence:** reviewed runtime API proposal, compatibility policy, versioned fixtures and acceptance criteria. Any public format change requires Architect review, migration notes and regression fixtures.
+**Exit evidence:** accepted runtime API proposal, compatibility policy, versioned fixtures and acceptance criteria. Any public format change requires Architect review, migration notes and regression fixtures.
 
 ## Phase C — reusable playback and interaction
 
