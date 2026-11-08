@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '..');
 const rig = require(path.join(root, 'runtime/rig.js'));
 const evaluator = require(path.join(root, 'runtime/evaluator.js'));
 const controllerApi = require(path.join(root, 'runtime/player_controller.js'));
+const pointerAdapterApi = require(path.join(root, 'runtime/pointer_ik_adapter.js'));
 
 function makePreview(example, prepareManifest = () => {}, controllerOverride = null) {
   const manifest = JSON.parse(fs.readFileSync(
@@ -28,7 +29,8 @@ function makePreview(example, prepareManifest = () => {}, controllerOverride = n
     height: 0,
     getContext: () => context,
     getBoundingClientRect: () => rect,
-    addEventListener: (name, callback) => { listeners[name] = callback; }
+    addEventListener: (name, callback) => { listeners[name] = callback; },
+    removeEventListener: (name, callback) => { if (listeners[name] === callback) delete listeners[name]; }
   };
   const controls = {
     stage: canvas,
@@ -55,7 +57,8 @@ function makePreview(example, prepareManifest = () => {}, controllerOverride = n
       __MOTIONPACK__: manifest,
       MotionPackRig: rig,
       MotionPackEvaluator: evaluator,
-      MotionPackPlayerController: controllerOverride || playerController
+      MotionPackPlayerController: controllerOverride || playerController,
+      MotionPackPointerIKAdapter: pointerAdapterApi
     },
     document: { getElementById: id => controls[id], body: {} },
     performance: { now: () => now },
@@ -153,6 +156,17 @@ const chainId = ikPreview.manifest.iks[0].id;
 assert(ikPreview.calls.some(call => call.id === chainId &&
   call.target && call.target[0] === 200 && call.target[1] === 200),
 'pointer coordinates map from CSS bounds into logical canvas coordinates');
+ikPreview.listeners.pointerdown({ pointerId: 5, pointerType: 'touch', isPrimary: true, clientX: 110, clientY: 70 });
+ikPreview.listeners.pointermove({ pointerId: 5, pointerType: 'touch', isPrimary: true, clientX: 210, clientY: 120 });
+assert(ikPreview.calls.some(call => call.id === chainId &&
+  call.target && call.target[0] === 400 && call.target[1] === 400),
+'primary touch pointer maps to logical canvas coordinates while pressed');
+ikPreview.listeners.pointermove({ pointerId: 6, pointerType: 'touch', isPrimary: false, clientX: 310, clientY: 170 });
+assert.deepStrictEqual(ikPreview.calls[ikPreview.calls.length - 1].target, [400, 400],
+'secondary pointer cannot replace the active touch target');
+ikPreview.listeners.pointercancel({ pointerId: 5, pointerType: 'touch', isPrimary: true });
+assert.strictEqual(ikPreview.calls[ikPreview.calls.length - 1].target, null,
+'pointercancel clears the touch target');
 ikPreview.rect.width = 0;
 ikPreview.listeners.pointermove({ clientX: 110, clientY: 70 });
 ikPreview.frame(32);
@@ -163,7 +177,7 @@ ikPreview.listeners.pointermove({ clientX: NaN, clientY: 70 });
 ikPreview.frame(48);
 assert(!ikPreview.controls.status.textContent.includes('Playback stopped'),
   'non-finite pointer coordinates do not stop playback');
-ikPreview.listeners.pointerleave();
+ikPreview.listeners.pointerleave({ pointerId: 1, pointerType: 'mouse', isPrimary: true });
 assert(ikPreview.calls.some(call => call.id === chainId && call.target === null),
   'pointerleave clears the temporary IK target');
 ikFacade.setPointerIK(false);

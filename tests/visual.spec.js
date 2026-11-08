@@ -77,6 +77,9 @@ async function capture(page, testInfo, name, advanceMs, expectedStatus, options 
       const box = canvas.getBoundingClientRect();
       canvas.dispatchEvent(new PointerEvent('pointermove', {
         bubbles: true,
+        pointerId: 1,
+        pointerType: 'mouse',
+        isPrimary: true,
         clientX: box.x + box.width * x,
         clientY: box.y + box.height * y
       }));
