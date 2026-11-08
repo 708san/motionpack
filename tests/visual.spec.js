@@ -151,7 +151,7 @@ test('malformed raster decode fails safely', async ({ page }) => {
   await page.goto(pathToFileURL(malformedPreview).href);
   await page.locator('#stage').waitFor({ state: 'visible' });
   await page.waitForFunction(() =>
-    document.querySelector('#status')?.textContent.includes('Image decode failed')
+    document.querySelector('#asset-error')?.textContent.includes('Image decode failed')
   );
   expect(await page.getByRole('status').textContent()).toContain('Image decode failed');
   expect(await page.evaluate(() => window.__invalidImageDraws)).toBe(0);
