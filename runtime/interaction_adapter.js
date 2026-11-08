@@ -77,7 +77,6 @@
       const previousOwner = hoverOwner;
       if (next === previous) {
         hoverOwner = next ? { id: pointerId, input } : null;
-        hoverGeneration += 1;
         return;
       }
       hovered = next;
