@@ -8,13 +8,13 @@ let assetDecodeFailed=false;
 let playbackFailed=false;
 const reportAssetDecodeFailure=()=>{if(assetDecodeFailed)return;assetDecodeFailed=true;const status=document.getElementById('asset-error');if(status){status.textContent='Image decode failed';status.hidden=false;}};
 const images={};for(const [id,src] of Object.entries(S.assets)){const im=new Image();im.onerror=reportAssetDecodeFailure;im.src=src;images[id]=im;}
-let player,pointerAdapter=null,currentPose=null;
+let player,pointerAdapter=null,currentPose=null,drawableNodeIds=new Set();
 try{player=Controller.create({manifest:S,rig:Rig});player.play();
  if(S.iks?.length)pointerAdapter=PointerIKAdapter.create({target:canvas,controller:player,ikId:S.iks[0].id,logicalWidth:canvas.width,logicalHeight:canvas.height});}
 catch(_){document.getElementById('status').textContent='Playback stopped: invalid animation data';return;}
 const assetSizes={};
 const interactionAdapter=S.version==='0.4'?InteractionAdapter.create({target:canvas,manifest:S,getPose:()=>currentPose,
- assetSizes,getDrawableNodeIds:()=>currentPose?new Set([...currentPose.nodes.values()].filter(n=>n.asset&&images[n.asset]?.complete&&images[n.asset]?.naturalWidth>0).map(n=>n.id)):new Set(),
+ assetSizes,getDrawableNodeIds:()=>drawableNodeIds,
  hitTest:HitTest,emit:event=>window.dispatchEvent(new CustomEvent('motionpack:interaction',{detail:event}))}):null;
 if(interactionAdapter)window.MotionPackInteractions=Object.freeze({activate:nodeId=>interactionAdapter.activate(nodeId),dispose:()=>interactionAdapter.dispose()});
 let transition=null,pointerIK=false,previousFrameTime=performance.now();
@@ -40,6 +40,7 @@ function frame(time){
   state=player.getState();t=pose.timeMs;
  }catch(_){playbackFailed=true;document.getElementById('status').textContent='Playback stopped: invalid animation data';return;}
  currentPose=pose;
+ drawableNodeIds=new Set([...pose.nodes.values()].filter(n=>n.asset&&images[n.asset]?.complete&&images[n.asset]?.naturalWidth>0).map(n=>n.id));
  for(const [id,image] of Object.entries(images))if(image.complete&&image.naturalWidth>0)assetSizes[id]={width:image.naturalWidth,height:image.naturalHeight};
  const clip=state.clip,variant=state.variant;
  const nodes=pose.nodes;
