@@ -149,12 +149,25 @@ test('collect report-only package, reader and browser performance measurements',
     if (message.type() === 'error') pageErrors.push(message.text());
   });
   await page.route(/^https?:\/\//i, route => route.abort());
+  await page.addInitScript(() => {
+    const NativeImage = window.Image;
+    const images = [];
+    Object.defineProperty(window, '__motionPackTrackedImages', { value: images });
+    window.Image = function (...args) {
+      const image = new NativeImage(...args);
+      images.push(image);
+      return image;
+    };
+    window.Image.prototype = NativeImage.prototype;
+    Object.setPrototypeOf(window.Image, NativeImage);
+  });
 
   const loadStarted = process.hrtime.bigint();
   await page.goto(pathToFileURL(benchmarkPreview).href);
   await page.locator('#stage').waitFor({ state: 'visible' });
   await page.waitForFunction(() =>
-    [...document.images].every(image => image.complete && image.naturalWidth > 0)
+    window.__motionPackTrackedImages?.length > 0 &&
+    window.__motionPackTrackedImages.every(image => image.complete && image.naturalWidth > 0)
   );
   const loadReadyMs = Number(process.hrtime.bigint() - loadStarted) / 1e6;
 
