@@ -116,6 +116,39 @@ timeout behavior; Linux and Windows also exercise their
 memory-limit mechanisms. macOS CI verifies the documented unsupported-memory
 behavior rather than claiming a hard cap.
 
+## Opt-in isolated raster decoder
+
+`tools/isolated_raster_decoder.py` exposes `decode_raster_assets_isolated()` for
+host runtimes that already hold validated, manifest-referenced asset bytes. It
+starts a new Python worker and passes bounded bytes over standard input; the
+worker never opens package-controlled paths. Only static PNG, JPEG and WebP are
+accepted in this increment. Animated WebP, SVG and other formats are rejected.
+The existing offline preview remains on the browser image-decoding path.
+
+The adapter returns straight RGBA pixel buffers and applies the existing tool
+ceilings: 8,192 pixels per edge, 16 million pixels per asset, 64 million header
+pixels total, 64 million decoded pixels total, 12 MiB per asset and 32 MiB of
+input bytes. A wall-clock deadline defaults to 30 seconds and may be set up to
+300 seconds. Responses are capped and checked for expected asset IDs, format,
+dimensions and exact RGBA byte lengths. A timeout, malformed response, worker
+failure or limit rejection discards the entire result. There is no implicit
+fallback to browser decoding. Pillow is optional and pinned in
+`requirements-image.txt`; install it explicitly with hash verification and
+binary wheels only (the lock covers the Linux x86-64, macOS arm64 and Windows
+x86-64 Python 3.12 CI targets):
+
+```sh
+python -m pip install --require-hashes --only-binary=:all: -r requirements-image.txt
+python -m unittest discover -s tests -p test_isolated_raster_decoder.py -v
+```
+
+The worker uses a 512 MiB address-space ceiling on Linux and a 512 MiB Job
+Object committed-memory limit on Windows. macOS has no hard whole-process
+memory cap here. Process separation and these resource controls do not reduce
+the worker's OS file or network permissions; this adapter is not a sandbox or a
+production-safe import guarantee. Pillow's bundled native codecs remain part
+of the attack surface and require version/security updates.
+
 The target and synthetic seed corpus are in `tests/fuzz_archive_reader.py`
 and `tests/fuzz_corpus/archive_reader/`. It accepts only the six reviewed
 regular-file seeds, caps the corpus at 16 files / 1 MiB and each seed at
