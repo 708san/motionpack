@@ -102,6 +102,36 @@ reentrantTarget.fire('pointermove', pointer('mouse', 11, 80, 50));
 assert.deepStrictEqual(reentrantEvents.map(event => event.type), ['hoverenter', 'hoverleave'],
   'disposing inside hoverleave cannot emit a later hoverenter');
 
+const nestedTarget = new Target(), nestedEvents = [];
+let nestedAdapter, nestedOnce = false;
+nestedAdapter = interaction.create({ target: nestedTarget, globalTarget: new Target(),
+  manifest: { version: '0.4', canvas: { width: 100, height: 100 }, nodes: [
+    node('a', 20, 0, { hover: true }), node('b', 50, 1, { hover: true }), node('c', 80, 2, { hover: true })
+  ] }, getPose: () => ({ nodes: new Map([
+    ['a', node('a', 20, 0, { hover: true })], ['b', node('b', 50, 1, { hover: true })],
+    ['c', node('c', 80, 2, { hover: true })]
+  ]) }), assetSizes: {}, hitTest, emit(event) {
+    nestedEvents.push(event);
+    if (event.type === 'hoverleave' && event.nodeId === 'a' && !nestedOnce) {
+      nestedOnce = true;
+      nestedTarget.fire('pointermove', pointer('mouse', 13, 80, 50));
+      nestedTarget.fire('pointermove', pointer('mouse', 13, 50, 50));
+    }
+  }
+});
+nestedTarget.fire('pointermove', pointer('mouse', 13, 20, 50));
+nestedTarget.fire('pointermove', pointer('mouse', 13, 50, 50));
+assert.strictEqual(nestedEvents.filter(event => event.type === 'hoverenter' && event.nodeId === 'b').length, 1,
+  'nested transitions away and back cannot duplicate hoverenter');
+
+const simultaneous = setup([node('a', 20, 0, { hover: true }), node('b', 80, 1, { hover: true })]);
+simultaneous.target.fire('pointermove', pointer('mouse', 20, 20, 50));
+simultaneous.target.fire('pointermove', pointer('pen', 21, 80, 50));
+simultaneous.target.fire('pointerleave', pointer('mouse', 20, 20, 50));
+assert.deepStrictEqual(simultaneous.events.map(event => [event.type, event.nodeId, event.input]), [
+  ['hoverenter', 'a', 'mouse'], ['hoverleave', 'a', 'mouse'], ['hoverenter', 'b', 'pen']
+], 'leave from a former hover owner does not clear the latest mouse/pen target');
+
 let noHoverQueries = 0;
 const noHoverTarget = new Target();
 const noHoverNodes = Array.from({ length: 1000 }, (_, index) => node(`n${index}`, index % 100, 0, {}));
