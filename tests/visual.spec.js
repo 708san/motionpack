@@ -7,6 +7,7 @@ const { pathToFileURL } = require('node:url');
 const root = path.resolve(__dirname, '..');
 const output = path.join(root, 'test-results', 'visual');
 const preview = path.join(output, 'preview', 'preview.html');
+const malformedPreview = path.join(output, 'malformed-raster', 'preview.html');
 const candidateDir = path.join(output, 'candidate-screenshots');
 
 test.beforeAll(() => {
@@ -17,6 +18,25 @@ test.beforeAll(() => {
   fs.mkdirSync(candidateDir, { recursive: true });
   execFileSync('python3', [
     'tools/package.py', 'examples/robot_ik_demo', '--out', path.dirname(preview)
+  ], { cwd: root, stdio: 'inherit' });
+
+  const malformedDir = path.dirname(malformedPreview);
+  fs.rmSync(malformedDir, { recursive: true, force: true });
+  fs.mkdirSync(malformedDir, { recursive: true });
+  const malformedProject = path.join(malformedDir, 'project');
+  fs.cpSync(path.join(root, 'examples/robot_ik_demo'), malformedProject, { recursive: true });
+  const manifestPath = path.join(malformedProject, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const badAssetPath = 'assets/decode_probe.png';
+  manifest.assets.decode_probe = badAssetPath;
+  const targetNode = manifest.nodes.find(node => node.asset);
+  if (!targetNode) throw new Error('robot demo has no image node for malformed raster test');
+  targetNode.asset = 'decode_probe';
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+  fs.writeFileSync(path.join(malformedProject, badAssetPath),
+    Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ', 'base64'));
+  execFileSync('python3', [
+    'tools/package.py', malformedProject, '--out', malformedDir
   ], { cwd: root, stdio: 'inherit' });
 });
 
@@ -108,6 +128,36 @@ async function capture(page, testInfo, name, advanceMs, expectedStatus, options 
     `playwright=${require('@playwright/test/package.json').version}; ` +
     `chromium=${page.context().browser().version()}\n`);
 }
+
+test('malformed raster decode fails safely', async ({ page }) => {
+  const pageErrors = [];
+  const externalRequests = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('request', request => {
+    if (/^https?:/i.test(request.url())) externalRequests.push(request.url());
+  });
+  await page.route(/^https?:\/\//i, route => route.abort());
+  await page.addInitScript(() => {
+    const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+    window.__invalidImageDraws = 0;
+    CanvasRenderingContext2D.prototype.drawImage = function (source, ...args) {
+      if (source instanceof HTMLImageElement && (!source.complete || source.naturalWidth === 0)) {
+        window.__invalidImageDraws += 1;
+      }
+      return drawImage.call(this, source, ...args);
+    };
+  });
+
+  await page.goto(pathToFileURL(malformedPreview).href);
+  await page.locator('#stage').waitFor({ state: 'visible' });
+  await page.waitForFunction(() =>
+    document.querySelector('#asset-error')?.textContent.includes('Image decode failed')
+  );
+  expect(await page.getByRole('status').textContent()).toContain('Image decode failed');
+  expect(await page.evaluate(() => window.__invalidImageDraws)).toBe(0);
+  expect(pageErrors).toEqual([]);
+  expect(externalRequests).toEqual([]);
+});
 
 test('idle pose at 800 ms', async ({ page }, testInfo) => {
   await capture(page, testInfo, 'idle', 800, 'idle | form_a | 800 ms', { button: '#idle' });

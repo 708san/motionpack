@@ -135,7 +135,7 @@ button{padding:10px;background:#345f8e;color:white;border:1px solid #78a2c9;bord
 </style></head><body><div class="shell"><h2>MotionPack experimental preview</h2><div class="panel">
 <canvas id="stage"></canvas><div><button id="idle">Idle</button><button id="fire">Fire beam</button>
 <button id="transform">Switch form</button><button id="reset">Reset</button><button id="aim">Pointer IK: OFF</button></div>
-<p id="status"></p></div></div><script>window.__MOTIONPACK__=""" + payload + ";</script><script>" + rig + "</script><script>" + viewer + "</script></body></html>"
+<p id="asset-error" role="status" aria-live="polite" hidden></p><p id="status"></p></div></div><script>window.__MOTIONPACK__=""" + payload + ";</script><script>" + rig + "</script><script>" + viewer + "</script></body></html>"
         preview = out / "preview.html"
         preview.write_text(page, encoding="utf-8")
     return package, preview

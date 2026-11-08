@@ -4,7 +4,9 @@
 const S=window.__MOTIONPACK__,Rig=window.MotionPackRig;
 if(!S){document.body.textContent='Missing MotionPack asset';return;}
 const canvas=document.getElementById('stage'),ctx=canvas.getContext('2d');canvas.width=S.canvas.width;canvas.height=S.canvas.height;
-const images={};for(const [id,src] of Object.entries(S.assets)){const im=new Image();im.src=src;images[id]=im;}
+let assetDecodeFailed=false;
+const reportAssetDecodeFailure=()=>{if(assetDecodeFailed)return;assetDecodeFailed=true;const status=document.getElementById('asset-error');if(status){status.textContent='Image decode failed';status.hidden=false;}};
+const images={};for(const [id,src] of Object.entries(S.assets)){const im=new Image();im.onerror=reportAssetDecodeFailure;im.src=src;images[id]=im;}
 let clip=S.defaults.clip,variant=S.defaults.variant,started=performance.now(),transition=null,pointerIK=false,pointer=null;
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),mix=(a,b,t)=>a+(b-a)*t,identity={a:1,b:0,c:0,d:1,e:0,f:0};
 function sample(keys,t){if(t<=keys[0].time_ms)return keys[0].value;for(let i=1;i<keys.length;i++)if(t<=keys[i].time_ms){const a=keys[i-1],b=keys[i],u=clamp((t-a.time_ms)/(b.time_ms-a.time_ms),0,1);return mix(a.value,b.value,u*u*(3-2*u));}return keys[keys.length-1].value;}
