@@ -16,6 +16,7 @@ import warnings
 import zipfile
 import zlib
 from unittest import mock
+from tests.jpeg_fixtures import jpeg_with_dnl_defined_height
 ROOT=pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0,str(ROOT/'tools'))
 import validate as validator_module
@@ -396,9 +397,8 @@ class FormatTests(unittest.TestCase):
         self.assertEqual(validator_module.parse_jpeg_dimensions(jpeg_header(320,240)),(320,240))
     def test_jpeg_dnl_defined_height_is_rejected(self):
         # DNL supplies the frame height inside scan data, which this preflight does not support.
-        data=jpeg_header(320,0)+b'\xff\xdc\x00\x04\x00\xf0'
         with self.assertRaisesRegex(ValueError,'dimensions'):
-            validator_module.parse_jpeg_dimensions(data)
+            validator_module.parse_jpeg_dimensions(jpeg_with_dnl_defined_height())
     def test_webp_dimension_preflight_variants_and_malformed_headers(self):
         for kind in (b'VP8X',b'VP8 ',b'VP8L'):
             with self.subTest(kind=kind):

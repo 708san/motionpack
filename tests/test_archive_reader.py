@@ -17,6 +17,7 @@ import unittest
 import zipfile
 import zlib
 from unittest import mock
+from tests.jpeg_fixtures import jpeg_with_dnl_defined_height
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
@@ -698,7 +699,7 @@ class ArchiveReaderTests(unittest.TestCase):
 
     def test_archive_reader_rejects_jpeg_dnl_defined_height(self):
         path='assets/dnl-height.jpg'
-        data=jpeg_header(320,0)+b'\xff\xdc\x00\x04\x00\xf0'
+        data=jpeg_with_dnl_defined_height()
         with tempfile.TemporaryDirectory() as tmp:
             packed=self._package(ROOT/'examples'/'robot_ik_demo',pathlib.Path(tmp)/'build')
             with zipfile.ZipFile(packed) as original:
