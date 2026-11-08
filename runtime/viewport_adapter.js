@@ -72,8 +72,8 @@
       try { dpr = readDpr(); } catch (_) { dpr = 1; }
       if (!Number.isFinite(dpr) || dpr <= 0) dpr = 1;
       dpr = Math.min(dpr, settings.maxDpr);
-      let bitmapWidth = Math.max(logicalWidth, cssWidth * dpr);
-      let bitmapHeight = Math.max(logicalHeight, cssHeight * dpr);
+      let bitmapWidth = cssWidth * dpr;
+      let bitmapHeight = cssHeight * dpr;
       const cap = Math.min(1, settings.maxDimension / bitmapWidth,
         settings.maxDimension / bitmapHeight,
         Math.sqrt(settings.maxPixels / (bitmapWidth * bitmapHeight)));
