@@ -10,7 +10,7 @@
     if (!options || typeof options !== 'object' || Array.isArray(options)) {
       throw new TypeError('interaction adapter options are required');
     }
-    const { target, manifest, getPose, assetSizes, getDrawableNodeIds, hitTest, emit } = options;
+    const { target, manifest, getPose, assetSizes, getDrawableNodeIds, mapClientToLogical, hitTest, emit } = options;
     if (!target || typeof target.addEventListener !== 'function'
         || typeof target.removeEventListener !== 'function'
         || typeof target.getBoundingClientRect !== 'function') {
@@ -26,6 +26,9 @@
     if (!Number.isFinite(logicalWidth) || logicalWidth <= 0
         || !Number.isFinite(logicalHeight) || logicalHeight <= 0) {
       throw new TypeError('interaction adapter canvas dimensions must be positive');
+    }
+    if (mapClientToLogical !== undefined && typeof mapClientToLogical !== 'function') {
+      throw new TypeError('mapClientToLogical must be a function');
     }
     const globalTarget = options.globalTarget || root.window || target;
     const nodes = new Map(manifest.nodes.filter(node => node && typeof node.id === 'string')
@@ -44,6 +47,13 @@
 
     function pointFrom(event) {
       if (!event || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return null;
+      if (mapClientToLogical) {
+        let point;
+        try { point = mapClientToLogical(event); } catch (_) { return null; }
+        return Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)
+          && point[0] >= 0 && point[0] < logicalWidth && point[1] >= 0 && point[1] < logicalHeight
+          ? point : null;
+      }
       let rect;
       try { rect = target.getBoundingClientRect(); } catch (_) { return null; }
       if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.top)
