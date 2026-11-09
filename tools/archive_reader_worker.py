@@ -10,7 +10,7 @@ sys.path.insert(0, str(HERE))
 from archive_reader import ArchiveError, ReaderLimits, read_package  # noqa: E402
 from isolated_archive_reader import _snapshot_archive  # noqa: E402
 
-MAGIC = b"MPIR\x01"
+MAGIC = b"MPIR\x02"
 MAX_REQUEST_BYTES = 128 * 1024
 MAX_RESPONSE_BYTES = 40 * 1024 * 1024
 
@@ -41,7 +41,7 @@ def _apply_linux_memory_limit(memory_limit_bytes):
 
 def _encode_success(package, max_bytes):
     entries = package.entries or {}
-    chunks = [MAGIC, b"\\x00", struct.pack("!I", len(entries))]
+    chunks = [MAGIC, b"\x00", struct.pack("!I", len(entries))]
     total = sum(map(len, chunks))
     for name, data in entries.items():
         encoded_name = name.encode("utf-8")
@@ -78,7 +78,7 @@ def main():
         try:
             _snapshot_archive(request["path"], snapshot, limits)
         except ArchiveError:
-            response = MAGIC + b"\x01"
+            response = MAGIC + b"\x02"
         except MemoryError:
             response = MAGIC + b"\x03"
         except BaseException:
