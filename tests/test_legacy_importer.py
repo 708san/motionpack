@@ -90,5 +90,112 @@ class LegacyImporterTests(unittest.TestCase):
                         self.assertEqual(snapshot.validation_profiles, ())
 
 
+    def test_normalized_view_projects_sparse_fields_and_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for version in ("0.1", "0.2", "0.3", "0.4"):
+                with self.subTest(version=version):
+                    target = pathlib.Path(tmp) / f"normalized-{version}.motionpack"
+                    target.write_bytes(self._fixture(version).read_bytes())
+                    snapshot = import_legacy_package(target, timeout=20)
+                    normalized = snapshot.normalized
+                    self.assertEqual(normalized.source_version, version)
+                    self.assertEqual(normalized.manifest_bytes, snapshot.manifest_bytes)
+                    self.assertEqual(normalized.entries, snapshot.entries)
+                    self.assertEqual(normalized.assets, snapshot.assets)
+                    self.assertEqual(
+                        [node.node_id for node in normalized.nodes],
+                        [node["id"] for node in snapshot.manifest["nodes"]],
+                    )
+                    for index, (node, raw_node) in enumerate(zip(
+                        normalized.nodes, snapshot.manifest["nodes"]
+                    )):
+                        self.assertEqual(node.source_pointer, f"/nodes/{index}")
+                        self.assertEqual(node.present_fields, frozenset(raw_node))
+                        self.assertEqual(node.asset_field_present, "asset" in raw_node)
+                        self.assertEqual(node.parent_field_present, "parent" in raw_node)
+                        if "asset" in raw_node:
+                            self.assertIs(node.asset, snapshot.assets[raw_node["asset"]])
+                    self.assertEqual(set(normalized.clips), set(snapshot.manifest["clips"]))
+                    for name, raw_clip in snapshot.manifest["clips"].items():
+                        clip = normalized.clips[name]
+                        self.assertEqual(clip.source_pointer, f"/clips/{name}")
+                        self.assertEqual(clip.present_fields, frozenset(raw_clip))
+                        self.assertEqual(clip.loop_present, "loop" in raw_clip)
+                        self.assertEqual(
+                            clip.loop_value, raw_clip.get("loop") if "loop" in raw_clip else None
+                        )
+                        self.assertEqual(len(clip.tracks), len(raw_clip.get("tracks", [])))
+                        for index, track in enumerate(clip.tracks):
+                            self.assertEqual(
+                                track.source_pointer,
+                                f"/clips/{name}/tracks/{index}",
+                            )
+                            self.assertEqual(
+                                track.present_fields,
+                                frozenset(raw_clip["tracks"][index]),
+                            )
+                    self.assertEqual(
+                        normalized.defaults_present, "defaults" in snapshot.manifest
+                    )
+                    with self.assertRaises(TypeError):
+                        normalized.clips["injected"] = None
+                    if normalized.nodes:
+                        with self.assertRaises(TypeError):
+                            normalized.nodes[0].fields["injected"] = True
+                    for clip in normalized.clips.values():
+                        if clip.tracks:
+                            with self.assertRaises(TypeError):
+                                clip.tracks[0].values["injected"] = True
+                    for variant in normalized.variants.values():
+                        with self.assertRaises(TypeError):
+                            variant.node_overrides["injected"] = None
+                    if version == "0.4":
+                        self.assertTrue(any(
+                            "interaction" in node.fields for node in normalized.nodes
+                        ))
+                        self.assertTrue(any(
+                            fact.identifier == "org.motionpack.interaction"
+                            for fact in normalized.capability_facts
+                        ))
+
+    def test_v01_ik_is_normalized_with_spec_mismatch_diagnostic(self):
+        source_path = self._fixture("0.2")
+        with tempfile.TemporaryDirectory() as tmp:
+            target = pathlib.Path(tmp) / "v01-with-ik.motionpack"
+            with zipfile.ZipFile(source_path, "r") as source:
+                members = {
+                    info.filename: source.read(info)
+                    for info in source.infolist()
+                    if not info.is_dir()
+                }
+            manifest = json.loads(members["manifest.json"].decode("utf-8"))
+            manifest["version"] = "0.1"
+            members["manifest.json"] = json.dumps(
+                manifest, separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")
+            with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as output:
+                for name, payload in members.items():
+                    output.writestr(name, payload)
+
+            before = hashlib.sha256(target.read_bytes()).digest()
+            snapshot = import_legacy_package(target, timeout=20)
+            self.assertEqual(hashlib.sha256(target.read_bytes()).digest(), before)
+            self.assertEqual(snapshot.source_version, "0.1")
+            self.assertEqual(snapshot.normalized.manifest_bytes, members["manifest.json"])
+            self.assertTrue(snapshot.normalized.ik_chains)
+            self.assertIn("org.motionpack.ik.two-bone", snapshot.capabilities)
+            fact = next(
+                item for item in snapshot.normalized.capability_facts
+                if item.identifier == "org.motionpack.ik.two-bone"
+            )
+            self.assertEqual(
+                fact.interpretation, "observed-with-version-spec-mismatch"
+            )
+            self.assertIn("/iks", fact.source_pointers)
+            self.assertTrue(fact.diagnostic)
+            self.assertIn(fact.diagnostic, snapshot.report.diagnostics)
+            self.assertIn(fact.diagnostic, snapshot.normalized.diagnostics)
+
+
 if __name__ == "__main__":
     unittest.main()
