@@ -24,9 +24,9 @@ Use semantic versioning as a starting point for stable runtime and tool APIs: PA
 
 ## Experimental v0.x input
 
-The v0.1, v0.2, v0.3 and v0.4 formats do not receive a formal backward-compatibility guarantee. Keep the repository's frozen, checksummed v0.1–v0.4 package fixtures as regression references. v0.1/v0.2 are retained in the archive-reader fuzz seed corpus; v0.3/v0.4 fixtures are generated from the layered plant and interaction examples. v0.4 adds optional per-node host interaction flags and does not add executable behavior to manifests. The selected v1.0 importer scope covers all four versions. It must report unsupported or lossy features and preserve source material and provenance where present. Conversion must not silently discard fields or rewrite original files. The initial importer stage is approved as read-only; v1.0 serialization and conversion remain separate open design work.
+The v0.1, v0.2, v0.3 and v0.4 formats do not receive a formal backward-compatibility guarantee. Keep the repository's frozen v0.1–v0.4 package fixtures as regression references; SHA-256 checks are pinned for each fixture in archive-reader tests. v0.1/v0.2 are historical archive-reader fuzz seeds; v0.3/v0.4 fixtures are generated from the layered plant and interaction examples. v0.4 adds optional per-node host interaction flags and does not add executable behavior to manifests. The selected v1.0 importer scope covers all four versions. It must report unsupported or lossy features and preserve source material and provenance where present. Conversion must not silently discard fields or rewrite original files. The initial importer stage is approved as read-only; v1.0 serialization and conversion remain separate open design work.
 
-Rejection of a legacy file for a security reason must name the reason and provide a documented migration path where feasible. The repository now has fixed, checksummed package fixtures for all four selected versions. A reviewed feature inventory for each version remains required before format freeze.
+Rejection of a legacy file for a security reason must name the reason and provide a documented migration path where feasible. The repository now has regression fixtures and pinned SHA-256 checks for all four selected versions. A reviewed feature inventory for each version remains required before format freeze.
 
 ## Proposed v1 format rules
 
@@ -82,7 +82,7 @@ Once v1.0 is published, retain its normative specification, fixtures and compati
 
 ## Decisions still required before v1.0
 
-- Whether v1.0 import is read-only or converts into a v1.0 representation, and the format of loss/preservation reports.
+- How the read-only legacy snapshot maps source-version semantics and implementation quirks into a future v1.0 normalized model, including loss/preservation report details. v1.0 serialization remains separate open work.
 - The exact capability identifier grammar, extension namespace owner and identifier registration process.
 - How reader resource limits differ from format validity and whether v1.0 defines conformance/resource profiles.
 - The support window for each format and API family.

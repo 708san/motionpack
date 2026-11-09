@@ -51,6 +51,7 @@ class LegacyImporterTests(unittest.TestCase):
                             import_legacy_package(
                                 target, limits=ReaderLimits(max_total_uncompressed=1), timeout=20
                             )
+                        self.assertEqual(hashlib.sha256(target.read_bytes()).digest(), before_digest)
                     self.assertEqual(snapshot.source_version, version)
                     self.assertEqual(snapshot.manifest_bytes, expected["manifest.json"])
                     self.assertEqual(snapshot.entries, expected)
