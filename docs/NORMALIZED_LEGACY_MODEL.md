@@ -1,6 +1,6 @@
 # Normalized read-only legacy model (experimental)
 
-Status: planned internal importer API for v1.0 migration work. This is not the v1.0 manifest schema, a renderer API, or a serialization contract.
+Status: implemented experimental internal importer API, merged in PR #61 (2026-11-09). This remains a read-only migration aid, not a stable public contract. This is not the v1.0 manifest schema, a renderer API, or a serialization contract.
 
 ## Decision and purpose
 
