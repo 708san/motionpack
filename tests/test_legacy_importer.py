@@ -1,3 +1,4 @@
+import hashlib
 import json
 import pathlib
 import sys
@@ -8,6 +9,7 @@ import zipfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
+from archive_reader import ArchiveError, ReaderLimits
 from legacy_importer import import_legacy_package
 
 
@@ -41,7 +43,14 @@ class LegacyImporterTests(unittest.TestCase):
                         for name, payload in expected.items():
                             output.writestr(name, payload)
 
+                    before_digest = hashlib.sha256(target.read_bytes()).digest()
                     snapshot = import_legacy_package(target, timeout=20)
+                    self.assertEqual(hashlib.sha256(target.read_bytes()).digest(), before_digest)
+                    if version == "0.1":
+                        with self.assertRaises(ArchiveError):
+                            import_legacy_package(
+                                target, limits=ReaderLimits(max_total_uncompressed=1), timeout=20
+                            )
                     self.assertEqual(snapshot.source_version, version)
                     self.assertEqual(snapshot.manifest_bytes, expected["manifest.json"])
                     self.assertEqual(snapshot.entries, expected)
