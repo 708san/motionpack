@@ -15,6 +15,7 @@ import sys
 import tempfile
 import threading
 import time
+import unicodedata
 
 try:
     from .archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts, check_json_nesting)
@@ -129,6 +130,7 @@ def _decode_result(payload, limits, include_entries=False):
     if entry_count == 0 or entry_count > limits.max_entries:
         raise IsolatedReadError("isolated reader returned an invalid entry count")
     entries = {}
+    canonical_entries = {}
     total_bytes = 0
     for _ in range(entry_count):
         name_size, data_size = struct.unpack("!IQ", take(12))
@@ -139,8 +141,10 @@ def _decode_result(payload, limits, include_entries=False):
             _member_parts(name)
         except (UnicodeDecodeError, ArchiveError) as exc:
             raise IsolatedReadError("invalid isolated reader entry name") from exc
-        if name in entries or name.endswith("/"):
+        normalized_name = unicodedata.normalize("NFC", name)
+        if name in entries or normalized_name in canonical_entries or name.endswith("/"):
             raise IsolatedReadError("isolated reader returned a duplicate or directory entry")
+        canonical_entries[normalized_name] = name
         total_bytes += data_size
         if total_bytes > limits.max_total_uncompressed:
             raise IsolatedReadError("isolated reader entries exceeded their aggregate limit")
@@ -178,10 +182,11 @@ def _decode_result(payload, limits, include_entries=False):
             raise IsolatedReadError("isolated reader returned an unsafe asset path") from exc
         if _is_source_path(canonical):
             raise IsolatedReadError("isolated reader returned a source runtime asset")
-        data = entries.get(canonical)
-        if data is None:
+        actual_name = canonical_entries.get(unicodedata.normalize("NFC", canonical))
+        if actual_name is None:
             raise IsolatedReadError("isolated reader omitted a referenced asset")
-        expected_names.add(canonical)
+        data = entries[actual_name]
+        expected_names.add(actual_name)
         if len(data) > limits.max_asset_bytes:
             raise IsolatedReadError("isolated reader asset exceeded its limit")
         total_asset_bytes += len(data)
