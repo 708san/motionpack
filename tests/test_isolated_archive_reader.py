@@ -108,6 +108,13 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     self.assertEqual(result.manifest["version"], version)
                     self.assertEqual(set(result.assets), set(result.manifest["assets"]))
                     self.assertTrue(all(isinstance(data, bytes) for data in result.assets.values()))
+                    retained = read_package(archive, include_entries=True)
+                    isolated_retained = read_package_isolated(
+                        archive, timeout=20, include_entries=True
+                    )
+                    self.assertEqual(retained.manifest_bytes, isolated_retained.manifest_bytes)
+                    self.assertEqual(retained.entries, isolated_retained.entries)
+                    self.assertEqual(retained.source_entries, isolated_retained.source_entries)
 
     def test_rejects_malformed_archive_with_archive_error(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -183,7 +190,7 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                 " resource.setrlimit(resource.RLIMIT_AS, (req_limit, req_limit))\n"
                 "try: bytearray(1024 * 1024 * 1024)\n"
                 "except MemoryError:\n"
-                " sys.stdout.buffer.write(b'MPIR\\x01\\x03'); sys.stdout.buffer.flush(); raise SystemExit(0)\n"
+                " sys.stdout.buffer.write(b'MPIR\\x02\\x03'); sys.stdout.buffer.flush(); raise SystemExit(0)\n"
                 "raise SystemExit(7)\n",
             )
             with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
