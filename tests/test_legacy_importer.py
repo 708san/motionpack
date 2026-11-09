@@ -10,7 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
 from archive_reader import ArchiveError, ReaderLimits
-from legacy_importer import _pointer, import_legacy_package
+from legacy_importer import ImportReport, LegacyImportSnapshot, _pointer, import_legacy_package
 
 
 class LegacyImporterTests(unittest.TestCase):
@@ -181,6 +181,13 @@ class LegacyImporterTests(unittest.TestCase):
                             fact.identifier == "org.motionpack.interaction"
                             for fact in normalized.capability_facts
                         ))
+
+    def test_legacy_snapshot_constructor_remains_compatible(self):
+        report = ImportReport((), 0, 0, (), ())
+        snapshot = LegacyImportSnapshot(
+            "0.1", {}, b"{}", {}, {}, (), (), report
+        )
+        self.assertIsNone(snapshot.normalized)
 
     def test_v01_ik_is_normalized_with_spec_mismatch_diagnostic(self):
         source_path = self._fixture("0.2")
