@@ -46,6 +46,12 @@ class LegacyImporterTests(unittest.TestCase):
                     self.assertEqual(snapshot.manifest_bytes, expected["manifest.json"])
                     self.assertEqual(snapshot.entries, expected)
                     self.assertEqual(snapshot.source_entries, {"source/original.bin": opaque_source})
+                    with self.assertRaises(TypeError):
+                        snapshot.entries["source/new.bin"] = b"changed"
+                    with self.assertRaises(TypeError):
+                        snapshot.manifest["id"] = "changed"
+                    with self.assertRaises(TypeError):
+                        snapshot.manifest["nodes"][0]["id"] = "changed"
                     self.assertEqual(snapshot.report.unrecognized_manifest_fields, ("futureTopLevelField",))
                     self.assertEqual(
                         set(snapshot.assets),
