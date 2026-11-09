@@ -263,9 +263,8 @@ def _capability_facts(manifest, version):
     return tuple(facts)
 
 
-def _normalize(manifest, manifest_bytes, assets, entries, version,
+def _normalize(manifest, frozen_manifest, manifest_bytes, assets, entries, version,
                validation_profiles, report_diagnostics):
-    frozen_manifest = _freeze(manifest)
     normalized_assets = MappingProxyType({
         asset_id: asset for asset_id, asset in assets.items()
     })
@@ -359,13 +358,13 @@ def _normalize(manifest, manifest_bytes, assets, entries, version,
         manifest_bytes=manifest_bytes,
         entries=entries,
         assets=normalized_assets,
-        canvas=_freeze(manifest.get("canvas", {})),
+        canvas=frozen_manifest.get("canvas", MappingProxyType({})),
         canvas_present=canvas_present,
         canvas_source_pointer="/canvas" if canvas_present else None,
         nodes=tuple(nodes),
         clips=MappingProxyType(clips),
         variants=MappingProxyType(variants),
-        defaults=_freeze(manifest.get("defaults", {})),
+        defaults=frozen_manifest.get("defaults", MappingProxyType({})),
         defaults_present=defaults_present,
         defaults_source_pointer="/defaults" if defaults_present else None,
         ik_chains=ik_chains,
@@ -428,7 +427,7 @@ def import_legacy_package(path, *, limits: Optional[ReaderLimits] = None,
         ),
     )
     normalized = _normalize(
-        package.manifest, package.manifest_bytes, frozen_assets, frozen_entries,
+        package.manifest, frozen_manifest, package.manifest_bytes, frozen_assets, frozen_entries,
         version, validation_profiles, base_diagnostics,
     )
     return LegacyImportSnapshot(
