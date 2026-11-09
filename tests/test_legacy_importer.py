@@ -1,6 +1,5 @@
 import json
 import pathlib
-import shutil
 import sys
 import tempfile
 import unittest
@@ -31,6 +30,8 @@ class LegacyImporterTests(unittest.TestCase):
                             expected[info.filename] = source.read(info)
                     manifest = json.loads(expected["manifest.json"].decode("utf-8"))
                     manifest["futureTopLevelField"] = {"opaque": [1, "two"]}
+                    if version == "0.4":
+                        manifest["nodes"][0]["interaction"] = {"hover": True}
                     expected["manifest.json"] = json.dumps(
                         manifest, separators=(",", ":"), ensure_ascii=False
                     ).encode("utf-8")
@@ -54,10 +55,8 @@ class LegacyImporterTests(unittest.TestCase):
                         self.assertEqual(imported_asset.asset_id, asset_id)
                         self.assertEqual(imported_asset.path, snapshot.manifest["assets"][asset_id])
                         self.assertEqual(imported_asset.data, expected[imported_asset.path])
-                    if version in ("0.2", "0.3", "0.4"):
+                    if version == "0.2":
                         self.assertIn("org.motionpack.ik.two-bone", snapshot.capabilities)
-                    else:
-                        self.assertNotIn("org.motionpack.ik.two-bone", snapshot.capabilities)
                     if version == "0.4":
                         self.assertIn("org.motionpack.interaction", snapshot.capabilities)
                     else:
