@@ -17,7 +17,7 @@ import threading
 import time
 
 try:
-    from .archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts)
+    from .archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts, check_json_nesting)
 except ImportError:  # Support direct import when tools/ is on sys.path.
     from archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts)
 
@@ -224,7 +224,7 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
         raise UnsupportedMemoryLimit("a hard total-process memory limit is unsupported on macOS")
     if memory_limit and os.name != "nt" and not sys.platform.startswith("linux"):
         raise UnsupportedMemoryLimit("memory limits are supported only on Linux and Windows")
-    max_result = min(
+    max_result = MAX_RESULT_BYTES if include_entries else min(
         MAX_RESULT_BYTES,
         limits.max_manifest_bytes * 2 + limits.max_total_assets_bytes + 64 * 1024,
     )
