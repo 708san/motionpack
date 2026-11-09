@@ -20,7 +20,7 @@ import unicodedata
 try:
     from .archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts, check_json_nesting)
 except ImportError:  # Support direct import when tools/ is on sys.path.
-    from archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts)
+    from archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts, check_json_nesting)
 
 
 try:
