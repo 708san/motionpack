@@ -35,7 +35,7 @@ class LegacyImporterTests(unittest.TestCase):
                     expected["manifest.json"] = json.dumps(
                         manifest, separators=(",", ":"), ensure_ascii=False
                     ).encode("utf-8")
-                    opaque_source = b"PK\\x03\\x04arbitrary source bytes\\x00"
+                    opaque_source = bytes((0x50, 0x4B, 0x03, 0x04, 0x00)) + b"arbitrary source bytes"
                     expected["source/original.bin"] = opaque_source
                     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as output:
                         for name, payload in expected.items():
