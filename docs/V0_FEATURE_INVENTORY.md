@@ -1,6 +1,6 @@
 # Experimental v0.1–v0.4 feature inventory
 
-Status: implementation inventory for v1.0 migration planning. This document records the experimental behavior represented by the repository at PR #59 merge commit `2def0f2561aa162a71cee214e5b46ae396d6b75a`. It is evidence for planning, not a new normative format specification or a backward-compatibility guarantee.
+Status: implementation inventory for v1.0 migration planning. This document records the experimental behavior represented by the repository at PR #61 merge commit `7fb362bfe9cf2b4f763898b5ff0669b23f8cb42a`. PR #61 adds an experimental normalized read-only view over the earlier PR #59 snapshot. This inventory is evidence for planning, not a new normative format specification or a backward-compatibility guarantee.
 
 Use [FORMAT_SPEC.md](FORMAT_SPEC.md) for the current stated format rules, [LEGACY_IMPORT_SNAPSHOT.md](LEGACY_IMPORT_SNAPSHOT.md) for the first read-only import API, and the cited validators/tests/fixtures for implementation evidence. “Format rule” below means explicitly documented behavior; “implementation” means current repository behavior; “gap” means the two should not be conflated.
 
@@ -35,7 +35,7 @@ These checks are shared tooling behavior, not version deltas unless stated above
 - **SVG subset:** the current static element/attribute allowlist, standard SVG namespace or no namespace, same-document gradient references, and bounded XML structure apply across v0.1–v0.4. The allowlist can reject SVG content earlier validator revisions accepted; this is a cross-version compatibility restriction. It does not certify behavior for arbitrary renderers.
 - **Raster headers:** PNG/JPEG/WebP dimensions are inspected by filename extension. Default limits are 8,192 px per edge, 16 MP per image/frame and 64 MP across referenced raster assets; animated WebP accounting includes canvas and frame areas. Complete pixel decoding is outside the validator/ZIP reader.
 - **Reader resource limits:** defaults include 40 MiB archive size, 1,024 entries, 40 MiB aggregate uncompressed data, 100:1 compression ratio, 1 MiB manifest, 12 MiB per asset and 32 MiB aggregate referenced assets. These are reader/validator operating limits, not a format-wide compatibility promise.
-- **Source/provenance:** the package format permits optional opaque `source/` originals, but the packager does not automatically include them. The normal readers do not return them. The explicit v1 import snapshot retains regular-file payloads including `source/` as opaque bytes; it does not decode, scan, execute or restore ZIP container metadata. No formal source-provenance manifest schema is defined.
+- **Source/provenance:** the package format permits optional opaque `source/` originals, but the packager does not automatically include them. The normal readers do not return them. The explicit v1 read-only legacy import snapshot and normalized model retain regular-file payloads including `source/` as opaque bytes; they do not decode, scan, execute or restore ZIP container metadata. No formal source-provenance manifest schema is defined.
 
 ## Fixture and test map
 
