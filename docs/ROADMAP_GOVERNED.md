@@ -6,7 +6,7 @@ Targets are exploratory, not release commitments. This plan is reconciled with `
 
 | Area | Status | Evidence and limit |
 |---|---|---|
-| Experimental format | Implemented, verification incomplete | Frozen, checksummed package fixtures and direct/isolated reader regression coverage now cover v0.1–v0.4 (PR #57). The fixtures establish a regression baseline, not a stable v1.0 compatibility promise; importer migration semantics remain open. v0.4 adds opt-in node hover/tap/click notifications. |
+| Experimental format | Implemented, compatibility inventory in progress | Frozen/regression package fixtures and direct/isolated reader coverage span v0.1–v0.4 (PR #57). PR #59 adds an experimental read-only legacy import snapshot with opaque payload retention; it does not define v1 serialization or establish a stable compatibility promise. The version-by-version feature inventory is recorded in [V0_FEATURE_INVENTORY.md](V0_FEATURE_INVENTORY.md). v0.4 adds opt-in node hover/tap/click notifications. |
 | Offline preview | Implemented, browser-specific | Packager emits a self-contained Canvas 2D preview. Its legacy facade is backed by the experimental host-driven controller (PR #40). PR #47 adds host-configurable contain/cover/stretch viewport fitting, centered contain by default and logical coordinate mapping; PR #49 ensures the CSS-pixel backing buffer respects the DPR cap of 2 even when the logical canvas is larger. The backing-buffer caps remain 16 MP and 8192 px per edge; cross-browser parity, mobile Safari/Chrome and real-device behavior are not established. |
 | Motion | Partial | Keyframes, clips, variants, effects and two-bone IK work. No mesh skinning, blend graph, independent scale axes or authoring editor. |
 | Package tooling | Partial | Validator, packager and bounded archive inspection exist. The ordinary reader is in-process; the isolated ZIP reader and optional raster decoder are opt-in worker processes, not complete OS sandboxes. |
@@ -29,8 +29,8 @@ The isolated-reader matrix passed on main commit [`f1fe82c`](https://github.com/
 
 1. Extract a stateless pose evaluator that accepts a manifest, clip, variant, and millisecond timestamp; preserve generated preview behavior through the existing `window.MotionPackPlayer` facade. **PR #38 merged into main as `d3e1e37`.**
 2. Define the host-driven lifecycle controller contract and keep it experimental until it has been exercised and accepted. The prototype was added in PR #39 and integrated into the generated preview facade in PR #40; the controller is not yet a stable public API.
-3. Review the proposed [v1.0 compatibility policy](COMPATIBILITY_POLICY_DRAFT.md) before stabilizing format or runtime APIs. Manage file-format, runtime and authoring-tool versions separately; document required/optional capabilities, migration, deprecation, unsupported-feature errors and fallback export.
-4. Keep v0.1–v0.4 experimental. Specify whether/how they migrate into v1.0; keep frozen fixtures and compare both sampled state and rendered output.
+3. Review the proposed [v1.0 compatibility policy](COMPATIBILITY_POLICY_DRAFT.md) before stabilizing format or runtime APIs. Manage file-format, runtime and authoring-tool versions separately; document required/optional capabilities, migration, deprecation, unsupported-feature errors and fallback export. The read-only legacy snapshot direction is approved; v1.0 serialization and migration semantics remain open.
+4. Keep v0.1–v0.4 experimental. Complete and review the [version-by-version feature inventory](V0_FEATURE_INVENTORY.md), then specify how legacy fields/defaults and implementation quirks map into v1.0; keep fixtures and compare sampled state and rendered output.
 
 **Exit evidence:** accepted runtime API proposal, compatibility policy, versioned fixtures and acceptance criteria. Any public format change requires Architect review, migration notes and regression fixtures.
 
