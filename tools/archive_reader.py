@@ -88,10 +88,22 @@ class ReaderLimits:
 
 @dataclass(frozen=True)
 class MotionPackArchive:
-    """Validated manifest and its referenced image bytes, held in bounded memory."""
+    """Validated manifest and bounded package payloads held in memory."""
 
     manifest: dict
     assets: dict
+    manifest_bytes: bytes = b""
+    entries: Optional[dict] = None
+
+    @property
+    def source_entries(self):
+        """Opaque source-tree payloads retained by an opt-in full-entry read."""
+        if not self.entries:
+            return {}
+        return {
+            name: data for name, data in self.entries.items()
+            if _is_source_path(name)
+        }
 
 
 def _error(message, cause=None):
@@ -469,16 +481,19 @@ def _canonical_asset_path(raw_path):
     return canonical
 
 
-def read_package(path, *, limits=None):
-    """Read and validate a .motionpack without extracting arbitrary ZIP members.
+def read_package(path, *, limits=None, include_entries=False):
+    """Read and validate a .motionpack without extracting ZIP members.
 
-    Referenced assets are read under per-file and aggregate limits. Unreferenced
-    entries, including optional ``source/`` files, are metadata-checked and
-    counted against archive limits but are not decompressed or returned.
+    By default, only the manifest and referenced assets are decompressed. Set
+    include_entries=True to retain every regular file payload (including
+    unreferenced and opaque source/ files) under the same archive limits.
+    ZIP container metadata is never returned.
     """
     limits = limits or ReaderLimits()
     if not isinstance(limits, ReaderLimits):
         raise TypeError("limits must be a ReaderLimits instance")
+    if type(include_entries) is not bool:
+        raise TypeError("include_entries must be a bool")
     source = pathlib.Path(path)
     try:
         with _open_regular_archive(source) as source_file:
@@ -577,7 +592,27 @@ def read_package(path, *, limits=None):
                 _error("invalid package manifest or assets", exc)
             if errors:
                 _error("invalid package manifest or assets: " + "; ".join(errors))
-        return MotionPackArchive(manifest=manifest, assets=assets)
+        entry_payloads = {"manifest.json": manifest_raw}
+        if include_entries:
+            # Retain every regular file payload once. Referenced assets reuse
+            # the bytes already read and validated above. Other entries are
+            # streamed under the archive-wide expanded-size ceiling.
+            for info in infos:
+                if info.is_dir() or info.filename == "manifest.json":
+                    continue
+                data = loaded_by_entry.get(info.filename)
+                if data is None:
+                    data = _bounded_read(
+                        archive, info, limits.max_total_uncompressed, "archive entry"
+                    )
+                entry_payloads[info.filename] = data
+        else:
+            for name, data in loaded_by_entry.items():
+                entry_payloads[name] = data
+        return MotionPackArchive(
+            manifest=manifest, assets=assets, manifest_bytes=manifest_raw,
+            entries=entry_payloads,
+        )
     except ArchiveError:
         raise
     except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile, RuntimeError, EOFError, UnicodeDecodeError, OverflowError, zlib.error, struct.error) as exc:
