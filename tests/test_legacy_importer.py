@@ -115,6 +115,11 @@ class LegacyImporterTests(unittest.TestCase):
                     normalized = snapshot.normalized
                     self.assertEqual(normalized.source_version, version)
                     self.assertEqual(normalized.manifest_bytes, snapshot.manifest_bytes)
+                    self.assertIs(normalized.manifest, snapshot.manifest)
+                    if "canvas" in snapshot.manifest:
+                        self.assertIs(normalized.canvas, snapshot.manifest["canvas"])
+                    if "defaults" in snapshot.manifest:
+                        self.assertIs(normalized.defaults, snapshot.manifest["defaults"])
                     self.assertEqual(normalized.entries, snapshot.entries)
                     self.assertEqual(normalized.assets, snapshot.assets)
                     self.assertEqual(
