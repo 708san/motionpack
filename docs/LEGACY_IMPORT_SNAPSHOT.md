@@ -1,10 +1,10 @@
 # Read-only legacy import snapshot (experimental)
 
-Status: implementation proposal for the v1.0 importer work. This is a tooling API proposal, not a v1.0 package schema and not a stable public contract.
+Status: implemented experimental read-only importer API. PR #59 added the payload-preserving snapshot; PR #61 added its normalized v0.1–v0.4 view. This is a tooling API, not a v1.0 package schema or stable public contract.
 
 ## Purpose
 
-The first importer stage reads validated v0.1, v0.2, v0.3, or v0.4 packages into one engine-independent in-memory snapshot. It does not write, convert, render, or execute a package. A later, separately reviewed stage may define v1 serialization.
+The importer reads validated v0.1, v0.2, v0.3, or v0.4 packages into one engine-independent in-memory snapshot with a sparse normalized view. It does not write, convert, render, or execute a package. A later, separately reviewed stage may define v1 serialization.
 
 ## Snapshot contents
 
@@ -15,6 +15,7 @@ The first importer stage reads validated v0.1, v0.2, v0.3, or v0.4 packages into
 - An entry map keyed by the accepted ZIP entry name. It contains the exact uncompressed payload bytes of every regular file entry, including referenced and unreferenced files and opaque `source/` files. Source entries remain in this map and a separate source-entry view; they are never runtime assets.
 - Capabilities inferred from legacy content: `org.motionpack.ik.two-bone` when non-empty IK declarations are present, and `org.motionpack.interaction` when a node declares interaction settings.
 - A v0.3 SVG-dimensions validation profile fact for v0.3 and v0.4 inputs. This is a validation rule, not a playback capability.
+- An immutable normalized view of canvas, assets, nodes, clips/tracks/effects, variants/defaults, IK, interaction fields, capability facts, sparse field presence, and source pointers. It preserves authored data without materializing defaults. See [NORMALIZED_LEGACY_MODEL.md](NORMALIZED_LEGACY_MODEL.md).
 - A report with unrecognized top-level manifest fields (preserved verbatim), payload preservation totals, and the container metadata that the snapshot does not retain.
 
 The importer preserves sparse fields as written. It does not inject defaults such as `loop: false` or IK weight `1` into the manifest. Interpretation of those defaults remains governed by the source-version rules in [FORMAT_SPEC.md](FORMAT_SPEC.md).
