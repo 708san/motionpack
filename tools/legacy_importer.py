@@ -4,7 +4,8 @@ The importer preserves the source manifest and accepted ZIP payload bytes. It
 does not convert, render, execute, or write a package.
 """
 from dataclasses import dataclass
-from typing import Optional
+from types import MappingProxyType
+from typing import Mapping, Optional
 
 try:
     from .archive_reader import ReaderLimits
@@ -63,10 +64,19 @@ class LegacyImportSnapshot:
     @property
     def source_entries(self):
         """Opaque source-tree payloads, separate from runtime assets."""
-        return {
+        return MappingProxyType({
             name: payload for name, payload in self.entries.items()
             if name.split("/", 1)[0].casefold() == "source" and "/" in name
-        }
+        })
+
+
+def _freeze(value):
+    """Recursively expose parsed JSON as immutable mappings and tuples."""
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze(item) for item in value)
+    return value
 
 
 def _derive_capabilities(manifest):
@@ -141,10 +151,10 @@ def import_legacy_package(path, *, limits: Optional[ReaderLimits] = None,
     )
     return LegacyImportSnapshot(
         source_version=version,
-        manifest=package.manifest,
+        manifest=_freeze(package.manifest),
         manifest_bytes=package.manifest_bytes,
-        assets=assets,
-        entries=package.entries or {},
+        assets=MappingProxyType(assets),
+        entries=MappingProxyType(dict(package.entries or {})),
         capabilities=capabilities,
         validation_profiles=validation_profiles,
         report=report,
