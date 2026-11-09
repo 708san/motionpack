@@ -12,7 +12,7 @@ A normalized view gives tools stable access to shared package concepts without r
 
 The normalized package exposes:
 
-- Source format/version, identifier, and a canvas view.
+- Source format/version, identifier, and a canvas view with a pointer when present. Defaults likewise retain presence and the `/defaults` source pointer when present.
 - Runtime assets keyed by legacy asset ID, retaining original path and immutable bytes.
 - Nodes in manifest declaration order. Each node exposes ID, optional asset/parent references, its source manifest pointer, the original field-presence set, and an immutable mapping of remaining authored fields.
 - Clips keyed by name. Each clip exposes duration, whether `loop` was present and its value when present, tracks, IK tracks, effects, the source pointer, and authored fields.
