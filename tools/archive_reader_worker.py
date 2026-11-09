@@ -78,7 +78,7 @@ def main():
         try:
             _snapshot_archive(request["path"], snapshot, limits)
         except ArchiveError:
-            response = MAGIC + b"\x02"
+            response = MAGIC + b"\x01"
         except MemoryError:
             response = MAGIC + b"\x03"
         except BaseException:
