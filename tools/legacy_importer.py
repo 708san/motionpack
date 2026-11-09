@@ -160,7 +160,7 @@ class LegacyImportSnapshot:
     capabilities: tuple
     validation_profiles: tuple
     report: ImportReport
-    normalized: NormalizedLegacyPackage
+    normalized: Optional[NormalizedLegacyPackage] = None
 
     @property
     def source_entries(self):
