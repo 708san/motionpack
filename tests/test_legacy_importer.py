@@ -52,7 +52,11 @@ class LegacyImporterTests(unittest.TestCase):
                         snapshot.manifest["id"] = "changed"
                     with self.assertRaises(TypeError):
                         snapshot.manifest["nodes"][0]["id"] = "changed"
-                    self.assertEqual(snapshot.report.unrecognized_manifest_fields, ("futureTopLevelField",))
+                    known_fields = {"format", "version", "id", "canvas", "assets", "nodes", "clips", "variants", "defaults", "iks"}
+                    self.assertEqual(
+                        snapshot.report.unrecognized_manifest_fields,
+                        tuple(sorted(set(manifest) - known_fields)),
+                    )
                     self.assertEqual(
                         set(snapshot.assets),
                         set(snapshot.manifest["assets"]),
