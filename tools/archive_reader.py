@@ -556,6 +556,20 @@ def read_package(path, *, limits=None, include_entries=False):
                         loaded_by_entry[info.filename] = data
                     assets[asset_id] = loaded_by_entry[info.filename]
 
+                # Full retention is opt-in. Read remaining regular files while
+                # the ZipFile is still open; never return a partial entry map.
+                retained_entries = {"manifest.json": manifest_raw}
+                if include_entries:
+                    retained_entries.update(loaded_by_entry)
+                    for entry_info in infos:
+                        if entry_info.is_dir() or entry_info.filename in retained_entries:
+                            continue
+                        retained_entries[entry_info.filename] = _bounded_read(
+                            archive, entry_info, limits.max_total_uncompressed, "archive entry"
+                        )
+                else:
+                    retained_entries.update(loaded_by_entry)
+
         # Reuse the v0.1-v0.4 semantic validator on a private temporary
         # tree containing only the manifest and referenced assets. Canonical entry
         # paths ensure aliases of one ZIP entry count once for PNG pixel budgets.
@@ -592,26 +606,9 @@ def read_package(path, *, limits=None, include_entries=False):
                 _error("invalid package manifest or assets", exc)
             if errors:
                 _error("invalid package manifest or assets: " + "; ".join(errors))
-        entry_payloads = {"manifest.json": manifest_raw}
-        if include_entries:
-            # Retain every regular file payload once. Referenced assets reuse
-            # the bytes already read and validated above. Other entries are
-            # streamed under the archive-wide expanded-size ceiling.
-            for info in infos:
-                if info.is_dir() or info.filename == "manifest.json":
-                    continue
-                data = loaded_by_entry.get(info.filename)
-                if data is None:
-                    data = _bounded_read(
-                        archive, info, limits.max_total_uncompressed, "archive entry"
-                    )
-                entry_payloads[info.filename] = data
-        else:
-            for name, data in loaded_by_entry.items():
-                entry_payloads[name] = data
         return MotionPackArchive(
             manifest=manifest, assets=assets, manifest_bytes=manifest_raw,
-            entries=entry_payloads,
+            entries=retained_entries,
         )
     except ArchiveError:
         raise
