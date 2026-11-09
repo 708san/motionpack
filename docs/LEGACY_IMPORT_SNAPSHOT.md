@@ -11,7 +11,7 @@ The first importer stage reads validated v0.1, v0.2, v0.3, or v0.4 packages into
 `tools.legacy_importer.import_legacy_package(path, *, limits=None, timeout=30.0)` returns a snapshot containing:
 
 - The detected source version, parsed manifest, and exact `manifest.json` payload bytes.
-- A common asset view keyed by manifest asset ID, with each original asset path and immutable payload bytes.
+- A common asset view keyed by manifest asset ID, with each original asset path and immutable payload bytes. Snapshot mappings are read-only, nested parsed manifest objects are exposed as immutable mappings/tuples, and payloads are `bytes`.
 - An entry map keyed by the accepted ZIP entry name. It contains the exact uncompressed payload bytes of every regular file entry, including referenced and unreferenced files and opaque `source/` files. Source entries remain in this map and a separate source-entry view; they are never runtime assets.
 - Capabilities inferred from legacy content: `org.motionpack.ik.two-bone` when non-empty IK declarations are present, and `org.motionpack.interaction` when a node declares interaction settings.
 - A v0.3 SVG-dimensions validation profile fact for v0.3 and v0.4 inputs. This is a validation rule, not a playback capability.
