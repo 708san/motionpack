@@ -21,7 +21,7 @@ The isolated-reader matrix passed on main commit [`f1fe82c`](https://github.com/
 
 1. **Completed in PR #50:** obtain a successful isolated-reader matrix run and retain the run URL and per-OS test results. The successful main run is #175. If a later run fails, diagnose its actual job log before changing code.
 2. Keep Issue #4 open. Resolve its remaining acceptance items in small changes with adversarial regression tests and independent security review. Track path races, memory containment gaps, SVG renderer limits, private source handling, and browser-native decoder exposure separately.
-3. **Updated in PR #57:** keep frozen, checksummed package fixtures and direct/isolated reader regression tests for v0.1–v0.4; run the current functional, negative, isolated-process, visual and performance-report checks.
+3. **Updated in PR #57:** keep frozen regression fixtures with pinned SHA-256 checks and direct/isolated reader tests for v0.1–v0.4; run the current functional, negative, isolated-process, visual and performance-report checks.
 
 **Exit evidence:** green required checks on a named commit; no unsupported claim of a complete sandbox or browser decoder isolation.
 
