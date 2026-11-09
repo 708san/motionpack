@@ -91,7 +91,7 @@ def main():
                 except ValueError:
                     # A valid package can exceed the stricter combined IPC
                     # ceiling due to entry names and framing overhead.
-                    response = MAGIC + b"\\x03"
+                    response = MAGIC + b"\x03"
             except ArchiveError:
                 response = MAGIC + b"\x02"
             except MemoryError:
