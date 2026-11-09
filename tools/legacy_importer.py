@@ -53,10 +53,10 @@ class LegacyImportSnapshot:
     """Validated, read-only view of a v0.1-v0.4 MotionPack archive."""
 
     source_version: str
-    manifest: dict
+    manifest: Mapping
     manifest_bytes: bytes
-    assets: dict
-    entries: dict
+    assets: Mapping
+    entries: Mapping
     capabilities: tuple
     validation_profiles: tuple
     report: ImportReport
