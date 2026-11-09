@@ -95,7 +95,22 @@ class LegacyImporterTests(unittest.TestCase):
             for version in ("0.1", "0.2", "0.3", "0.4"):
                 with self.subTest(version=version):
                     target = pathlib.Path(tmp) / f"normalized-{version}.motionpack"
-                    target.write_bytes(self._fixture(version).read_bytes())
+                    fixture = self._fixture(version)
+                    with zipfile.ZipFile(fixture, "r") as source:
+                        members = {
+                            info.filename: source.read(info)
+                            for info in source.infolist()
+                            if not info.is_dir()
+                        }
+                    if version == "0.4":
+                        manifest = json.loads(members["manifest.json"].decode("utf-8"))
+                        manifest["nodes"][0]["interaction"] = {"hover": True}
+                        members["manifest.json"] = json.dumps(
+                            manifest, separators=(",", ":"), ensure_ascii=False
+                        ).encode("utf-8")
+                    with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as output:
+                        for member, payload in members.items():
+                            output.writestr(member, payload)
                     snapshot = import_legacy_package(target, timeout=20)
                     normalized = snapshot.normalized
                     self.assertEqual(normalized.source_version, version)
