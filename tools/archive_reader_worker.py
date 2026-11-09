@@ -86,7 +86,12 @@ def main():
         else:
             try:
                 package = read_package(snapshot, limits=limits, include_entries=include_entries)
-                response = _encode_success(package, MAX_RESPONSE_BYTES)
+                try:
+                    response = _encode_success(package, MAX_RESPONSE_BYTES)
+                except ValueError:
+                    # A valid package can exceed the stricter combined IPC
+                    # ceiling due to entry names and framing overhead.
+                    response = MAGIC + b"\\x03"
             except ArchiveError:
                 response = MAGIC + b"\x02"
             except MemoryError:
