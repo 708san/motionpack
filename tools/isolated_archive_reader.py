@@ -114,7 +114,7 @@ def _decode_result(payload, limits, include_entries=False):
             raise ArchiveError("isolated input snapshot was rejected")
         if status == 2:
             raise ArchiveError("isolated archive was rejected")
-        raise IsolatedResourceLimit("isolated reader worker exceeded its memory limit")
+        raise IsolatedResourceLimit("isolated reader worker exceeded a resource or response-size limit")
     if status != 0:
         raise IsolatedWorkerFailure("isolated reader worker failed")
 
