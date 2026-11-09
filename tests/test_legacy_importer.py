@@ -10,7 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
 from archive_reader import ArchiveError, ReaderLimits
-from legacy_importer import import_legacy_package
+from legacy_importer import _pointer, import_legacy_package
 
 
 class LegacyImporterTests(unittest.TestCase):
@@ -152,6 +152,15 @@ class LegacyImporterTests(unittest.TestCase):
                     self.assertEqual(
                         normalized.defaults_present, "defaults" in snapshot.manifest
                     )
+                    self.assertEqual(
+                        normalized.canvas_source_pointer,
+                        "/canvas" if "canvas" in snapshot.manifest else None,
+                    )
+                    self.assertEqual(
+                        normalized.defaults_source_pointer,
+                        "/defaults" if "defaults" in snapshot.manifest else None,
+                    )
+                    self.assertEqual(_pointer("clip/name~1"), "/clip~1name~01")
                     with self.assertRaises(TypeError):
                         normalized.clips["injected"] = None
                     if normalized.nodes:
