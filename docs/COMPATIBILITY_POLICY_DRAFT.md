@@ -82,7 +82,7 @@ Once v1.0 is published, retain its normative specification, fixtures and compati
 
 ## Decisions still required before v1.0
 
-- Whether v1.0 import is read-only or converts into a v1.0 representation, and the format of loss/preservation reports.
+- How the read-only legacy snapshot maps source-version semantics and implementation quirks into a future v1.0 normalized model, including loss/preservation report details. v1.0 serialization remains separate open work.
 - The exact capability identifier grammar, extension namespace owner and identifier registration process.
 - How reader resource limits differ from format validity and whether v1.0 defines conformance/resource profiles.
 - The support window for each format and API family.
