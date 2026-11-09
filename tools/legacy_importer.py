@@ -129,11 +129,13 @@ class NormalizedLegacyPackage:
     assets: Mapping
     canvas: Mapping
     canvas_present: bool
+    canvas_source_pointer: Optional[str]
     nodes: tuple
     clips: Mapping
     variants: Mapping
     defaults: Mapping
     defaults_present: bool
+    defaults_source_pointer: Optional[str]
     ik_chains: tuple
     capability_facts: tuple
     validation_profiles: tuple
@@ -359,11 +361,13 @@ def _normalize(manifest, manifest_bytes, assets, entries, version,
         assets=normalized_assets,
         canvas=_freeze(manifest.get("canvas", {})),
         canvas_present=canvas_present,
+        canvas_source_pointer="/canvas" if canvas_present else None,
         nodes=tuple(nodes),
         clips=MappingProxyType(clips),
         variants=MappingProxyType(variants),
         defaults=_freeze(manifest.get("defaults", {})),
         defaults_present=defaults_present,
+        defaults_source_pointer="/defaults" if defaults_present else None,
         ik_chains=ik_chains,
         capability_facts=capabilities,
         validation_profiles=validation_profiles,
