@@ -6,6 +6,7 @@
 
 - The v1.0 importer is to support all current experimental versions: v0.1, v0.2, v0.3 and v0.4. This direction requires a frozen, checksummed package fixture and reviewed feature inventory for each version before format freeze.
 - v1.0 will declare capabilities, and a reader must reject an unknown required capability before loading assets or starting playback.
+- The first importer stage is read-only: it returns an in-memory snapshot for v0.1–v0.4, preserves original manifest and opaque payload bytes, and reports unsupported or unclassified information. v1.0 serialization and conversion are separate later work.
 
 These are scope and behavior decisions. The capability field layout and unknown-field policy below are also approved directions, but the overall v1.0 schema, importer workflow and format contract remain drafts.
 
@@ -23,7 +24,7 @@ Use semantic versioning as a starting point for stable runtime and tool APIs: PA
 
 ## Experimental v0.x input
 
-The v0.1, v0.2, v0.3 and v0.4 formats do not receive a formal backward-compatibility guarantee. Keep the repository's frozen, checksummed v0.1–v0.4 package fixtures as regression references. v0.1/v0.2 are retained in the archive-reader fuzz seed corpus; v0.3/v0.4 fixtures are generated from the layered plant and interaction examples. v0.4 adds optional per-node host interaction flags and does not add executable behavior to manifests. The selected v1.0 importer scope covers all four versions. It must report unsupported or lossy features and preserve source material and provenance where present. Conversion must not silently discard fields or rewrite original files. Whether import is read-only or converts into the v1.0 representation remains open.
+The v0.1, v0.2, v0.3 and v0.4 formats do not receive a formal backward-compatibility guarantee. Keep the repository's frozen, checksummed v0.1–v0.4 package fixtures as regression references. v0.1/v0.2 are retained in the archive-reader fuzz seed corpus; v0.3/v0.4 fixtures are generated from the layered plant and interaction examples. v0.4 adds optional per-node host interaction flags and does not add executable behavior to manifests. The selected v1.0 importer scope covers all four versions. It must report unsupported or lossy features and preserve source material and provenance where present. Conversion must not silently discard fields or rewrite original files. The initial importer stage is approved as read-only; v1.0 serialization and conversion remain separate open design work.
 
 Rejection of a legacy file for a security reason must name the reason and provide a documented migration path where feasible. The repository now has fixed, checksummed package fixtures for all four selected versions. A reviewed feature inventory for each version remains required before format freeze.
 

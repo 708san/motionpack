@@ -10,7 +10,7 @@ sys.path.insert(0, str(HERE))
 from archive_reader import ArchiveError, ReaderLimits, read_package  # noqa: E402
 from isolated_archive_reader import _snapshot_archive  # noqa: E402
 
-MAGIC = b"MPIR\x01"
+MAGIC = b"MPIR\x02"
 MAX_REQUEST_BYTES = 128 * 1024
 MAX_RESPONSE_BYTES = 40 * 1024 * 1024
 
@@ -40,21 +40,16 @@ def _apply_linux_memory_limit(memory_limit_bytes):
 
 
 def _encode_success(package, max_bytes):
-    manifest = json.dumps(package.manifest, separators=(",", ":"), ensure_ascii=False,
-                          allow_nan=False).encode("utf-8")
-    assets = package.assets
-    chunks = [MAGIC, b"\x00", struct.pack("!I", len(manifest)), manifest,
-              struct.pack("!I", len(assets))]
+    entries = package.entries or {}
+    chunks = [MAGIC, b"\x00", struct.pack("!I", len(entries))]
     total = sum(map(len, chunks))
-    for asset_id, data in assets.items():
-        encoded_id = asset_id.encode("utf-8")
-        piece = struct.pack("!IQ", len(encoded_id), len(data)) + encoded_id + data
+    for name, data in entries.items():
+        encoded_name = name.encode("utf-8")
+        piece = struct.pack("!IQ", len(encoded_name), len(data)) + encoded_name + data
         total += len(piece)
         if total > max_bytes:
             raise ValueError("worker result exceeds its byte limit")
         chunks.append(piece)
-    if total > max_bytes:
-        raise ValueError("worker result exceeds its byte limit")
     return b"".join(chunks)
 
 
@@ -72,6 +67,9 @@ def main():
         if os.name != "nt":
             _apply_linux_memory_limit(memory_limit)
         snapshot = request["snapshot_path"]
+        include_entries = request["include_entries"]
+        if type(include_entries) is not bool:
+            raise ValueError("invalid include_entries flag")
     except MemoryError:
         response = MAGIC + b"\x03"
     except BaseException:
@@ -87,8 +85,13 @@ def main():
             response = MAGIC + b"\x04"
         else:
             try:
-                package = read_package(snapshot, limits=limits)
-                response = _encode_success(package, MAX_RESPONSE_BYTES)
+                package = read_package(snapshot, limits=limits, include_entries=include_entries)
+                try:
+                    response = _encode_success(package, MAX_RESPONSE_BYTES)
+                except ValueError:
+                    # A valid package can exceed the stricter combined IPC
+                    # ceiling due to entry names and framing overhead.
+                    response = MAGIC + b"\x03"
             except ArchiveError:
                 response = MAGIC + b"\x02"
             except MemoryError:

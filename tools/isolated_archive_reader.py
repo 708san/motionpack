@@ -15,11 +15,12 @@ import sys
 import tempfile
 import threading
 import time
+import unicodedata
 
 try:
-    from .archive_reader import ArchiveError, MotionPackArchive, ReaderLimits
+    from .archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts, check_json_nesting)
 except ImportError:  # Support direct import when tools/ is on sys.path.
-    from archive_reader import ArchiveError, MotionPackArchive, ReaderLimits
+    from archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts, check_json_nesting)
 
 
 try:
@@ -36,7 +37,7 @@ MAX_SNAPSHOT_BYTES = 40 * 1024 * 1024
 MAX_RESULT_BYTES = 40 * 1024 * 1024
 MAX_REQUEST_BYTES = 128 * 1024
 MAX_TIMEOUT_SECONDS = 300.0
-PROTOCOL_MAGIC = b"MPIR\x01"
+PROTOCOL_MAGIC = b"MPIR\x02"
 WORKER_SCRIPT = pathlib.Path(__file__).with_name("archive_reader_worker.py")
 
 
@@ -99,25 +100,21 @@ def _snapshot_archive(source, destination, limits):
         os.close(descriptor)
 
 
-def _decode_result(payload, limits):
+def _decode_result(payload, limits, include_entries=False):
     view = memoryview(payload)
     if len(view) < len(PROTOCOL_MAGIC) + 1 or bytes(view[:len(PROTOCOL_MAGIC)]) != PROTOCOL_MAGIC:
         raise IsolatedReadError("invalid isolated reader response")
     position = len(PROTOCOL_MAGIC)
     status = view[position]
     position += 1
-    if status == 1:
+    if status in (1, 2, 3):
         if position != len(view):
-            raise IsolatedReadError("invalid isolated reader rejection response")
-        raise ArchiveError("isolated input snapshot was rejected")
-    if status == 2:
-        if position != len(view):
-            raise IsolatedReadError("invalid isolated reader rejection response")
-        raise ArchiveError("isolated archive was rejected")
-    if status == 3:
-        if position != len(view):
-            raise IsolatedReadError("invalid isolated reader resource response")
-        raise IsolatedResourceLimit("isolated reader worker exceeded its memory limit")
+            raise IsolatedReadError("invalid isolated reader error response")
+        if status == 1:
+            raise ArchiveError("isolated input snapshot was rejected")
+        if status == 2:
+            raise ArchiveError("isolated archive was rejected")
+        raise IsolatedResourceLimit("isolated reader worker exceeded a resource or response-size limit")
     if status != 0:
         raise IsolatedWorkerFailure("isolated reader worker failed")
 
@@ -129,43 +126,80 @@ def _decode_result(payload, limits):
         position += size
         return result
 
-    manifest_size = struct.unpack("!I", take(4))[0]
-    if manifest_size > limits.max_manifest_bytes:
+    entry_count = struct.unpack("!I", take(4))[0]
+    if entry_count == 0 or entry_count > limits.max_entries:
+        raise IsolatedReadError("isolated reader returned an invalid entry count")
+    entries = {}
+    canonical_entries = {}
+    total_bytes = 0
+    for _ in range(entry_count):
+        name_size, data_size = struct.unpack("!IQ", take(12))
+        if name_size == 0 or name_size > 1024 or data_size > limits.max_total_uncompressed:
+            raise IsolatedReadError("isolated reader entry exceeded its limit")
+        try:
+            name = bytes(take(name_size)).decode("utf-8")
+            _member_parts(name)
+        except (UnicodeDecodeError, ArchiveError) as exc:
+            raise IsolatedReadError("invalid isolated reader entry name") from exc
+        normalized_name = unicodedata.normalize("NFC", name)
+        if name in entries or normalized_name in canonical_entries or name.endswith("/"):
+            raise IsolatedReadError("isolated reader returned a duplicate or directory entry")
+        canonical_entries[normalized_name] = name
+        total_bytes += data_size
+        if total_bytes > limits.max_total_uncompressed:
+            raise IsolatedReadError("isolated reader entries exceeded their aggregate limit")
+        entries[name] = bytes(take(data_size))
+    if position != len(view) or "manifest.json" not in entries:
+        raise IsolatedReadError("invalid isolated reader response framing")
+
+    manifest_bytes = entries["manifest.json"]
+    if len(manifest_bytes) > limits.max_manifest_bytes:
         raise IsolatedReadError("isolated reader manifest exceeded its limit")
     try:
-        manifest = json.loads(bytes(take(manifest_size)).decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+        manifest_text = manifest_bytes.decode("utf-8")
+        check_json_nesting(manifest_text)
+        manifest = json.loads(
+            manifest_text, object_pairs_hook=_json_object,
+            parse_constant=lambda value: (_ for _ in ()).throw(ValueError("non-finite JSON number")),
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as exc:
         raise IsolatedReadError("invalid isolated reader manifest response") from exc
-    asset_count = struct.unpack("!I", take(4))[0]
-    if asset_count > 512:
-        raise IsolatedReadError("isolated reader returned too many assets")
+    if not isinstance(manifest, dict):
+        raise IsolatedReadError("isolated reader returned a non-object manifest")
+
+    declared_assets = manifest.get("assets")
+    if not isinstance(declared_assets, dict) or len(declared_assets) > 512:
+        raise IsolatedReadError("isolated reader returned invalid asset declarations")
     assets = {}
+    expected_names = {"manifest.json"}
     total_asset_bytes = 0
-    for _ in range(asset_count):
-        asset_id_size, asset_size = struct.unpack("!IQ", take(12))
-        if asset_id_size > limits.max_manifest_bytes:
-            raise IsolatedReadError("isolated reader asset ID exceeded its limit")
+    for asset_id, raw_path in declared_assets.items():
+        if not isinstance(asset_id, str):
+            raise IsolatedReadError("isolated reader returned an invalid asset ID")
         try:
-            asset_id = bytes(take(asset_id_size)).decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise IsolatedReadError("invalid isolated reader asset ID") from exc
-        if asset_size > limits.max_asset_bytes:
+            canonical = _canonical_asset_path(raw_path)
+        except ArchiveError as exc:
+            raise IsolatedReadError("isolated reader returned an unsafe asset path") from exc
+        if _is_source_path(canonical):
+            raise IsolatedReadError("isolated reader returned a source runtime asset")
+        actual_name = canonical_entries.get(unicodedata.normalize("NFC", canonical))
+        if actual_name is None:
+            raise IsolatedReadError("isolated reader omitted a referenced asset")
+        data = entries[actual_name]
+        expected_names.add(actual_name)
+        if len(data) > limits.max_asset_bytes:
             raise IsolatedReadError("isolated reader asset exceeded its limit")
-        total_asset_bytes += asset_size
+        total_asset_bytes += len(data)
         if total_asset_bytes > limits.max_total_assets_bytes:
             raise IsolatedReadError("isolated reader assets exceeded their aggregate limit")
-        if asset_id in assets:
-            raise IsolatedReadError("isolated reader returned duplicate asset IDs")
-        assets[asset_id] = bytes(take(asset_size))
-    if position != len(view) or not isinstance(manifest, dict):
-        raise IsolatedReadError("invalid isolated reader response framing")
-    manifest_assets = manifest.get("assets")
-    if not isinstance(manifest_assets, dict) or set(manifest_assets) != set(assets):
-        raise IsolatedReadError("isolated reader returned inconsistent assets")
-    return MotionPackArchive(manifest=manifest, assets=assets)
+        assets[asset_id] = data
+    if not include_entries and set(entries) != expected_names:
+        raise IsolatedReadError("isolated reader returned unexpected entries")
+    return MotionPackArchive(
+        manifest=manifest, assets=assets, manifest_bytes=manifest_bytes, entries=entries
+    )
 
-
-def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes=None):
+def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes=None, include_entries=False):
     """Read a package in a fresh process with a deadline and bounded IPC.
 
     The default policy applies a 512 MiB address-space limit on Linux and a
@@ -173,10 +207,14 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
     whole-process hard memory limit here; explicitly requesting one there fails.
     Set ``memory_limit_bytes=0`` to disable an OS memory limit. This is not a
     complete sandbox and does not change the synchronous ``read_package`` API.
+    Set ``include_entries=True`` to retain all regular-file payloads (including
+    opaque source entries); the complete framed response remains capped at 40 MiB.
     """
     limits = limits or ReaderLimits()
     if not isinstance(limits, ReaderLimits):
         raise TypeError("limits must be a ReaderLimits instance")
+    if type(include_entries) is not bool:
+        raise TypeError("include_entries must be a bool")
     if (type(timeout) not in (int, float) or not math.isfinite(timeout)
             or timeout <= 0 or timeout > MAX_TIMEOUT_SECONDS):
         raise ValueError("timeout must be positive and at most 300 seconds")
@@ -193,7 +231,7 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
         raise UnsupportedMemoryLimit("a hard total-process memory limit is unsupported on macOS")
     if memory_limit and os.name != "nt" and not sys.platform.startswith("linux"):
         raise UnsupportedMemoryLimit("memory limits are supported only on Linux and Windows")
-    max_result = min(
+    max_result = MAX_RESULT_BYTES if include_entries else min(
         MAX_RESULT_BYTES,
         limits.max_manifest_bytes * 2 + limits.max_total_assets_bytes + 64 * 1024,
     )
@@ -206,7 +244,8 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
         snapshot = pathlib.Path(temp_dir) / "input.motionpack"
         request = json.dumps(
             {"path": str(source_path), "snapshot_path": str(snapshot),
-             "limits": limits.__dict__, "memory_limit_bytes": memory_limit},
+             "limits": limits.__dict__, "memory_limit_bytes": memory_limit,
+             "include_entries": include_entries},
             separators=(",", ":"), allow_nan=False,
         ).encode("utf-8")
         if len(request) > MAX_REQUEST_BYTES:
@@ -258,7 +297,7 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
                 raise IsolatedResourceLimit("isolated reader response exceeded its byte limit")
             if process.returncode != 0:
                 raise IsolatedWorkerFailure("isolated reader worker exited unexpectedly")
-            return _decode_result(output, limits)
+            return _decode_result(output, limits, include_entries=include_entries)
         except BaseException:
             _kill_worker(process, job)
             job = None
