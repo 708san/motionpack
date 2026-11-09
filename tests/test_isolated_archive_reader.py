@@ -1,4 +1,5 @@
 import errno
+import hashlib
 import os
 import pathlib
 import shutil
@@ -28,6 +29,12 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
     def _valid_fixture(self, folder, version):
         fixture_dir = "fuzz_corpus/archive_reader" if version in ("0.1", "0.2") else "fixtures/compatibility_archive_reader"
         seed = ROOT / "tests" / fixture_dir / f"valid_v{version.replace('.', '')}.motionpack"
+        if version == "0.2":
+            self.assertEqual(
+                hashlib.sha256(seed.read_bytes()).hexdigest(),
+                "ffc5bc6c3a4d4531c41c925a70e943dcd111b17b7f674527247079fdd626fbad",
+                "update the frozen v0.2 fixture hash only with an explicit compatibility review",
+            )
         target = pathlib.Path(folder) / f"valid-v{version}.motionpack"
         shutil.copyfile(seed, target)
         return target
