@@ -207,6 +207,8 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
     whole-process hard memory limit here; explicitly requesting one there fails.
     Set ``memory_limit_bytes=0`` to disable an OS memory limit. This is not a
     complete sandbox and does not change the synchronous ``read_package`` API.
+    Set ``include_entries=True`` to retain all regular-file payloads (including
+    opaque source entries); the complete framed response remains capped at 40 MiB.
     """
     limits = limits or ReaderLimits()
     if not isinstance(limits, ReaderLimits):
