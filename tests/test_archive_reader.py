@@ -1174,6 +1174,16 @@ class ArchiveReaderTests(unittest.TestCase):
                 with self.assertRaisesRegex(ArchiveError, "archive input changed between stat and open"):
                     read_package(opened)
 
+    def test_rejects_archive_when_file_identity_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            package = self._package(ROOT / "examples" / "robot_demo", pathlib.Path(tmp) / "build")
+            with mock.patch.object(archive_reader, "_file_identity", return_value=None):
+                with mock.patch.object(
+                    archive_reader.os, "open", side_effect=AssertionError("must fail before open")
+                ):
+                    with self.assertRaisesRegex(ArchiveError, "identity cannot be verified"):
+                        read_package(package)
+
     def test_regular_file_symlink_input_remains_supported(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
