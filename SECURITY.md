@@ -20,8 +20,9 @@ Before opening an archive path, the reader checks that it resolves to a regular
 file and captures its `(st_dev, st_ino)` identity. After open, it verifies that
 the descriptor is regular and has the same identity before parsing or copying.
 A substituted file object is rejected when the reported identities differ.
-If Python reports a missing, non-integer, or nonpositive inode, the reader
-fails closed before open. The reader cannot guarantee that every positive
+If Python reports an unavailable or invalid identity tuple (including a missing
+or non-integer device/inode value, or a nonpositive inode), the reader fails
+closed before open. The reader cannot guarantee that every positive
 `(st_dev, st_ino)` is unique or stable; filesystem ID reuse or collisions can
 make a substitution undetectable. A
 symlink to a regular file remains supported when both checks resolve to the
