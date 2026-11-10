@@ -408,6 +408,74 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError, "ZIP64"):
                 read_package(path)
 
+    def test_extra_field_framing_is_checked_before_zipfile(self):
+        unknown_extra = struct.pack("<HH3s", 0xCAFE, 3, b"abc")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            package = self._package(
+                ROOT / "examples" / "robot_demo", root / "original-build"
+            )
+            with zipfile.ZipFile(package) as source:
+                entries = [(item.filename, source.read(item)) for item in source.infolist()]
+
+            def write_with_unknown_extra(path):
+                with zipfile.ZipFile(path, "w") as archive:
+                    for name, content in entries:
+                        info = zipfile.ZipInfo(name)
+                        if name == "manifest.json":
+                            info.extra = unknown_extra
+                        archive.writestr(info, content)
+                return path
+
+            for location in ("local", "central"):
+                with self.subTest(location=location):
+                    path = write_with_unknown_extra(
+                        root / f"bad-{location}-extra.motionpack"
+                    )
+                    data = bytearray(path.read_bytes())
+                    if location == "local":
+                        self.assertEqual(data[:4], bytes.fromhex("504b0304"))
+                        filename_length, extra_length = struct.unpack_from(
+                            "<HH", data, 26
+                        )
+                        self.assertEqual(extra_length, len(unknown_extra))
+                        extra_start = 30 + filename_length
+                    else:
+                        signature = bytes.fromhex("504b0102")
+                        cursor = data.find(signature)
+                        while cursor >= 0:
+                            name_length, extra_length, comment_length = struct.unpack_from(
+                                "<HHH", data, cursor + 28
+                            )
+                            name_start = cursor + 46
+                            name = bytes(data[name_start:name_start + name_length])
+                            if name == b"manifest.json":
+                                self.assertEqual(extra_length, len(unknown_extra))
+                                extra_start = name_start + name_length
+                                break
+                            cursor = data.find(
+                                signature,
+                                cursor + 46 + name_length + extra_length + comment_length,
+                            )
+                        else:
+                            self.fail("manifest central-directory record not found")
+
+                    struct.pack_into("<H", data, extra_start + 2, 4)
+                    path.write_bytes(data)
+                    expected_error = (
+                        "ZIP local extra field is malformed"
+                        if location == "local" else "ZIP extra field is malformed"
+                    )
+                    with mock.patch.object(archive_reader.zipfile, "ZipFile") as zip_file:
+                        with self.assertRaisesRegex(ArchiveError, expected_error):
+                            read_package(path)
+                        zip_file.assert_not_called()
+
+            valid = write_with_unknown_extra(
+                root / "valid-unknown-extra.motionpack"
+            )
+            self.assertEqual(read_package(valid).manifest["version"], "0.1")
+
     def test_accepts_valid_data_descriptors(self):
         with tempfile.TemporaryDirectory() as tmp:
             original = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
