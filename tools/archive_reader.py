@@ -141,13 +141,17 @@ def _data_descriptor_length(descriptor, expected):
             struct.unpack_from("<3L", descriptor, 4)
             if len(descriptor) >= 16 else None
         )
-        if tagged_values == expected:
-            return 16
         unsigned_values = (
             struct.unpack_from("<3L", descriptor)
             if len(descriptor) >= 12 else None
         )
-        if unsigned_values == expected:
+        tagged_matches = tagged_values == expected
+        unsigned_matches = unsigned_values == expected
+        if tagged_matches and unsigned_matches:
+            _error("ZIP data descriptor signature is ambiguous")
+        if tagged_matches:
+            return 16
+        if unsigned_matches:
             _error("ZIP data descriptor signature is ambiguous")
     else:
         unsigned_values = (
