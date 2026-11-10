@@ -28,6 +28,14 @@ The v0.1, v0.2, v0.3 and v0.4 formats do not receive a formal backward-compatibi
 
 Rejection of a legacy file for a security reason must name the reason and provide a documented migration path where feasible. The repository now has regression fixtures and pinned SHA-256 checks for all four selected versions. A reviewed feature inventory for each version remains required before format freeze.
 
+## Maintainer-approved legacy-to-v1 handling (2026-11-10)
+
+These decisions govern the proposed v1 migration and future save behavior only; they do not alter current experimental v0.x import or runtime behavior.
+
+- Keep authored sparse values and field presence distinct from any effective-values interpretation. Derived defaults appear only in a separate view with source and rule provenance.
+- Preserve and warn about ambiguous or specification/implementation-mismatch data without assigning v1 semantics. This supersedes the earlier v1 migration proposal to interpret v0.1 IK compatibly; the existing v0.x behavior remains an observed implementation. Confirmation for a lossy save does not authorize assigning meaning to such data.
+- Require explicit user confirmation before saving any output that transforms or drops information. Without prior confirmation, the tool must preserve the source or cancel the save; a warning alone is insufficient. Confirmation authorizes only the specified loss, does not authorize v1 semantic interpretation of ambiguous data, and cannot override validation failures, security rejections, or unsupported required-capability errors.
+
 ## Proposed v1 format rules
 
 - A published v1 format contract is immutable for its major version. Existing field meanings, defaults and ordering semantics must not change silently.
@@ -49,15 +57,15 @@ The v1.0 manifest declares capabilities using separate required and optional ide
 
 The selected standard identifiers are `org.motionpack.ik.two-bone` for the v0.2 two-bone IK feature and `org.motionpack.interaction` for v0.4 node interaction. Unknown required identifiers must fail before assets are loaded or playback starts. Unknown optional identifiers may be ignored only when the v1.0 specification defines omission as safe; writers preserve the declaration and associated opaque data when round-tripping.
 
-A top-level `extensions` object uses reverse-domain keys to hold opaque extension data. Unknown fields in core objects are rejected. Extension identifiers and payloads never trigger network lookup, code execution, shader execution or external resource loading. Writers that cannot preserve opaque extension data must warn or refuse a lossy save, and downgrade conversion must report unsupported capabilities.
+A top-level `extensions` object uses reverse-domain keys to hold opaque extension data. Unknown fields in core objects are rejected. Extension identifiers and payloads never trigger network lookup, code execution, shader execution or external resource loading. Writers that cannot preserve opaque extension data must obtain explicit confirmation before producing a lossy save. Without confirmation, they must preserve the original or cancel the save. Downgrade conversion must report unsupported capabilities.
 
-These directions apply to v1.0 only. A v1.0 importer derives the corresponding capabilities from v0.1–v0.4 version and contents; it does not add fields to legacy manifests. The exact identifier grammar and namespace registration process remain open release-design details. The schema and format are still drafts, not a stable public contract.
+These directions apply to v1.0 only. A v1.0 importer derives capabilities only where the source version and contents have an approved, unambiguous v1 mapping; it does not add fields to legacy manifests. In particular, v0.1 IK records are preserved and reported as a specification mismatch, but do not imply the v1 two-bone IK capability. The exact identifier grammar and namespace registration process remain open release-design details. The schema and format are still drafts, not a stable public contract.
 
 ## Reader/writer and forward-compatibility behavior
 
 - Readers validate version and required capabilities before rendering. They never execute package-provided JavaScript, remote code, shaders or undeclared external resources.
 - Readers must not silently ignore an unknown required field or capability when doing so can change the result. They return an actionable error naming the missing capability.
-- Writers preserve unrecognized extension data when the format specification says it is safe and the tool can round-trip it. Otherwise they warn or refuse a lossy save until the user chooses a conversion.
+- Writers preserve unrecognized extension data when the format specification says it is safe and the tool can round-trip it. Any save that transforms or drops information requires explicit confirmation before output; without confirmation the writer cancels the lossy save.
 - A writer may offer a named compatibility profile. The selected profile and every omitted or transformed feature are visible in the export report.
 - Static-image or video fallback is an optional export feature, not a substitute for required-feature detection in an editable package.
 
@@ -82,11 +90,11 @@ Once v1.0 is published, retain its normative specification, fixtures and compati
 
 ## Decisions still required before v1.0
 
-- How the read-only legacy snapshot maps source-version semantics and implementation quirks into a future v1.0 normalized model, including loss/preservation report details. v1.0 serialization remains separate open work.
+- Which documented or implementation-derived source behaviors map to v1.0 semantics, and the exact fields/identifiers in the loss and preservation report. The approved separation, ambiguity-warning, and explicit lossy-save confirmation policies do not define that model. v1.0 serialization remains separate open work.
 - The exact capability identifier grammar, extension namespace owner and identifier registration process.
 - How reader resource limits differ from format validity and whether v1.0 defines conformance/resource profiles.
 - The support window for each format and API family.
 - Which runtimes/platforms are in the initial support matrix.
 - The project license and release artifact signing/distribution process.
 
-These decisions require maintainer approval. This draft makes no license selection or platform-support guarantee.
+These remaining decisions require maintainer approval. The migration-handling policies above are approved planning direction but do not freeze a schema or serializer. This draft makes no license selection or platform-support guarantee.

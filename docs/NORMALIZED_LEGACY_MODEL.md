@@ -24,7 +24,9 @@ Field-presence information is preserved so explicit values remain distinguishabl
 
 Unknown or unclassified fields remain recoverable from the immutable original parsed manifest and raw manifest bytes. The normalized view may report them as preserved and uninterpreted; it must not drop them.
 
-## Approved v0.1 IK behavior
+## Current v0.1 IK importer behavior (observed; not v1 migration semantics)
+
+This section documents the current experimental importer API only. The maintainer-approved v1 migration policy (2026-11-10) preserves v0.1 IK records, warns about the v0.2 specification mismatch, and leaves the construct uninterpreted for v1. It does not alter this importer or runtime.
 
 If a v0.1 manifest contains IK declarations or IK tracks, normalize and report them according to the current validator/runtime behavior. Also attach a diagnostic that the format specification introduces IK in v0.2 while the current implementation does not gate those fields by version. Do not change the source version, rewrite the manifest, or claim this implementation quirk is a stable v0.1 format guarantee.
 

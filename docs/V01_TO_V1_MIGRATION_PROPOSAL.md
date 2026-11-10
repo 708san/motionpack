@@ -1,6 +1,6 @@
 # v0.1–v0.4 to v1.0 migration semantics (proposal)
 
-**Status: non-normative design proposal for Issue #62.** This document uses the merged experimental read-only importer and repository fixtures as evidence. It does not define a v1 manifest, serializer, converter, or stable compatibility promise.
+**Status: non-normative design proposal; maintainer-approved migration handling recorded 2026-11-10.** This document uses the merged experimental read-only importer and repository fixtures as evidence. It does not define a v1 manifest, serializer, converter, or stable compatibility promise.
 
 ## Purpose and evidence labels
 
@@ -8,7 +8,8 @@ Prepare a version-aware interpretation boundary before v1 serialization. Every s
 
 - **Documented rule** — stated in FORMAT_SPEC.md for the indicated source version.
 - **Observed implementation** — behavior in the current validator, importer, evaluator, or preview; not automatically a format guarantee.
-- **Proposed v1 interpretation** — a candidate migration behavior that still requires maintainer approval.
+- **Proposed v1 interpretation** — a candidate semantic mapping that still requires maintainer approval.
+- **Maintainer-approved migration policy** — an approved handling rule for future migration planning; it is not a normative format or serializer contract.
 - **Unresolved** — evidence or a policy decision is insufficient.
 
 Primary evidence: FORMAT_SPEC.md, V0_FEATURE_INVENTORY.md, NORMALIZED_LEGACY_MODEL.md, tools/legacy_importer.py, tools/validate.py, runtime/evaluator.js, runtime/ik_solver.js, and the SHA-pinned v0.1–v0.4 fixtures. External packages and assets not represented by this repository have not been inventoried.
@@ -17,9 +18,9 @@ Primary evidence: FORMAT_SPEC.md, V0_FEATURE_INVENTORY.md, NORMALIZED_LEGACY_MOD
 
 1. **Source bytes** — the importer retains exact manifest bytes and accepted regular-file payload bytes, including opaque source/ and unreferenced entries. This supports exact recovery of those individual payloads, not reconstruction of the original ZIP archive.
 2. **Sparse normalized view** — the imported manifest and normalized records retain authored values and field presence. Missing fields stay missing. This is the current read-only importer contract.
-3. **Effective semantic interpretation** — a proposed separate view may expose behavior after applying a documented or implementation-derived rule. It must never overwrite the source or sparse normalized view.
+3. **Effective semantic interpretation** — when an effective value is exposed, it appears in a separate provenance-bearing view after applying a documented or implementation-derived rule. It never overwrites the source or sparse normalized view.
 
-**Proposed v1 interpretation:** each effective value should carry the source version, source JSON pointer or archive path, whether the source field was authored, the applied rule identifier, whether the rule is documented or implementation-derived, and a confidence/status. If no defensible rule exists, do not invent an effective value.
+**Maintainer-approved separation rule (2026-11-10):** keep authored values and field presence in the sparse normalized view. Any effective value derived from a default belongs in a separate interpretation view and carries its source version, source JSON pointer or archive path, whether the field was authored, the applied rule identifier, whether the rule is documented or implementation-derived, and a confidence/status. Never write a derived value back into the sparse view or source. If no defensible rule exists, expose no effective value and report the uncertainty.
 
 ## Proposed preservation and loss report
 
@@ -48,14 +49,14 @@ Each report item should identify the source location and distinguish source rete
 - **container-unavailable** — ZIP metadata not captured by the importer.
 - **rejected** — structural, security, resource-limit, or unsupported-required-capability error prevented a complete import.
 
-### Candidate actions (policy unresolved)
+### Proposed report actions with maintainer-approved handling policies (2026-11-10)
 
 - **continue** for safely preserved and understood data.
-- **warn** for implementation-derived defaults, version mismatches, and uninterpreted data that remains byte-preserved.
-- **require-confirmation** before a future save would drop or transform authored information.
-- **fail-import** for invalid/security/resource-limit input and, in v1, an unknown required capability before asset loading or playback.
+- **warn** for implementation-derived defaults, version/spec mismatches, and ambiguous data that remains preserved but uninterpreted. The read-only v1 migration import may continue in these cases.
+- **require-confirmation** before any future save that transforms or drops information. Without explicit confirmation before saving, do not produce a lossy save; preserve the original or cancel that save. Confirmation authorizes only the specified information loss and does not authorize semantic interpretation of ambiguous data.
+- **fail-import** for invalid, security-rejected, or resource-limit-exceeding input and, in v1, an unknown required capability before asset loading or playback.
 
-**Unresolved:** whether a read-only import should ever fail solely because semantic information is ambiguous (the proposal is to preserve and report); which lossy-save categories require confirmation versus hard refusal; and whether report action names should become public API.
+**Still unresolved:** which documented or implementation-derived rules are appropriate v1 semantic defaults, and whether the proposed report action names/fields should become a public API.
 
 ## Version-by-version mapping proposal
 
@@ -67,7 +68,7 @@ Each report item should identify the source location and distinguish source rete
 | Node graph and transforms | **Inventory evidence:** parent graph, position, rotation, opacity, uniform scale, anchor, Z, optional width/height; preview uses intrinsic image dimensions if size is omitted. | Preserve sparse fields, IDs/references and declaration order. | Preserve hierarchy and authored transform values. Intrinsic dimensions and drawing order need an explicit renderer-independent rule or remain renderer-profile behavior. | Z/order and intrinsic-size semantics need v1 confirmation. |
 | Keyframe tracks and timing | **Documented/current:** milliseconds; x, y, rotation, opacity and uniform scale; ordered unique key times inside duration. **Observed evaluator behavior:** smoothstep interpolation; first/last key values are held outside the keyed interval; looping time wraps by duration and non-looping time clamps to duration. | Preserve each track/keyframe, ordering, and field presence. | Record the observed evaluator profile without treating it as a format rule. A v1 mapping must decide interpolation, key boundaries, loop sampling, and behavior across other renderers. | Partial mapping; v1 sampling semantics unresolved. |
 | Declarative effects | **Documented rule:** beam, ring and burst primitives, timed on nodes; effects are visual and do not define gameplay results. **Observed implementation:** burst count defaults to 28. | Preserve declared type/parameters and omitted fields. | Keep effect data declarative. Do not elevate burst count or renderer-specific visual defaults to normative v1 defaults without approval. | Types map; parameter/default coverage needs review. |
-| v0.1 IK declarations or tracks | **Observed implementation:** current validator/runtime accept and process IK without a version gate. **Documented rule:** IK is introduced in v0.2. | Keep IK records and observed IK capability; attach the v0.2-spec mismatch diagnostic. | Preserve current behavior as an observed interpretation, tagged ambiguous/version-spec-mismatch; do not claim ordinary v0.1 semantics. | Explicit user decision: interpret compatibly and report mismatch. Stable v1 mapping remains open. |
+| v0.1 IK declarations or tracks | **Observed implementation:** current validator/runtime accept and process IK without a version gate. **Documented rule:** IK is introduced in v0.2. | Preserve source IK records. The current v0.x snapshot may continue to report its existing observed capability and mismatch diagnostic as implementation evidence; that report does not establish v1 capability or meaning. | For v1 migration, preserve the records, warn about the v0.2-spec mismatch, and leave the construct semantically uninterpreted; do not infer the v1 two-bone IK capability from this ambiguous v0.1 case. The current v0.x runtime/importer behavior is unchanged. | Maintainer-approved v1 handling (2026-11-10); does not revise the experimental importer implementation. |
 | v0.2 IK | **Documented rule:** two-bone IK; absent weight defaults to 1 and runtime clamps finite weight to [0,1]. | Preserve authored chain/track fields and presence. | Candidate effective default weight=1 with rule provenance; clamping is runtime behavior and must not silently rewrite source. | Proposed. Confirm complete IK field mapping before serializer. |
 | v0.2 IK bend | **Observed implementation:** current inventory reports missing bend behaves as 1. | Keep absence distinguishable. | Candidate implementation-derived default, not a format-wide guarantee; report the rule source. | Unresolved maintainer approval. |
 | v0.3 validation profile | **Documented rule:** referenced SVG roots require bounded positive numeric px dimensions. | Preserve SVG bytes and report v0.3 profile fact. | Treat as source validation profile, not an animation/runtime capability. Rejection under current reader limits is reported separately from format meaning. | Proposed. |
@@ -98,13 +99,17 @@ Keep three facts separate:
 
 The v0.1–v0.4 importer can infer source facts but cannot claim target support. The approved capability identifiers are org.motionpack.ik.two-bone and org.motionpack.interaction. Their approved direction does not settle the full v1 schema, identifier registration policy, or every version-to-capability derivation rule.
 
-## Maintainer decisions before this can be accepted
+## Maintainer-approved migration handling (2026-11-10)
 
-1. Should effective defaults be a separate traced interpretation over the sparse view? The recommendation is yes; do not rewrite source values.
-2. Which behavior is sufficiently documented to become a v1 semantic default, versus implementation-derived or unresolved?
-3. Should ambiguous constructs (especially v0.1 IK) remain available but uninterpreted for conversion, or be eligible for an explicitly confirmed mapping?
-4. Which preservation-report outcomes warn, require explicit confirmation before save, or make lossless save unavailable?
-5. What exact v1 field and error model consumes this report? This issue deliberately does not define or implement it.
+1. Keep sparse authored values and field presence separate from a provenance-bearing effective-values interpretation. Derived defaults never overwrite the source or sparse view.
+2. Preserve ambiguous and specification/implementation-mismatch data, warn, and do not assign v1 semantics to it. This supersedes the earlier proposal to interpret v0.1 IK compatibly for v1 migration. It does not change the existing v0.x runtime or normalized importer behavior. Explicit confirmation for a lossy save cannot authorize assigning v1 semantics to ambiguous data.
+3. Require explicit confirmation before any future save that transforms or drops information. Without that confirmation, no lossy output is produced.
+
+## Remaining maintainer decisions
+
+1. Which documented or implementation-derived source behaviors should become v1 semantic defaults, and which must remain profile-dependent or unresolved?
+2. What exact v1 fields, stable diagnostic identifiers, and error/report model consume these policies? This proposal does not define or implement them.
+3. Which source-version/profile facts can be converted to required/optional v1 capabilities without overstating target support?
 
 ## Acceptance and next step
 
@@ -112,7 +117,7 @@ Before this proposal is treated as accepted:
 
 - Review every row against the full feature inventory and four pinned fixtures.
 - Have Architect verify format/runtime boundaries and Functional QA verify that each claim has fixture or code evidence.
-- Resolve the maintainer decisions above and record them before designing a serializer.
+- Resolve the remaining maintainer decisions above before designing a serializer.
 - Keep any v1 schema, converter, and serializer in a later issue/PR with migration fixtures and no-silent-loss tests.
 
 Rollback: remove this non-normative proposal. It changes no package, code path, legacy acceptance rule, or fixture.
