@@ -467,12 +467,27 @@ def _bounded_read(archive, info, limit, label):
     return b"".join(chunks)
 
 
+def _file_identity(info):
+    """Return a usable filesystem object identity, or None when unavailable."""
+    device = getattr(info, "st_dev", None)
+    inode = getattr(info, "st_ino", None)
+    if type(device) is not int or type(inode) is not int or inode <= 0:
+        return None
+    return device, inode
+
+
 def _open_regular_archive(path):
-    """Check an input path before opening, then verify its opened descriptor."""
+    """Open a regular archive and reject a different file object after stat."""
     try:
-        if not stat.S_ISREG(path.stat().st_mode):
+        before = path.stat()
+        if not stat.S_ISREG(before.st_mode):
             _error("archive input must be a regular file")
-    except OSError as exc:
+        expected_identity = _file_identity(before)
+        if expected_identity is None:
+            _error("archive input identity cannot be verified")
+    except ArchiveError:
+        raise
+    except (OSError, RuntimeError) as exc:
         _error("unable to open MotionPack archive", exc)
 
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
@@ -485,8 +500,11 @@ def _open_regular_archive(path):
     except OSError as exc:
         _error("unable to open MotionPack archive", exc)
     try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode):
             _error("archive input must be a regular file")
+        if _file_identity(opened) != expected_identity:
+            _error("archive input changed between stat and open")
         return os.fdopen(descriptor, "rb")
     except BaseException:
         os.close(descriptor)
