@@ -456,6 +456,86 @@ class ArchiveReaderTests(unittest.TestCase):
                         read_package(path)
                     zip_file.assert_not_called()
 
+    def test_rejects_overlapping_local_records_before_zipfile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            path = self._zip(
+                root / "overlapping.motionpack",
+                [("manifest.json", b"placeholder"), ("assets/orphan.svg", b"payload")],
+            )
+            original = path.read_bytes()
+            with zipfile.ZipFile(path) as archive:
+                info = archive.getinfo("assets/orphan.svg")
+                local_name_length, local_extra_length = struct.unpack_from(
+                    "<HH", original, info.header_offset + 26
+                )
+                record_start = info.header_offset
+                record_end = (
+                    record_start + 30 + local_name_length + local_extra_length
+                    + info.compress_size
+                )
+                embedded_record = original[record_start:record_end]
+
+            prefix = b"embedded local record:"
+            self._zip(
+                path,
+                [
+                    ("manifest.json", prefix + embedded_record),
+                    ("assets/orphan.svg", b"payload"),
+                ],
+            )
+            data = bytearray(path.read_bytes())
+            manifest_name_length, manifest_extra_length = struct.unpack_from(
+                "<HH", data, 26
+            )
+            embedded_offset = (
+                30 + manifest_name_length + manifest_extra_length + len(prefix)
+            )
+
+            cursor = 0
+            while cursor + 46 <= len(data) and data[cursor:cursor + 4] != bytes.fromhex("504b0102"):
+                cursor += 1
+            while cursor + 46 <= len(data) and data[cursor:cursor + 4] == bytes.fromhex("504b0102"):
+                name_length, extra_length, comment_length = struct.unpack_from(
+                    "<HHH", data, cursor + 28
+                )
+                name_start = cursor + 46
+                name = bytes(data[name_start:name_start + name_length])
+                if name == b"assets/orphan.svg":
+                    struct.pack_into("<L", data, cursor + 42, embedded_offset)
+                    break
+                cursor += 46 + name_length + extra_length + comment_length
+            else:
+                self.fail("orphan entry central-directory record not found")
+            path.write_bytes(data)
+
+            with mock.patch.object(archive_reader.zipfile, "ZipFile") as zip_file:
+                with self.assertRaisesRegex(ArchiveError, "local entry records overlap"):
+                    read_package(path)
+                zip_file.assert_not_called()
+
+    def test_descriptor_signature_collision_is_not_counted_as_shorter_record(self):
+        signature_crc = 0x08074B50
+        signed = struct.pack("<4L", signature_crc, signature_crc, 3, 9)
+        self.assertEqual(
+            archive_reader._data_descriptor_length(signed, (signature_crc, 3, 9)),
+            16,
+        )
+
+        ambiguous_unsigned = struct.pack("<3L", signature_crc, 7, 9) + b"tail"
+        with self.assertRaisesRegex(ArchiveError, "signature is ambiguous"):
+            archive_reader._data_descriptor_length(
+                ambiguous_unsigned, (signature_crc, 7, 9)
+            )
+
+        dual_match = struct.pack(
+            "<4L", signature_crc, signature_crc, signature_crc, signature_crc
+        )
+        with self.assertRaisesRegex(ArchiveError, "signature is ambiguous"):
+            archive_reader._data_descriptor_length(
+                dual_match, (signature_crc, signature_crc, signature_crc)
+            )
+
     def test_local_filename_mismatch_is_rejected_before_zipfile(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = self._zip(

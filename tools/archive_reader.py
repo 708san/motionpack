@@ -133,6 +133,36 @@ def _is_source_path(path):
     return bool(parts and parts[0].casefold() == "source")
 
 
+def _data_descriptor_length(descriptor, expected):
+    """Return the descriptor length; reject an unsigned CRC colliding with its signature."""
+    signature = bytes.fromhex("504b0708")
+    if descriptor[:4] == signature:
+        tagged_values = (
+            struct.unpack_from("<3L", descriptor, 4)
+            if len(descriptor) >= 16 else None
+        )
+        unsigned_values = (
+            struct.unpack_from("<3L", descriptor)
+            if len(descriptor) >= 12 else None
+        )
+        tagged_matches = tagged_values == expected
+        unsigned_matches = unsigned_values == expected
+        if tagged_matches and unsigned_matches:
+            _error("ZIP data descriptor signature is ambiguous")
+        if tagged_matches:
+            return 16
+        if unsigned_matches:
+            _error("ZIP data descriptor signature is ambiguous")
+    else:
+        unsigned_values = (
+            struct.unpack_from("<3L", descriptor)
+            if len(descriptor) >= 12 else None
+        )
+        if unsigned_values == expected:
+            return 12
+    _error("ZIP data descriptor disagrees with central directory")
+
+
 def _preflight_end_record(stream, file_size, limits):
     """Validate classic ZIP directory structure before ZipFile parses it."""
     tail_size = min(file_size, 22 + 0xFFFF)
@@ -171,6 +201,7 @@ def _preflight_end_record(stream, file_size, limits):
     header = struct.Struct("<4s4B4HL2L5H2L")
     cursor = 0
     parsed_entries = 0
+    local_record_ranges = []
     while cursor < len(directory):
         if cursor + header.size > len(directory):
             _error("ZIP central directory record is truncated")
@@ -235,6 +266,7 @@ def _preflight_end_record(stream, file_size, limits):
         data_end = local_offset + local_struct.size + local_name_length + local_extra_length + compressed_size
         if data_end > actual_directory_offset:
             _error("ZIP entry data overlaps central directory")
+        local_record_end = data_end
         local_crc, local_compressed_size, local_uncompressed_size = local_fields[6:9]
         central_crc = fields[9]
         if fields[5] & 0x8:
@@ -250,28 +282,26 @@ def _preflight_end_record(stream, file_size, limits):
             stream.seek(data_end)
             descriptor = stream.read(min(16, descriptor_remaining))
             expected_descriptor = (central_crc, compressed_size, uncompressed_size)
-            descriptor_values = None
-            descriptor_length = 12
-            if descriptor[:4] == b"PK\x07\x08" and len(descriptor) >= 16:
-                tagged_values = struct.unpack_from("<3L", descriptor, 4)
-                if tagged_values == expected_descriptor:
-                    descriptor_values = tagged_values
-                    descriptor_length = 16
-            unsigned_values = struct.unpack_from("<3L", descriptor) if len(descriptor) >= 12 else None
-            if descriptor_values is None and unsigned_values == expected_descriptor:
-                descriptor_values = unsigned_values
-            if descriptor_values != expected_descriptor:
-                _error("ZIP data descriptor disagrees with central directory")
+            descriptor_length = _data_descriptor_length(
+                descriptor, expected_descriptor
+            )
             if data_end + descriptor_length > actual_directory_offset:
                 _error("ZIP data descriptor overlaps central directory")
+            local_record_end = data_end + descriptor_length
         elif (local_crc, local_compressed_size, local_uncompressed_size) != (central_crc, compressed_size, uncompressed_size):
             _error("ZIP local and central CRC/size values disagree")
+        local_record_ranges.append((local_offset, local_record_end))
         parsed_entries += 1
         if parsed_entries > limits.max_entries:
             _error("archive entry count exceeds limit")
         cursor = record_end
     if parsed_entries != entries or disk_entries != entries:
         _error("ZIP end record entry count does not match directory")
+    previous_end = -1
+    for local_start, local_end in sorted(local_record_ranges):
+        if local_start < previous_end:
+            _error("ZIP local entry records overlap")
+        previous_end = local_end
 
 
 _ARCHIVE_PREFIXES = (
