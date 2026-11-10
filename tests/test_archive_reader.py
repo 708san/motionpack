@@ -316,27 +316,40 @@ class ArchiveReaderTests(unittest.TestCase):
             with zipfile.ZipFile(package) as source:
                 entries = [(item.filename, source.read(item)) for item in source.infolist()]
             entries.append(("orphan.txt", b"unreferenced entry"))
-            path = self._zip(pathlib.Path(tmp) / "nul-name.motionpack", entries)
 
-            data = bytearray(path.read_bytes())
-            raw_name = b"orphan\x00txt"
-            positions = []
-            cursor = 0
-            while True:
-                cursor = data.find(b"orphan.txt", cursor)
-                if cursor < 0:
-                    break
-                positions.append(cursor)
-                cursor += len(b"orphan.txt")
-            self.assertEqual(len(positions), 2, "expected local and central filename records")
-            for position in reversed(positions):
-                data[position:position + len(b"orphan.txt")] = raw_name
-            path.write_bytes(data)
+            for location in ("matching-records", "local-only"):
+                with self.subTest(location=location):
+                    path = self._zip(
+                        pathlib.Path(tmp) / f"nul-name-{location}.motionpack",
+                        entries,
+                    )
+                    data = bytearray(path.read_bytes())
+                    raw_name = b"orphan\x00txt"
+                    positions = []
+                    cursor = 0
+                    while True:
+                        cursor = data.find(b"orphan.txt", cursor)
+                        if cursor < 0:
+                            break
+                        positions.append(cursor)
+                        cursor += len(b"orphan.txt")
+                    self.assertEqual(
+                        len(positions), 2,
+                        "expected local and central filename records",
+                    )
+                    selected_positions = (
+                        positions if location == "matching-records" else positions[:1]
+                    )
+                    for position in reversed(selected_positions):
+                        data[position:position + len(b"orphan.txt")] = raw_name
+                    path.write_bytes(data)
 
-            with mock.patch.object(archive_reader.zipfile, "ZipFile") as zip_file:
-                with self.assertRaisesRegex(ArchiveError, "NUL byte in ZIP entry name"):
-                    read_package(path)
-                zip_file.assert_not_called()
+                    with mock.patch.object(archive_reader.zipfile, "ZipFile") as zip_file:
+                        with self.assertRaisesRegex(
+                            ArchiveError, "NUL byte in ZIP entry name"
+                        ):
+                            read_package(path)
+                        zip_file.assert_not_called()
 
     def test_rejects_duplicate_and_casefold_colliding_names(self):
         fixtures = (
