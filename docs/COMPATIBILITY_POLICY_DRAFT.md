@@ -59,7 +59,7 @@ The selected standard identifiers are `org.motionpack.ik.two-bone` for the v0.2 
 
 A top-level `extensions` object uses reverse-domain keys to hold opaque extension data. Unknown fields in core objects are rejected. Extension identifiers and payloads never trigger network lookup, code execution, shader execution or external resource loading. Writers that cannot preserve opaque extension data must obtain explicit confirmation before producing a lossy save. Without confirmation, they must preserve the original or cancel the save. Downgrade conversion must report unsupported capabilities.
 
-These directions apply to v1.0 only. A v1.0 importer derives the corresponding capabilities from v0.1–v0.4 version and contents; it does not add fields to legacy manifests. The exact identifier grammar and namespace registration process remain open release-design details. The schema and format are still drafts, not a stable public contract.
+These directions apply to v1.0 only. A v1.0 importer derives capabilities only where the source version and contents have an approved, unambiguous v1 mapping; it does not add fields to legacy manifests. In particular, v0.1 IK records are preserved and reported as a specification mismatch, but do not imply the v1 two-bone IK capability. The exact identifier grammar and namespace registration process remain open release-design details. The schema and format are still drafts, not a stable public contract.
 
 ## Reader/writer and forward-compatibility behavior
 
