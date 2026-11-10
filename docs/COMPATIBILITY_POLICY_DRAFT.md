@@ -34,7 +34,7 @@ These decisions govern the proposed v1 migration and future save behavior only; 
 
 - Keep authored sparse values and field presence distinct from any effective-values interpretation. Derived defaults appear only in a separate view with source and rule provenance.
 - Preserve and warn about ambiguous or specification/implementation-mismatch data without assigning v1 semantics. This supersedes the earlier v1 migration proposal to interpret v0.1 IK compatibly; the existing v0.x behavior remains an observed implementation. Confirmation for a lossy save does not authorize assigning meaning to such data.
-- Require explicit user confirmation before saving any output that transforms or drops information. Without prior confirmation, the tool must preserve the source or cancel the save; a warning alone is insufficient. Confirmation authorizes only the specified loss and does not authorize v1 semantic interpretation of ambiguous data.
+- Require explicit user confirmation before saving any output that transforms or drops information. Without prior confirmation, the tool must preserve the source or cancel the save; a warning alone is insufficient. Confirmation authorizes only the specified loss, does not authorize v1 semantic interpretation of ambiguous data, and cannot override validation failures, security rejections, or unsupported required-capability errors.
 
 ## Proposed v1 format rules
 
