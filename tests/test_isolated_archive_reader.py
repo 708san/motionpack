@@ -194,6 +194,24 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                 self._assert_pid_exited(pid)
 
     @unittest.skipUnless(hasattr(os, "mkfifo"), "requires POSIX FIFO support")
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "requires POSIX FIFO support")
+    def test_snapshot_rejects_fifo_and_fifo_symlink_before_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fifo = pathlib.Path(tmp) / "input.motionpack"
+            os.mkfifo(fifo)
+            alias = pathlib.Path(tmp) / "input-link.motionpack"
+            alias.symlink_to(fifo)
+            destination = pathlib.Path(tmp) / "snapshot.motionpack"
+            with mock.patch(
+                "isolated_archive_reader.os.open",
+                side_effect=AssertionError("must reject special file before open"),
+            ):
+                for candidate in (fifo, alias):
+                    with self.subTest(candidate=candidate):
+                        with self.assertRaisesRegex(ArchiveError, "regular file"):
+                            _snapshot_archive(candidate, destination, ReaderLimits())
+            self.assertFalse(destination.exists())
+
     def test_deadline_interrupts_a_worker_blocked_opening_input(self):
         with tempfile.TemporaryDirectory() as tmp:
             fifo = pathlib.Path(tmp) / "blocked.motionpack"
