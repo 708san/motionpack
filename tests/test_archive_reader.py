@@ -433,6 +433,29 @@ class ArchiveReaderTests(unittest.TestCase):
                         read_package(path)
                     zip_file.assert_not_called()
 
+    def test_local_flags_and_compression_mismatches_are_rejected_before_zipfile(self):
+        cases = (
+            ("flag", 6, 1),
+            ("compression", 8, zipfile.ZIP_DEFLATED),
+        )
+        for label, offset, local_value in cases:
+            with self.subTest(field=label), tempfile.TemporaryDirectory() as tmp:
+                path = self._zip(
+                    pathlib.Path(tmp) / f"{label}-mismatch.motionpack",
+                    [("manifest.json", b"{}")],
+                )
+                data = bytearray(path.read_bytes())
+                self.assertEqual(data[:4], bytes.fromhex("504b0304"))
+                struct.pack_into("<H", data, offset, local_value)
+                path.write_bytes(data)
+
+                with mock.patch.object(archive_reader.zipfile, "ZipFile") as zip_file:
+                    with self.assertRaisesRegex(
+                        ArchiveError, "local and central metadata disagree"
+                    ):
+                        read_package(path)
+                    zip_file.assert_not_called()
+
     def test_local_filename_mismatch_is_rejected_before_zipfile(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = self._zip(
