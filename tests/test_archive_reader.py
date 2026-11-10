@@ -440,7 +440,7 @@ class ArchiveReaderTests(unittest.TestCase):
                 [("manifest.json", b"{}")],
             )
             data = bytearray(path.read_bytes())
-            self.assertEqual(data[:4], b"PK\\x03\\x04")
+            self.assertEqual(data[:4], b"PK\x03\x04")
             filename_length, extra_length = struct.unpack_from("<HH", data, 26)
             self.assertEqual(data[30:30 + filename_length], b"manifest.json")
             data[30] ^= 0x01
@@ -465,7 +465,7 @@ class ArchiveReaderTests(unittest.TestCase):
             )
             data_start = info.header_offset + 30 + filename_length + extra_length
             descriptor_start = data_start + info.compress_size
-        self.assertEqual(data[descriptor_start:descriptor_start + 4], b"PK\\x07\\x08")
+        self.assertEqual(data[descriptor_start:descriptor_start + 4], b"PK\x07\x08")
         data[descriptor_start + 4] ^= 0x01
 
         with tempfile.TemporaryDirectory() as tmp:
