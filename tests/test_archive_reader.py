@@ -445,7 +445,7 @@ class ArchiveReaderTests(unittest.TestCase):
                     [("manifest.json", b"{}")],
                 )
                 data = bytearray(path.read_bytes())
-                self.assertEqual(data[:4], b"PK\\x03\\x04")
+                self.assertEqual(data[:4], bytes.fromhex("504b0304"))
                 struct.pack_into("<H", data, offset, local_value)
                 path.write_bytes(data)
 
