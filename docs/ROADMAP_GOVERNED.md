@@ -1,12 +1,12 @@
 # Governed MotionPack roadmap
 
-Targets are exploratory, not release commitments. This plan is reconciled with `main` after PR #50 (2026-11-09). Update its evidence links as implementation and CI change.
+Targets are exploratory, not release commitments. This plan is reconciled with `main` after PR #61 (2026-11-09). Update its evidence links as implementation and CI change.
 
 ## Current implementation status
 
 | Area | Status | Evidence and limit |
 |---|---|---|
-| Experimental format | Implemented, compatibility inventory in progress | Frozen/regression package fixtures and direct/isolated reader coverage span v0.1–v0.4 (PR #57). PR #59 adds an experimental read-only legacy import snapshot with opaque payload retention; it does not define v1 serialization or establish a stable compatibility promise. The version-by-version feature inventory is recorded in [V0_FEATURE_INVENTORY.md](V0_FEATURE_INVENTORY.md). v0.4 adds opt-in node hover/tap/click notifications. |
+| Experimental format | Implemented, compatibility inventory in progress | Frozen/regression package fixtures and direct/isolated reader coverage span v0.1–v0.4 (PR #57). PR #59 adds an experimental read-only legacy import snapshot with opaque payload retention, and PR #61 adds an immutable normalized view for v0.1–v0.4. Neither defines v1 serialization or establishes a stable compatibility promise. The version-by-version feature inventory is recorded in [V0_FEATURE_INVENTORY.md](V0_FEATURE_INVENTORY.md). v0.4 adds opt-in node hover/tap/click notifications. |
 | Offline preview | Implemented, browser-specific | Packager emits a self-contained Canvas 2D preview. Its legacy facade is backed by the experimental host-driven controller (PR #40). PR #47 adds host-configurable contain/cover/stretch viewport fitting, centered contain by default and logical coordinate mapping; PR #49 ensures the CSS-pixel backing buffer respects the DPR cap of 2 even when the logical canvas is larger. The backing-buffer caps remain 16 MP and 8192 px per edge; cross-browser parity, mobile Safari/Chrome and real-device behavior are not established. |
 | Motion | Partial | Keyframes, clips, variants, effects and two-bone IK work. No mesh skinning, blend graph, independent scale axes or authoring editor. |
 | Package tooling | Partial | Validator, packager and bounded archive inspection exist. The ordinary reader is in-process; the isolated ZIP reader and optional raster decoder are opt-in worker processes, not complete OS sandboxes. |
