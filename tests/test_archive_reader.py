@@ -516,13 +516,9 @@ class ArchiveReaderTests(unittest.TestCase):
 
     def test_descriptor_signature_collision_is_not_counted_as_shorter_record(self):
         signature_crc = 0x08074B50
-        signed = struct.pack(
-            "<4L", signature_crc, signature_crc, signature_crc, signature_crc
-        )
+        signed = struct.pack("<4L", signature_crc, signature_crc, 3, 9)
         self.assertEqual(
-            archive_reader._data_descriptor_length(
-                signed, (signature_crc, signature_crc, signature_crc)
-            ),
+            archive_reader._data_descriptor_length(signed, (signature_crc, 3, 9)),
             16,
         )
 
@@ -530,6 +526,14 @@ class ArchiveReaderTests(unittest.TestCase):
         with self.assertRaisesRegex(ArchiveError, "signature is ambiguous"):
             archive_reader._data_descriptor_length(
                 ambiguous_unsigned, (signature_crc, 7, 9)
+            )
+
+        dual_match = struct.pack(
+            "<4L", signature_crc, signature_crc, signature_crc, signature_crc
+        )
+        with self.assertRaisesRegex(ArchiveError, "signature is ambiguous"):
+            archive_reader._data_descriptor_length(
+                dual_match, (signature_crc, signature_crc, signature_crc)
             )
 
     def test_local_filename_mismatch_is_rejected_before_zipfile(self):
