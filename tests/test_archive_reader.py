@@ -462,8 +462,12 @@ class ArchiveReaderTests(unittest.TestCase):
 
                     struct.pack_into("<H", data, extra_start + 2, 4)
                     path.write_bytes(data)
+                    expected_error = (
+                        "ZIP local extra field is malformed"
+                        if location == "local" else "ZIP extra field is malformed"
+                    )
                     with mock.patch.object(archive_reader.zipfile, "ZipFile") as zip_file:
-                        with self.assertRaisesRegex(ArchiveError, "ZIP extra field is malformed"):
+                        with self.assertRaisesRegex(ArchiveError, expected_error):
                             read_package(path)
                         zip_file.assert_not_called()
 
