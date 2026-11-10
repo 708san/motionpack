@@ -123,6 +123,26 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     self.assertEqual(retained.entries, isolated_retained.entries)
                     self.assertEqual(retained.source_entries, isolated_retained.source_entries)
 
+    def test_snapshot_rejects_different_regular_file_opened_after_stat(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            checked = self._valid_fixture(tmp, "0.1")
+            opened = self._valid_fixture(tmp, "0.2")
+            opened = opened.with_name("opened.motionpack")
+            source = self._valid_fixture(tmp, "0.2")
+            shutil.copyfile(source, opened)
+            destination = pathlib.Path(tmp) / "snapshot.motionpack"
+            original_stat = type(opened).stat
+
+            def report_checked_identity(path, *args, **kwargs):
+                return original_stat(checked if path == opened else path, *args, **kwargs)
+
+            with mock.patch.object(
+                type(opened), "stat", autospec=True, side_effect=report_checked_identity
+            ):
+                with self.assertRaisesRegex(ArchiveError, "archive input changed between stat and open"):
+                    _snapshot_archive(opened, destination, ReaderLimits())
+            self.assertFalse(destination.exists())
+
     def test_rejects_malformed_archive_with_archive_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             archive = pathlib.Path(tmp) / "bad.motionpack"
