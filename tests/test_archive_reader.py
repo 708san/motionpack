@@ -433,6 +433,51 @@ class ArchiveReaderTests(unittest.TestCase):
                         read_package(path)
                     zip_file.assert_not_called()
 
+    def test_local_filename_mismatch_is_rejected_before_zipfile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._zip(
+                pathlib.Path(tmp) / "local-name-mismatch.motionpack",
+                [("manifest.json", b"{}")],
+            )
+            data = bytearray(path.read_bytes())
+            self.assertEqual(data[:4], b"PK\x03\x04")
+            filename_length, extra_length = struct.unpack_from("<HH", data, 26)
+            self.assertEqual(data[30:30 + filename_length], b"manifest.json")
+            data[30] ^= 0x01
+            path.write_bytes(data)
+
+            with mock.patch.object(archive_reader.zipfile, "ZipFile") as zip_file:
+                with self.assertRaisesRegex(ArchiveError, "local and central names disagree"):
+                    read_package(path)
+                zip_file.assert_not_called()
+
+    def test_data_descriptor_mismatch_is_rejected_before_zipfile(self):
+        buffer = NonSeekableBuffer()
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            with archive.open("manifest.json", "w") as member:
+                member.write(b"{}")
+
+        data = bytearray(buffer.getvalue())
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            info = archive.getinfo("manifest.json")
+            filename_length, extra_length = struct.unpack_from(
+                "<HH", data, info.header_offset + 26
+            )
+            data_start = info.header_offset + 30 + filename_length + extra_length
+            descriptor_start = data_start + info.compress_size
+        self.assertEqual(data[descriptor_start:descriptor_start + 4], b"PK\x07\x08")
+        data[descriptor_start + 4] ^= 0x01
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "descriptor-mismatch.motionpack"
+            path.write_bytes(data)
+            with mock.patch.object(archive_reader.zipfile, "ZipFile") as zip_file:
+                with self.assertRaisesRegex(
+                    ArchiveError, "data descriptor disagrees with central directory"
+                ):
+                    read_package(path)
+                zip_file.assert_not_called()
+
     def test_aggregate_limit_counts_unique_zip_assets_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             project_copy = pathlib.Path(tmp) / "project"
