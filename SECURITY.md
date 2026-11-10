@@ -16,15 +16,21 @@ multi-disk archives are rejected.
 
 For each non-directory entry outside `source/`, the reader inspects at most 512 decompressed bytes for common ZIP, gzip, bzip2, xz, 7-Zip, RAR, and tar headers. Recognized nested archives are rejected even when unreferenced or renamed. This is bounded signature detection, not general file-format identification; uncommon variants and polyglot files may not be recognized. `source/` remains opaque and is not decompressed or inspected.
 
-Before opening an archive path, the reader checks that it currently resolves to
-a regular file, then checks the opened descriptor again. It uses
-`O_NONBLOCK` where the operating system exposes that flag. The path check and
-open are separate operations, so a concurrently replaced path may still be
-opened before the descriptor check rejects it. Python exposes `O_NONBLOCK` on
-Unix. On a platform that lacks the flag and supports blocking special-file
-types, a path replaced with such a file after the initial check may block
-during open. Windows behavior has not been tested. This reader does not
-guarantee safe handling of paths that another process can change concurrently.
+Before opening an archive path, the reader checks that it resolves to a regular
+file and captures its `(st_dev, st_ino)` identity. After open, it verifies that
+the descriptor is regular and has the same identity before parsing or copying.
+A different file object substituted between those checks is rejected. If the
+filesystem does not provide a usable file ID, the reader fails closed. A
+symlink to a regular file remains supported when both checks resolve to the
+same target. This comparison is not an atomic open and does not eliminate all
+path races or protect against concurrent writes to the same opened file.
+
+The reader uses `O_NONBLOCK` where the operating system exposes it (Unix in
+Python). On a platform without that flag, a substituted blocking special file
+may block before the descriptor check can reject it. Windows CI exercises the
+identity check on its hosted filesystem; this does not guarantee behavior for
+every Windows filesystem or every reparse-point race. The reader does not
+guarantee safe handling of all paths another process can change concurrently.
 
 For asset paths ending in `.png`, `.jpg`, `.jpeg`, or `.webp` (case-insensitively),
 the validator and reader inspect the corresponding format header before any
