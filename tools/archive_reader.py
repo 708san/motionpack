@@ -133,6 +133,32 @@ def _is_source_path(path):
     return bool(parts and parts[0].casefold() == "source")
 
 
+def _data_descriptor_length(descriptor, expected):
+    """Return the descriptor length; reject an unsigned CRC colliding with its signature."""
+    signature = bytes.fromhex("504b0708")
+    if descriptor[:4] == signature:
+        tagged_values = (
+            struct.unpack_from("<3L", descriptor, 4)
+            if len(descriptor) >= 16 else None
+        )
+        if tagged_values == expected:
+            return 16
+        unsigned_values = (
+            struct.unpack_from("<3L", descriptor)
+            if len(descriptor) >= 12 else None
+        )
+        if unsigned_values == expected:
+            _error("ZIP data descriptor signature is ambiguous")
+    else:
+        unsigned_values = (
+            struct.unpack_from("<3L", descriptor)
+            if len(descriptor) >= 12 else None
+        )
+        if unsigned_values == expected:
+            return 12
+    _error("ZIP data descriptor disagrees with central directory")
+
+
 def _preflight_end_record(stream, file_size, limits):
     """Validate classic ZIP directory structure before ZipFile parses it."""
     tail_size = min(file_size, 22 + 0xFFFF)
@@ -252,18 +278,9 @@ def _preflight_end_record(stream, file_size, limits):
             stream.seek(data_end)
             descriptor = stream.read(min(16, descriptor_remaining))
             expected_descriptor = (central_crc, compressed_size, uncompressed_size)
-            descriptor_values = None
-            descriptor_length = 12
-            if descriptor[:4] == b"PK\x07\x08" and len(descriptor) >= 16:
-                tagged_values = struct.unpack_from("<3L", descriptor, 4)
-                if tagged_values == expected_descriptor:
-                    descriptor_values = tagged_values
-                    descriptor_length = 16
-            unsigned_values = struct.unpack_from("<3L", descriptor) if len(descriptor) >= 12 else None
-            if descriptor_values is None and unsigned_values == expected_descriptor:
-                descriptor_values = unsigned_values
-            if descriptor_values != expected_descriptor:
-                _error("ZIP data descriptor disagrees with central directory")
+            descriptor_length = _data_descriptor_length(
+                descriptor, expected_descriptor
+            )
             if data_end + descriptor_length > actual_directory_offset:
                 _error("ZIP data descriptor overlaps central directory")
             local_record_end = data_end + descriptor_length
