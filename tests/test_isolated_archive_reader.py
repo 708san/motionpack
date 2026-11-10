@@ -143,6 +143,33 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     _snapshot_archive(opened, destination, ReaderLimits())
             self.assertFalse(destination.exists())
 
+    def test_regular_file_symlink_input_remains_supported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            package = self._valid_fixture(tmp, "0.1")
+            alias = pathlib.Path(tmp) / "regular-file-link.motionpack"
+            try:
+                alias.symlink_to(package)
+            except (NotImplementedError, OSError) as exc:
+                self.skipTest(f"regular-file symlinks are unavailable: {exc}")
+
+            self.assertEqual(read_package_isolated(alias, timeout=20).manifest["version"], "0.1")
+            snapshot = pathlib.Path(tmp) / "snapshot.motionpack"
+            _snapshot_archive(alias, snapshot, ReaderLimits())
+            self.assertEqual(read_package(snapshot).manifest["version"], "0.1")
+
+    def test_snapshot_rejects_unavailable_file_identity_before_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = self._valid_fixture(tmp, "0.1")
+            destination = pathlib.Path(tmp) / "snapshot.motionpack"
+            with mock.patch("isolated_archive_reader._file_identity", return_value=None):
+                with mock.patch(
+                    "isolated_archive_reader.os.open",
+                    side_effect=AssertionError("must fail before open"),
+                ):
+                    with self.assertRaisesRegex(ArchiveError, "identity cannot be verified"):
+                        _snapshot_archive(source, destination, ReaderLimits())
+            self.assertFalse(destination.exists())
+
     def test_rejects_malformed_archive_with_archive_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             archive = pathlib.Path(tmp) / "bad.motionpack"
