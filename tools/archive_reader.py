@@ -220,6 +220,8 @@ def _preflight_end_record(stream, file_size, limits):
             _error("multi-disk ZIP archives are unsupported")
         filename_start = cursor + header.size
         filename_bytes = directory[filename_start:filename_start + filename_length]
+        if 0 in filename_bytes:
+            _error("NUL byte in ZIP entry name")
         extra_start = cursor + header.size + filename_length
         extra_end = extra_start + extra_length
         extra_cursor = extra_start
@@ -248,6 +250,8 @@ def _preflight_end_record(stream, file_size, limits):
         local_name_length, local_extra_length = local_fields[9:11]
         local_name = stream.read(local_name_length)
         local_extra = stream.read(local_extra_length)
+        if 0 in local_name:
+            _error("NUL byte in ZIP entry name")
         if local_name != filename_bytes or len(local_extra) != local_extra_length:
             _error("ZIP local and central names disagree")
         if local_fields[7] == 0xFFFFFFFF or local_fields[8] == 0xFFFFFFFF:
