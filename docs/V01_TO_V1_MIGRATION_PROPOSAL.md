@@ -18,7 +18,7 @@ Primary evidence: FORMAT_SPEC.md, V0_FEATURE_INVENTORY.md, NORMALIZED_LEGACY_MOD
 
 1. **Source bytes** — the importer retains exact manifest bytes and accepted regular-file payload bytes, including opaque source/ and unreferenced entries. This supports exact recovery of those individual payloads, not reconstruction of the original ZIP archive.
 2. **Sparse normalized view** — the imported manifest and normalized records retain authored values and field presence. Missing fields stay missing. This is the current read-only importer contract.
-3. **Effective semantic interpretation** — a proposed separate view may expose behavior after applying a documented or implementation-derived rule. It must never overwrite the source or sparse normalized view.
+3. **Effective semantic interpretation** — when an effective value is exposed, it appears in a separate provenance-bearing view after applying a documented or implementation-derived rule. It never overwrites the source or sparse normalized view.
 
 **Maintainer-approved separation rule (2026-11-10):** keep authored values and field presence in the sparse normalized view. Any effective value derived from a default belongs in a separate interpretation view and carries its source version, source JSON pointer or archive path, whether the field was authored, the applied rule identifier, whether the rule is documented or implementation-derived, and a confidence/status. Never write a derived value back into the sparse view or source. If no defensible rule exists, expose no effective value and report the uncertainty.
 
