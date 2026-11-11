@@ -5,6 +5,7 @@ Callers must run it on bounded manifest bytes before any package asset is read.
 """
 from dataclasses import dataclass
 import json
+import math
 from typing import FrozenSet, Tuple
 
 MAX_MANIFEST_BYTES = 1_000_000
@@ -49,6 +50,13 @@ def _reject_json_constant(value):
     raise ValueError(f"non-standard JSON constant: {value}")
 
 
+def _parse_finite_float(value):
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError("JSON number is outside the finite float range")
+    return parsed
+
+
 def _check_json_nesting(raw_manifest):
     depth = 0
     in_string = False
@@ -83,6 +91,7 @@ def _decode_manifest(raw_manifest):
             text,
             object_pairs_hook=_unique_object,
             parse_constant=_reject_json_constant,
+            parse_float=_parse_finite_float,
         )
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as exc:
         raise CapabilityPreflightError("manifest is invalid or too deeply nested") from exc
