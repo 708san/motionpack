@@ -101,7 +101,7 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             script = pathlib.Path(directory) / "failed_worker.py"
             script.write_text(
-                "import sys\\nsys.stdout.buffer.write(bytes.fromhex('4d5052530103'))\\n",
+                "import sys\nsys.stdout.buffer.write(bytes.fromhex('4d5052530103'))\n",
                 encoding="utf-8",
             )
             with mock.patch.object(decoder, "WORKER_SCRIPT", script):
