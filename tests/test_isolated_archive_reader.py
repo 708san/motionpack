@@ -120,6 +120,14 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             memory_limit_bytes=None,
             include_entries=True,
         )
+        failure = IsolatedReadTimeout("isolated archive read timed out")
+        with mock.patch(
+            "isolated_archive_reader.read_package_isolated",
+            side_effect=failure,
+        ):
+            with self.assertRaises(IsolatedReadTimeout) as raised:
+                archive_reader.read_package(archive)
+        self.assertIs(raised.exception, failure)
 
     def test_reads_v01_through_v04_packages(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -132,23 +140,16 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     _snapshot_archive(archive, snapshot, ReaderLimits())
                     snapshot_result = read_package_in_process(snapshot)
                     self.assertEqual(snapshot_result.manifest["version"], version)
-                    result = read_package_isolated(archive, timeout=20)
+                    result = archive_reader.read_package(archive, timeout=20)
                     self.assertEqual(result.manifest["version"], version)
-                    if version == "0.1":
-                        default_result = archive_reader.read_package(archive, timeout=20)
-                        self.assertEqual(default_result.manifest, result.manifest)
-                        self.assertEqual(default_result.assets, result.assets)
-                        default_retained = archive_reader.read_package(
-                            archive, timeout=20, include_entries=True
-                        )
-                        retained_reference = read_package_isolated(
-                            archive, timeout=20, include_entries=True
-                        )
-                        self.assertEqual(default_retained.entries, retained_reference.entries)
-                        self.assertEqual(default_retained.source_entries, retained_reference.source_entries)
+                    self.assertEqual(result.manifest, direct_result.manifest)
+                    self.assertEqual(result.assets, direct_result.assets)
+                    self.assertEqual(result.manifest_bytes, direct_result.manifest_bytes)
                     self.assertEqual(set(result.assets), set(result.manifest["assets"]))
                     self.assertTrue(all(isinstance(data, bytes) for data in result.assets.values()))
-                    retained = read_package_in_process(archive, include_entries=True)
+                    retained = archive_reader.read_package(
+                        archive, timeout=20, include_entries=True
+                    )
                     isolated_retained = read_package_isolated(
                         archive, timeout=20, include_entries=True
                     )
