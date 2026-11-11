@@ -186,6 +186,24 @@ class FormatTests(unittest.TestCase):
                 with zipfile.ZipFile(archive) as packaged:
                     self.assertEqual(packaged.read(asset.relative_to(d).as_posix()),asset_bytes)
                 self.assertIn(base64.b64encode(asset_bytes).decode('ascii'),preview.read_text(encoding='utf8'))
+    def test_strict_secret_scan_rejects_slack_like_referenced_asset_before_outputs(self):
+        secret='xoxb-'+'S'*24
+        with tempfile.TemporaryDirectory() as tmp:
+            d=self._copy(tmp)
+            manifest_path=d/'manifest.json'
+            manifest=json.loads(manifest_path.read_text())
+            asset=d/'assets'/'credential.svg'
+            old=d/manifest['assets']['background']
+            old.rename(asset)
+            manifest['assets']['background']=asset.relative_to(d).as_posix()
+            asset.write_text(f'<svg xmlns="http://www.w3.org/2000/svg"><path fill="{secret}"/></svg>')
+            manifest_path.write_text(json.dumps(manifest))
+            out=pathlib.Path(tmp)/'strict-dist'
+            with self.assertRaisesRegex(ValueError,'referenced asset #1') as raised:
+                build(d,out,fail_on_secret_like=True)
+            self.assertIn('Slack token-like value',str(raised.exception))
+            self.assertNotIn(secret,str(raised.exception))
+            self.assertFalse(out.exists())
     def test_package_warns_on_secret_like_manifest_metadata_without_disclosing(self):
         secret='ghp_'+'M'*36
         with tempfile.TemporaryDirectory() as tmp:
