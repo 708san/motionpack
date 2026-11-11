@@ -342,9 +342,14 @@ def _is_zip_archive_entry(archive, info, limits):
     # _preflight has already bounded aggregate expanded size and ratio.
     payload = _bounded_read(archive, info, info.file_size, "archive entry")
     eocd_signature = b"PK\x05\x06"
-    cursor = payload.rfind(eocd_signature, max(0, len(payload) - 22 - 0xFFFF))
-
+    search_start = max(0, len(payload) - 22 - 0xFFFF)
+    candidates = []
+    cursor = payload.find(eocd_signature, search_start)
     while cursor >= 0:
+        candidates.append(cursor)
+        cursor = payload.find(eocd_signature, cursor + 1)
+
+    for cursor in reversed(candidates):
         if cursor + 22 <= len(payload):
             try:
                 end_record = struct.unpack_from("<4s4H2LH", payload, cursor)
@@ -377,7 +382,7 @@ def _is_zip_archive_entry(archive, info, limits):
                                 and locator[1] == 0 and locator[3] == 1
                             ):
                                 zip64_signature = b"PK\x06\x06"
-                                zip64_cursor = payload.rfind(zip64_signature, 0, locator_offset)
+                                zip64_cursor = payload.find(zip64_signature, 0, locator_offset)
                                 while zip64_cursor >= 0:
                                     try:
                                         zip64 = struct.unpack_from("<4sQ2H2L4Q", payload, zip64_cursor)
@@ -409,7 +414,7 @@ def _is_zip_archive_entry(archive, info, limits):
                                                 )
                                                 if first_record[0] == b"PK\x01\x02" and first_end <= directory_end:
                                                     return True
-                                    zip64_cursor = payload.rfind(zip64_signature, 0, zip64_cursor)
+                                    zip64_cursor = payload.find(zip64_signature, zip64_cursor + 1, locator_offset)
                     elif (
                         disk == 0 and directory_disk == 0
                         and entries_on_disk == total_entries
@@ -467,8 +472,6 @@ def _is_zip_archive_entry(archive, info, limits):
                                         parsed_entries += 1
                                     if valid_directory and position == directory_end:
                                         return True
-
-        cursor = payload.rfind(eocd_signature, 0, cursor)
 
     return False
 
