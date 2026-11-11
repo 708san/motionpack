@@ -58,6 +58,12 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
         with self.assertRaises(decoder.RasterDecodeError):
             self.decode(stream.getvalue(), ".webp")
 
+    def test_animated_webp_rejection_does_not_leak_partial_worker_response(self):
+        seed = pathlib.Path(__file__).parent / "fuzz_corpus" / "raster_headers" / "webp_animated.seed"
+        with self.assertRaises(decoder.RasterDecodeError) as raised:
+            self.decode(seed.read_bytes(), ".webp")
+        self.assertNotIsInstance(raised.exception, decoder.RasterDecodeWorkerFailure)
+
     def test_deduplicates_aliases_of_one_validated_package_path(self):
         data = self.image_bytes("PNG")
         decoded = decoder.decode_raster_assets_isolated(
