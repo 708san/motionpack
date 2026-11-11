@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="910" height="550" viewBox="0 0 910 550">
+<defs><linearGradient id="sea"><stop offset="0" stop-color="#e8f5ee"/><stop offset="1" stop-color="#b7ded7"/></linearGradient></defs>
+<rect x="0" y="0" width="910" height="550" fill="url(#sea)"/>
+<path d="M0 394 C145 365 235 414 366 391 C515 365 613 409 758 382 C820 371 875 375 910 384 L910 550 L0 550 Z" fill="#b4d9d1" opacity="0.72"/>
+<path d="M0 440 C150 415 267 453 397 431 C536 407 700 453 910 420 L910 550 L0 550 Z" fill="#91c6c0" opacity="0.5"/>
+<circle cx="144" cy="175" r="5" fill="#ffffff" opacity="0.56"/><circle cx="174" cy="143" r="3" fill="#ffffff" opacity="0.5"/>
+<circle cx="755" cy="180" r="5" fill="#ffffff" opacity="0.54"/><circle cx="786" cy="150" r="3" fill="#ffffff" opacity="0.48"/>
+</svg>
