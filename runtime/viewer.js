@@ -33,7 +33,7 @@ function frame(time){
   pose=player.advance(delta);
   const crossedEnd=!before.loop&&(
    (before.state==='ended'&&delta>0)||
-   (before.state==='playing'&&before.timeMs+delta>=before.durationMs)
+   (before.state==='playing'&&before.timeMs+delta>before.durationMs)
   );
   if(crossedEnd){
    if(transition&&Object.prototype.hasOwnProperty.call(S.variants,transition))player.setVariant(transition);
