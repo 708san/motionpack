@@ -22,7 +22,7 @@ from tests.jpeg_fixtures import jpeg_with_dnl_defined_height
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 import archive_reader
-from archive_reader import ArchiveError, ReaderLimits, read_package
+from archive_reader import ArchiveError, ReaderLimits, read_package_in_process as read_package
 from package import build
 
 def png_ihdr(width,height):
