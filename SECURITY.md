@@ -67,12 +67,16 @@ element-specific allowlists, and bounds SVG nesting, element count, attributes
 per element and attribute values. Attribute values are not checked against every
 SVG value grammar. It permits only a local `url(#id)` gradient reference in
 `fill` or `stroke`. This is a limited static SVG subset check, not a sanitizer
-for arbitrary renderers. Raster image decoders are not isolated. Bounded
-Atheris coverage-guided targets exercise the ZIP reader, SVG validator, and
-raster header parsers, each with a 15-second pull-request run and a 300-second
-weekly/manual campaign.
-Inputs are capped at 64 KiB, each case has a 2-second timeout, and the shared
-job has a 25-minute limit so four scheduled 300-second campaigns can complete
+for arbitrary renderers. The generated preview still uses browser-native
+image decoding; the optional host API `decode_raster_assets_isolated()` runs
+Pillow in a separate worker with documented resource limits, but the worker is
+not a sandbox. Bounded Atheris coverage-guided targets exercise the ZIP reader,
+SVG validator and raster header parsers. A separate black-box mutation target
+exercises the isolated decoder; Atheris does not receive coverage feedback from
+Pillow or its native codecs.
+All targets use a 15-second pull-request run and a 300-second weekly/manual
+campaign. Inputs are capped at 64 KiB, each case has a 2-second timeout, and
+the shared job has a 25-minute limit so four scheduled campaigns can complete
 with setup overhead. This remains bounded fuzzing, not continuous fuzzing.
 The default `read_package()` path uses the isolated wrapper's platform-specific
 process and memory controls; it is defense in depth, not a sandbox. The explicit
