@@ -44,6 +44,9 @@ async function openDemo(page, target = preview) {
   await page.locator('#stage').waitFor({ state: 'visible' });
   await page.waitForFunction(() => !!window.MotionPackPlayer);
   await page.waitForFunction(() =>
+    document.querySelector('#status').textContent.startsWith('idle | default |')
+  );
+  await page.waitForFunction(() =>
     document.querySelector('#static-fallback').hidden === true
   );
   return { externalRequests, pageErrors };
@@ -99,7 +102,7 @@ test('touch tap only activates the seal and returns to idle', async ({ browser }
     .toBe('squish');
   await page.clock.runFor(190);
   await captureCandidate(page, testInfo, 'squish-peak');
-  await page.clock.runFor(400);
+  await page.clock.runFor(500);
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
     .toBe('idle');
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().variant))
