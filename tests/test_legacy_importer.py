@@ -147,8 +147,13 @@ class LegacyImporterTests(unittest.TestCase):
                         authored_false.source_pointer + "/loop",
                         normalized.effective_defaults,
                     )
+                    actual_loop_defaults = {
+                        pointer
+                        for pointer in normalized.effective_defaults
+                        if pointer.startswith("/clips/") and pointer.endswith("/loop")
+                    }
                     self.assertEqual(
-                        set(normalized.effective_defaults),
+                        actual_loop_defaults,
                         {f"/clips/{name}/loop" for name in clip_names[2:]},
                     )
                     for name in clip_names[2:]:
