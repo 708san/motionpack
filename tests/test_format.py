@@ -159,6 +159,7 @@ class FormatTests(unittest.TestCase):
             ('GitHub token-like value','xghp_'+'A'*36),
             ('OpenAI key-like value','xsk-proj-'+'A'*24),
             ('AWS access-key ID-like value','xAKIA'+'A'*16),
+            ('Slack token-like value','xoxb-'+'A'*24),
             ('private-key header','-----BEGIN ENCRYPTED PRIVATE KEY-----'),
             ('private-key header','-----BEGIN PGP PRIVATE KEY BLOCK-----'),
         )
