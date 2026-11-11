@@ -10,7 +10,7 @@ jobs:
   fuzz:
     name: bounded-zip-reader-fuzz
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -18,11 +18,13 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
-      - name: Install isolated, hash-locked fuzz dependency
+      - name: Install isolated, hash-locked fuzz and decoder dependencies
         run: |
           python -m venv .venv-fuzz
-          .venv-fuzz/bin/python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r requirements-fuzz.txt
-      - name: Run bounded ZIP reader and SVG validator fuzz targets
+          .venv-fuzz/bin/python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r requirements-fuzz.txt -r requirements-image.txt
+      - name: Verify isolated raster decoder behavior
+        run: .venv-fuzz/bin/python -m unittest discover -s tests -p test_isolated_raster_decoder.py -v
+      - name: Run bounded ZIP reader, SVG validator, and raster decoder fuzz targets
         env:
           FUZZ_TRIGGER: ${{ github.event_name }}
           FUZZ_TMP: ${{ runner.temp }}
@@ -42,4 +44,7 @@ jobs:
             -seed=317771 -artifact_prefix="$artifacts/svg-"
           .venv-fuzz/bin/python tests/fuzz_raster_headers.py tests/fuzz_corpus/raster_headers \
             -max_total_time="$budget" -timeout=2 -max_len=65536 -rss_limit_mb=1024 \
-            -seed=317772 -artifact_prefix="$artifacts/raster-"
+            -seed=317772 -artifact_prefix="$artifacts/raster-header-"
+          .venv-fuzz/bin/python tests/fuzz_raster_decoder.py tests/fuzz_corpus/raster_headers \
+            -max_total_time="$budget" -timeout=2 -max_len=65536 -rss_limit_mb=1024 \
+            -seed=317773 -artifact_prefix="$artifacts/raster-decoder-"

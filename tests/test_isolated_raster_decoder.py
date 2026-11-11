@@ -58,6 +58,12 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
         with self.assertRaises(decoder.RasterDecodeError):
             self.decode(stream.getvalue(), ".webp")
 
+    def test_animated_webp_rejection_does_not_leak_partial_worker_response(self):
+        seed = pathlib.Path(__file__).parent / "fuzz_corpus" / "raster_headers" / "webp_animated.seed"
+        with self.assertRaises(decoder.RasterDecodeError) as raised:
+            self.decode(seed.read_bytes(), ".webp")
+        self.assertNotIsInstance(raised.exception, decoder.RasterDecodeWorkerFailure)
+
     def test_deduplicates_aliases_of_one_validated_package_path(self):
         data = self.image_bytes("PNG")
         decoded = decoder.decode_raster_assets_isolated(
@@ -90,6 +96,75 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
             with mock.patch.object(decoder, "WORKER_SCRIPT", script):
                 with self.assertRaises(decoder.RasterDecodeResourceLimit):
                     self.decode(self.image_bytes("PNG"), ".png", limits=limits)
+
+    def test_unexpected_worker_exception_is_not_input_rejection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script = pathlib.Path(directory) / "raising_worker.py"
+            tools_path = pathlib.Path(decoder.__file__).resolve().parent
+            script.write_text(
+                "import sys\n"
+                + "sys.path.insert(0, " + repr(str(tools_path)) + ")\n"
+                + "import raster_decode_worker as worker\n"
+                + "worker._read_request = lambda stream: ({}, [])\n"
+                + "def fail(*args):\n    raise RuntimeError('injected worker error')\n"
+                + "worker._write_response = fail\n"
+                + "raise SystemExit(worker.main())\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(decoder, "WORKER_SCRIPT", script):
+                with self.assertRaises(decoder.RasterDecodeWorkerFailure):
+                    self.decode(self.image_bytes("PNG"), ".png")
+
+    def test_pillow_open_value_error_is_input_rejection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script = pathlib.Path(directory) / "open_value_error_worker.py"
+            tools_path = pathlib.Path(decoder.__file__).resolve().parent
+            lines = [
+                "import sys",
+                "sys.path.insert(0, " + repr(str(tools_path)) + ")",
+                "from PIL import Image",
+                "def fail(*args, **kwargs):",
+                "    raise ValueError('injected open rejection')",
+                "Image.open = fail",
+                "import raster_decode_worker as worker",
+                "raise SystemExit(worker.main())",
+            ]
+            script.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            with mock.patch.object(decoder, "WORKER_SCRIPT", script):
+                with self.assertRaises(decoder.RasterDecodeError) as raised:
+                    self.decode(self.image_bytes("PNG"), ".png")
+            self.assertIs(type(raised.exception), decoder.RasterDecodeError)
+
+    def test_pillow_load_value_error_is_worker_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script = pathlib.Path(directory) / "load_value_error_worker.py"
+            tools_path = pathlib.Path(decoder.__file__).resolve().parent
+            lines = [
+                "import io, sys",
+                "sys.path.insert(0, " + repr(str(tools_path)) + ")",
+                "from PIL import Image",
+                "def fail(self):",
+                "    raise ValueError('injected load failure')",
+                "Image.Image.load = fail",
+                "import raster_decode_worker as worker",
+                "real_stdout = sys.stdout",
+                "class Capture:",
+                "    buffer = io.BytesIO()",
+                "worker.sys.stdout = Capture()",
+                "worker.main()",
+                "response = worker.sys.stdout.buffer.getvalue()",
+                "assert response == worker.RESPONSE_MAGIC + b'\\x03', response",
+                "real_stdout.buffer.write(response)",
+            ]
+            script.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            with mock.patch.object(decoder, "WORKER_SCRIPT", script):
+                with self.assertRaises(decoder.RasterDecodeWorkerFailure):
+                    self.decode(self.image_bytes("PNG"), ".png")
+
+    def test_worker_enforces_response_limit_before_staging(self):
+        limits = decoder.RasterDecodeLimits(max_response_bytes=1)
+        with self.assertRaises(decoder.RasterDecodeResourceLimit):
+            self.decode(self.image_bytes("PNG"), ".png", limits=limits)
 
     def test_timeout_terminates_worker(self):
         with tempfile.TemporaryDirectory() as directory:

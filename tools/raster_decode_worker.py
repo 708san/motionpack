@@ -2,8 +2,10 @@
 import json
 import os
 import pathlib
+import shutil
 import struct
 import sys
+import tempfile
 import warnings
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -13,6 +15,7 @@ from isolated_process import apply_linux_memory_limit  # noqa: E402
 REQUEST_MAGIC = b"MPRQ\x01"
 RESPONSE_MAGIC = b"MPRS\x01"
 MAX_REQUEST_METADATA = 128 * 1024
+MAX_WORKER_RESPONSE_BYTES = 64_000_000 * 4 + 2 * 1024 * 1024
 FORMAT_CODES = {"PNG": 1, "JPEG": 2, "WEBP": 3}
 EXTENSION_FORMATS = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP"}
 
@@ -36,8 +39,10 @@ def _read_request(stream):
     if metadata_size > MAX_REQUEST_METADATA:
         raise ValueError("worker request metadata exceeds limit")
     metadata = json.loads(_read_exact(stream, metadata_size).decode("utf-8"))
-    if not isinstance(metadata, dict):
-        raise ValueError("invalid worker request metadata")
+    if (not isinstance(metadata, dict)
+            or type(metadata.get("max_response_bytes")) is not int
+            or not 1 <= metadata["max_response_bytes"] <= MAX_WORKER_RESPONSE_BYTES):
+        raise ValueError("invalid worker response byte limit")
     if os.name != "nt":
         apply_linux_memory_limit(metadata["memory_limit_bytes"])
 
@@ -65,41 +70,61 @@ def _read_request(stream):
     return metadata, entries
 
 
+class InvalidRasterInput(Exception):
+    """The bounded static-raster decoder rejected input image data."""
+
+
+class RasterResourceLimit(Exception):
+    """The worker exhausted or exceeded a configured resource bound."""
+
+
 def _decode_one(asset_id, extension, data, metadata):
     from io import BytesIO
-    from PIL import Image
-    from PIL import ImageOps
+    from PIL import Image, ImageOps, UnidentifiedImageError
     from validate import parse_raster_dimensions, parse_webp_raster, RasterHeaderError, RasterLimitError
 
     expected_format = EXTENSION_FORMATS.get(extension)
     if expected_format is None:
-        raise RasterHeaderError("unsupported raster extension")
-    if extension == ".webp":
-        width, height, header_pixels = parse_webp_raster(
-            data, metadata["max_dimension"], metadata["max_image_pixels"],
-            metadata["max_input_pixels"],
-        )
-    else:
-        width, height = parse_raster_dimensions(data, extension)
-        header_pixels = width * height
-        if width > metadata["max_dimension"] or height > metadata["max_dimension"]:
-            raise RasterLimitError("raster dimension limit exceeded")
-        if header_pixels > metadata["max_image_pixels"]:
-            raise RasterLimitError("raster pixel limit exceeded")
-        if header_pixels > metadata["max_input_pixels"]:
-            raise RasterLimitError("total raster pixel budget exceeded")
+        raise InvalidRasterInput("unsupported raster extension")
+    try:
+        if extension == ".webp":
+            width, height, _header_pixels = parse_webp_raster(
+                data, metadata["max_dimension"], metadata["max_image_pixels"],
+                metadata["max_input_pixels"],
+            )
+        else:
+            width, height = parse_raster_dimensions(data, extension)
+            header_pixels = width * height
+            if width > metadata["max_dimension"] or height > metadata["max_dimension"]:
+                raise RasterLimitError("raster dimension limit exceeded")
+            if header_pixels > metadata["max_image_pixels"]:
+                raise RasterLimitError("raster pixel limit exceeded")
+            if header_pixels > metadata["max_input_pixels"]:
+                raise RasterLimitError("total raster pixel budget exceeded")
+    except (RasterHeaderError, RasterLimitError) as exc:
+        raise InvalidRasterInput("raster header validation failed") from exc
 
     Image.MAX_IMAGE_PIXELS = metadata["max_image_pixels"]
     with warnings.catch_warnings():
         warnings.simplefilter("error", Image.DecompressionBombWarning)
-        with Image.open(BytesIO(data), formats=(expected_format,)) as image:
+        try:
+            opened = Image.open(BytesIO(data), formats=(expected_format,))
+        except (UnidentifiedImageError, OSError, SyntaxError, ValueError,
+                Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+            raise InvalidRasterInput("raster decoder rejected the image") from exc
+
+        with opened as image:
             if image.format != expected_format:
-                raise RasterHeaderError("decoded format does not match extension")
+                raise InvalidRasterInput("decoded format does not match extension")
             if image.size != (width, height):
-                raise RasterHeaderError("decoded dimensions disagree with header")
+                raise InvalidRasterInput("decoded dimensions disagree with header")
             if getattr(image, "n_frames", 1) != 1:
-                raise RasterHeaderError("animated raster is not supported by this decoder")
-            image.load()
+                raise InvalidRasterInput("animated raster is not supported by this decoder")
+            try:
+                image.load()
+            except (OSError, SyntaxError,
+                    Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+                raise InvalidRasterInput("raster decoder rejected the image") from exc
             frame = ImageOps.exif_transpose(image).convert("RGBA")
             frame_width, frame_height = frame.size
             pixels = frame_width * frame_height
@@ -108,28 +133,42 @@ def _decode_one(asset_id, extension, data, metadata):
                     or frame_height > metadata["max_dimension"]
                     or pixels > metadata["max_image_pixels"]
                     or pixels > metadata["max_decoded_pixels"]):
-                raise RasterLimitError("decoded raster exceeds limits")
+                raise InvalidRasterInput("decoded raster exceeds limits")
             rgba = frame.tobytes("raw", "RGBA")
             if len(rgba) != pixels * 4:
-                raise RasterHeaderError("decoded RGBA length is inconsistent")
+                raise RuntimeError("decoded RGBA length is inconsistent")
             return asset_id, FORMAT_CODES[expected_format], width, height, frame_width, frame_height, rgba
 
 
 def _write_response(output, entries, metadata):
-    output.write(RESPONSE_MAGIC + b"\x00" + struct.pack("!I", len(entries)))
-    total_decoded_pixels = 0
-    for asset_id, extension, data in entries:
-        result = _decode_one(asset_id, extension, data, metadata)
-        _asset_id, format_code, width, height, frame_width, frame_height, rgba = result
-        total_decoded_pixels += frame_width * frame_height
-        if total_decoded_pixels > metadata["max_decoded_pixels"]:
-            raise ValueError("decoded image aggregate exceeds limit")
-        encoded_id = asset_id.encode("utf-8")
-        output.write(struct.pack("!H", len(encoded_id)) + encoded_id)
-        output.write(struct.pack("!BIIIIQ", format_code, width, height, frame_width, frame_height, len(rgba)))
-        output.write(rgba)
-        output.flush()
-        del rgba
+    # Do not publish a success prefix until every image has decoded. If a later
+    # entry is rejected, main() can then return one clean failure frame.
+    with tempfile.TemporaryFile(mode="w+b") as response:
+        response_bytes = 0
+
+        def write_bounded(chunk):
+            nonlocal response_bytes
+            if len(chunk) > metadata["max_response_bytes"] - response_bytes:
+                raise RasterResourceLimit("raster worker response exceeds byte limit")
+            response.write(chunk)
+            response_bytes += len(chunk)
+
+        write_bounded(RESPONSE_MAGIC + b"\x00" + struct.pack("!I", len(entries)))
+        total_decoded_pixels = 0
+        for asset_id, extension, data in entries:
+            result = _decode_one(asset_id, extension, data, metadata)
+            _asset_id, format_code, width, height, frame_width, frame_height, rgba = result
+            total_decoded_pixels += frame_width * frame_height
+            if total_decoded_pixels > metadata["max_decoded_pixels"]:
+                raise RasterResourceLimit("decoded image aggregate exceeds limit")
+            encoded_id = asset_id.encode("utf-8")
+            write_bounded(struct.pack("!H", len(encoded_id)) + encoded_id)
+            write_bounded(struct.pack("!BIIIIQ", format_code, width, height, frame_width, frame_height, len(rgba)))
+            write_bounded(rgba)
+            del rgba
+        response.flush()
+        response.seek(0)
+        shutil.copyfileobj(response, output, length=64 * 1024)
 
 
 def main():
@@ -138,10 +177,12 @@ def main():
         metadata, entries = _read_request(sys.stdin.buffer)
         _write_response(output, entries, metadata)
         return 0
-    except MemoryError:
+    except (MemoryError, RasterResourceLimit):
         output.write(RESPONSE_MAGIC + b"\x02")
-    except BaseException:
+    except InvalidRasterInput:
         output.write(RESPONSE_MAGIC + b"\x01")
+    except BaseException:
+        output.write(RESPONSE_MAGIC + b"\x03")
     output.flush()
     return 0
 

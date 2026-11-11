@@ -169,6 +169,7 @@ def _make_request(unique, limits, memory_limit):
         "max_image_pixels": limits.max_image_pixels,
         "max_input_pixels": limits.max_input_pixels,
         "max_decoded_pixels": limits.max_decoded_pixels,
+        "max_response_bytes": limits.max_response_bytes,
     }, separators=(",", ":"), allow_nan=False).encode("utf-8")
     chunks = [REQUEST_MAGIC, struct.pack("!I", len(metadata)), metadata,
               struct.pack("!I", len(unique))]

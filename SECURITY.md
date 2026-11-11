@@ -67,12 +67,17 @@ element-specific allowlists, and bounds SVG nesting, element count, attributes
 per element and attribute values. Attribute values are not checked against every
 SVG value grammar. It permits only a local `url(#id)` gradient reference in
 `fill` or `stroke`. This is a limited static SVG subset check, not a sanitizer
-for arbitrary renderers. Raster image decoders are not isolated. Bounded
-Atheris coverage-guided targets exercise the ZIP reader, SVG validator, and
-raster header parsers, each with a 15-second pull-request run and a 300-second
-weekly/manual campaign.
-Inputs are capped at 64 KiB, each case has a 2-second timeout, and the shared
-job has a 20-minute limit. This remains bounded fuzzing, not continuous fuzzing.
+for arbitrary renderers. The generated preview still uses browser-native
+image decoding; the optional host API `decode_raster_assets_isolated()` runs
+Pillow in a separate worker with documented resource limits, but the worker is
+not a sandbox. Bounded Atheris coverage-guided targets exercise the ZIP reader,
+SVG validator and raster header parsers. A separate black-box mutation target
+exercises the isolated decoder; Atheris does not receive coverage feedback from
+Pillow or its native codecs.
+All targets use a 15-second pull-request run and a 300-second weekly/manual
+campaign. Inputs are capped at 64 KiB, each case has a 2-second timeout, and
+the shared job has a 25-minute limit so four scheduled campaigns can complete
+with setup overhead. This remains bounded fuzzing, not continuous fuzzing.
 The default `read_package()` path uses the isolated wrapper's platform-specific
 process and memory controls; it is defense in depth, not a sandbox. The explicit
 `read_package_in_process()` path parses in the caller process and should be used
@@ -208,12 +213,28 @@ with:
 /tmp/motionpack-fuzz-venv/bin/python tests/fuzz_raster_headers.py tests/fuzz_corpus/raster_headers -max_total_time=300 -timeout=2 -max_len=65536 -rss_limit_mb=1024 -seed=317772 -artifact_prefix=/tmp/motionpack-fuzz-artifacts/raster-
 ```
 
+The isolated raster decoder target is `tests/fuzz_raster_decoder.py`. It invokes
+`decode_raster_assets_isolated()` with reviewed malformed PNG/JPEG/WebP seeds
+and generates small valid PNG/JPEG/WebP seeds through the already pinned Pillow
+dependency. Ordinary image rejection is expected; worker crashes, malformed
+worker responses, and timeouts fail the target. The target keeps dimensions at
+512 px per edge, total pixels at 262,144, each input at 64 KiB, and the corpus
+at 16 files / 1 MiB. It uses the same 15-second PR and 300-second weekly/manual
+budgets, 2-second case timeout, and 1,024 MiB job RSS limit. The decoder target
+is black-box with respect to Pillow: Atheris does not receive coverage feedback
+from the child worker or its native codecs. It mutates inputs and checks bounded
+results, worker failures, resource-limit failures and timeouts, but it is not
+coverage-guided inside Pillow. Process isolation does not sandbox the worker or
+prove decoder safety.
+
 Atheris is test-only and does not enter the runtime package. Version 3.1.0 is
 pinned to the Linux CPython 3.12 wheel hash; the upstream project is Apache-2.0.
-PyPI lists no provenance attestation for this release, so the workflow uses a
-hash-locked wheel in an isolated environment, with read-only repository
-permissions and no secrets. Review generated crash inputs before adding them
-as regression fixtures; the workflow does not upload or commit fuzz outputs.
+Pillow is also installed from the existing hash-locked `requirements-image.txt`
+with binary wheels only. PyPI lists no provenance attestation for Atheris 3.1.0,
+so the workflow uses hash-locked wheels in an isolated environment, with
+read-only repository permissions and no secrets. Review generated crash inputs
+before adding them as regression fixtures; the workflow does not upload or
+commit fuzz outputs.
 
 The project packager emits only `manifest.json` and its referenced runtime
 assets; it does not automatically add unreferenced project files or `source/`.
