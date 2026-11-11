@@ -372,6 +372,19 @@ def _normalize(manifest, frozen_manifest, manifest_bytes, assets, entries, versi
                 rule_origin="format-spec",
             )
 
+    if version in ("0.2", "0.3", "0.4"):
+        for index, chain in enumerate(manifest.get("iks", [])):
+            if "weight" not in chain:
+                pointer = _pointer("iks", index, "weight")
+                effective_defaults[pointer] = EffectiveValue(
+                    value=1,
+                    source_version=version,
+                    source_pointer=pointer,
+                    field_present=False,
+                    rule_id="motionpack.v0.2.ik.weight.default-one",
+                    rule_origin="format-spec",
+                )
+
     capabilities = _capability_facts(manifest, version)
     diagnostics = list(report_diagnostics)
     diagnostics.extend(
