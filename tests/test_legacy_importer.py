@@ -772,6 +772,56 @@ class LegacyImporterTests(unittest.TestCase):
                 and item.disposition == "confirmed_mapping"
                 for item in snapshot.report.migration_findings
             ))
+            expected_ik_track_pointers = {
+                _pointer("clips", clip_name, "ik_tracks")
+                for clip_name, clip in manifest["clips"].items()
+                if clip.get("ik_tracks")
+            }
+            self.assertTrue(expected_ik_track_pointers)
+            ik_track_findings = [
+                item for item in snapshot.report.migration_findings
+                if item.source_field == "ik_tracks"
+            ]
+            self.assertEqual(
+                {item.source_pointer for item in ik_track_findings},
+                expected_ik_track_pointers,
+            )
+            for item in ik_track_findings:
+                self.assertEqual(item.disposition, "preserved_uninterpreted")
+                self.assertIsNone(item.normalized_target)
+                self.assertEqual(item.scope, "v1-semantics")
+
+            empty_manifest = json.loads(members["manifest.json"].decode("utf-8"))
+            empty_manifest["iks"] = []
+            for clip in empty_manifest["clips"].values():
+                clip.pop("ik_tracks", None)
+            empty_members = dict(members)
+            empty_members["manifest.json"] = json.dumps(
+                empty_manifest, separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")
+            empty_target = pathlib.Path(tmp) / "v01-empty-iks.motionpack"
+            with zipfile.ZipFile(
+                empty_target, "w", compression=zipfile.ZIP_DEFLATED
+            ) as output:
+                for name, payload in empty_members.items():
+                    output.writestr(name, payload)
+            empty_snapshot = import_legacy_package(empty_target, timeout=20)
+            empty_iks_finding = next(
+                item for item in empty_snapshot.report.migration_findings
+                if item.source_pointer == "/iks"
+            )
+            self.assertEqual(
+                empty_iks_finding.disposition, "confirmed_mapping"
+            )
+            self.assertEqual(empty_iks_finding.normalized_target, "ik_chains")
+            self.assertFalse(any(
+                item.disposition == "preserved_uninterpreted"
+                and item.source_field in ("iks", "ik_tracks")
+                for item in empty_snapshot.report.migration_findings
+            ))
+            self.assertNotIn(
+                "org.motionpack.ik.two-bone", empty_snapshot.capabilities
+            )
 
 
 if __name__ == "__main__":
