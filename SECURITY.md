@@ -83,7 +83,11 @@ packages and their assets untrusted.
 separate, opt-in API; the existing synchronous `read_package()` behavior is
 unchanged. The wrapper creates a private temporary directory and starts a fresh
 Python worker without a shell. The worker snapshots at most 40 MiB of a regular
-input file there, then reads the snapshot. The parent enforces the deadline
+input file there while hashing the copied bytes, then makes a second bounded
+read of the same open file and requires the byte count and SHA-256 digest to
+match. This detects content changes that leave size, identity, and modification
+time unchanged, at the cost of reading up to another 40 MiB. It is not an
+atomic filesystem snapshot or a lock against concurrent writers. The parent enforces the deadline
 across input open/copy and ZIP inspection, and counts process creation and job
 setup against the available time. Process creation and OS job setup are
 synchronous and cannot themselves be interrupted; after they return, an expired
