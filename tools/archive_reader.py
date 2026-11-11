@@ -5,6 +5,7 @@ never extracts ZIP members to a caller-controlled path and does not interpret
 optional ``source/`` entries.
 """
 from dataclasses import dataclass
+import io
 import json
 import math
 import os
@@ -338,12 +339,18 @@ def _looks_like_archive(data):
 
 
 def _is_zip_archive_entry(archive, info):
-    """Recognize ZIP payloads even when an executable-style stub precedes them."""
+    """Recognize structurally parseable ZIP payloads, including prefixed ZIPs."""
+    # _preflight has already bounded the aggregate expanded size and ratio.
+    # Reading the entry to EOF validates the outer member before parsing its
+    # bytes as a nested ZIP, and is required to inspect the ZIP end record.
+    payload = _bounded_read(archive, info, info.file_size, "archive entry")
     try:
-        with archive.open(info, "r") as member:
-            return zipfile.is_zipfile(member)
-    except (OSError, RuntimeError, EOFError, zipfile.BadZipFile, NotImplementedError, zlib.error) as exc:
-        _error("unable to inspect archive entry", exc)
+        with zipfile.ZipFile(io.BytesIO(payload), "r") as nested:
+            nested.infolist()  # Parse and validate the central directory.
+        return True
+    except (zipfile.BadZipFile, OSError, EOFError, struct.error, UnicodeError):
+        # Signature-like bytes alone do not make an ordinary payload an archive.
+        return False
 
 
 def _bounded_prefix_read(archive, info, limit=_ARCHIVE_PREFIX_BYTES):
