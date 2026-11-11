@@ -102,13 +102,13 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
             script = pathlib.Path(directory) / "raising_worker.py"
             tools_path = pathlib.Path(decoder.__file__).resolve().parent
             script.write_text(
-                "import sys\\n"
-                + "sys.path.insert(0, " + repr(str(tools_path)) + ")\\n"
-                + "import raster_decode_worker as worker\\n"
-                + "worker._read_request = lambda stream: ({}, [])\\n"
-                + "def fail(*args):\\n    raise RuntimeError('injected worker error')\\n"
-                + "worker._write_response = fail\\n"
-                + "raise SystemExit(worker.main())\\n",
+                "import sys\n"
+                + "sys.path.insert(0, " + repr(str(tools_path)) + ")\n"
+                + "import raster_decode_worker as worker\n"
+                + "worker._read_request = lambda stream: ({}, [])\n"
+                + "def fail(*args):\n    raise RuntimeError('injected worker error')\n"
+                + "worker._write_response = fail\n"
+                + "raise SystemExit(worker.main())\n",
                 encoding="utf-8",
             )
             with mock.patch.object(decoder, "WORKER_SCRIPT", script):
