@@ -623,22 +623,33 @@ def read_package(path, *, limits=None, include_entries=False):
                     retained_entries.update(loaded_by_entry)
 
         # Reuse the v0.1-v0.4 semantic validator on a private temporary
-        # tree containing only the manifest and referenced assets. Canonical entry
-        # paths ensure aliases of one ZIP entry count once for PNG pixel budgets.
-        # No ZIP member controls the temporary path and no caller-selected destination is used.
+        # tree containing only the manifest and referenced assets. Archive member
+        # names stay in the ZIP namespace; generated safe paths are used at the
+        # host-filesystem boundary. Aliases still share one staged entry so raster
+        # pixel budgets count each ZIP asset once.
         with tempfile.TemporaryDirectory(prefix="motionpack-reader-") as temp_name:
             root = pathlib.Path(temp_name)
             validation_manifest = dict(manifest)
             validation_assets = dict(declared_assets)
+            validation_paths = {}
+            for info in resolved.values():
+                if info.filename not in validation_paths:
+                    suffix = pathlib.PurePosixPath(info.filename).suffix.lower()
+                    if suffix not in {".svg", ".png", ".jpg", ".jpeg", ".webp"}:
+                        suffix = ".bin"
+                    validation_paths[info.filename] = (
+                        "assets/asset-" + str(len(validation_paths)) + suffix
+                    )
             for asset_id, info in resolved.items():
-                validation_assets[asset_id] = info.filename
+                validation_assets[asset_id] = validation_paths[info.filename]
             validation_manifest["assets"] = validation_assets
             validation_payload = json.dumps(validation_manifest).encode("utf-8")
             (root / "manifest.json").write_bytes(validation_payload)
             by_path = {}
             for asset_id, info in resolved.items():
                 by_path.setdefault(info.filename, assets[asset_id])
-            for relative_path, data in by_path.items():
+            for archive_path, data in by_path.items():
+                relative_path = validation_paths[archive_path]
                 destination = root.joinpath(*pathlib.PurePosixPath(relative_path).parts)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_bytes(data)
