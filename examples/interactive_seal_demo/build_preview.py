@@ -77,6 +77,7 @@ def build_demo(out, fallback_path=None):
   }
   window.addEventListener('motionpack:interaction',function(event){
     var detail=event.detail||{};
+    window.__lastInteraction=detail;
     if(detail.nodeId!=='seal_hit')return;
     if(detail.type==='hoverenter')document.body.setAttribute('data-seal-hover','true');
     if(detail.type==='hoverleave')document.body.setAttribute('data-seal-hover','false');
