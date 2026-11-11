@@ -63,7 +63,7 @@ function frame(time){
  if(fx.kind==='beam'){const end=fx.target||[S.canvas.width-50,S.canvas.height/3],g=clamp(u*5,0,1),tip=[mix(pos[0],end[0],g),mix(pos[1],end[1],g)];ctx.lineCap='round';
  for(const width of [32,16,6]){ctx.globalAlpha=(1-u)*(.4+1/(width/3));ctx.lineWidth=width;ctx.shadowBlur=width;ctx.beginPath();ctx.moveTo(...pos);ctx.lineTo(...tip);ctx.stroke();}}
  else if(fx.kind==='ring'){ctx.globalAlpha=1-u;ctx.lineWidth=5;ctx.beginPath();ctx.arc(...pos,12+u*(fx.radius||180),0,2*Math.PI);ctx.stroke();}
- else if(fx.kind==='burst'){ctx.globalAlpha=1-u;const count=Math.min(fx.count||28,200);for(let i=0;i<count;i++){const a=i*2.399963+(fx.seed||0),r=u*(fx.radius||130)*(.45+(i*37%100)/160);ctx.beginPath();ctx.arc(pos[0]+r*Math.cos(a),pos[1]+r*Math.sin(a),2+i%4,0,2*Math.PI);ctx.fill();}}
+ else if(fx.kind==='burst'){ctx.globalAlpha=1-u;const count=Math.min(fx.count??28,200);for(let i=0;i<count;i++){const a=i*2.399963+(fx.seed||0),r=u*(fx.radius||130)*(.45+(i*37%100)/160);ctx.beginPath();ctx.arc(pos[0]+r*Math.cos(a),pos[1]+r*Math.sin(a),2+i%4,0,2*Math.PI);ctx.fill();}}
  ctx.restore();}
  document.getElementById('status').textContent=clip+' | '+variant+' | '+Math.round(t)+' ms';requestAnimationFrame(frame);
 }
