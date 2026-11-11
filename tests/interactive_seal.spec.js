@@ -115,7 +115,7 @@ test('touch tap only activates the seal and returns to idle', async ({ browser }
   await context.close();
 });
 
-test('mouse click and host keyboard activation use the same opt-in node', async ({ page }) => {
+test('mouse click activates the opted-in seal node', async ({ page }) => {
   const { externalRequests, pageErrors } = await openDemo(page);
   const canvas = page.locator('#stage');
   await canvas.evaluate(element => {
@@ -131,10 +131,11 @@ test('mouse click and host keyboard activation use the same opt-in node', async 
   const rect = await canvas.boundingBox();
   await page.mouse.click(rect.x + rect.width * 0.5, rect.y + rect.height * 0.64);
   const nativeClick = await page.evaluate(() => window.__nativeSealClick);
+  const interaction = await page.evaluate(() => window.__lastInteraction);
   expect(nativeClick, 'capture the browser-generated mouse click event').toMatchObject({
     pointerType: 'mouse'
   });
-  await expect.poll(() => page.evaluate(() => window.__sealActivations)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__sealActivations), { message: 'mouse interaction: ' + JSON.stringify({ nativeClick, interaction }) }).toBe(1);
   await page.waitForTimeout(700);
   await page.getByRole('button', { name: 'Activate the seal' }).focus();
   await page.keyboard.press('Enter');
@@ -145,6 +146,21 @@ test('mouse click and host keyboard activation use the same opt-in node', async 
   expect(pageErrors).toEqual([]);
 });
 
+
+
+test('host keyboard activation triggers the seal action', async ({ page }) => {
+  const { externalRequests, pageErrors } = await openDemo(page);
+  await page.getByRole('button', { name: 'Activate the seal' }).focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__sealActivations)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
+    .toBe('squish');
+  await page.waitForTimeout(700);
+  await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
+    .toBe('idle');
+  expect(externalRequests).toEqual([]);
+  expect(pageErrors).toEqual([]);
+});
 
 test('static fallback remains visible when an embedded asset fails to decode', async ({ browser }) => {
   const html = fs.readFileSync(preview, 'utf8');
