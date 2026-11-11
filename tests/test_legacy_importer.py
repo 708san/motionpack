@@ -212,25 +212,30 @@ class LegacyImporterTests(unittest.TestCase):
                         self.assertEqual(snapshot.source_version, version)
                         normalized = snapshot.normalized
                         pointer = "/iks/0/weight"
-                        self.assertNotIn("weight", normalized.ik_chains[0].present_fields)
-                        self.assertNotIn("weight", normalized.ik_chains[0].values)
-
                         if authored_weight is not None:
+                            self.assertIn(
+                                "weight", normalized.ik_chains[0].present_fields
+                            )
                             self.assertEqual(
                                 normalized.ik_chains[0].values["weight"],
                                 authored_weight,
                             )
                             self.assertNotIn(pointer, normalized.effective_defaults)
-                        elif version == "0.1":
-                            self.assertNotIn(pointer, normalized.effective_defaults)
-                            self.assertTrue(any(
-                                fact.identifier == "org.motionpack.ik.two-bone"
-                                and fact.interpretation
-                                == "observed-with-version-spec-mismatch"
-                                for fact in normalized.capability_facts
-                            ))
                         else:
-                            effective = normalized.effective_defaults[pointer]
+                            self.assertNotIn(
+                                "weight", normalized.ik_chains[0].present_fields
+                            )
+                            self.assertNotIn("weight", normalized.ik_chains[0].values)
+                            if version == "0.1":
+                                self.assertNotIn(pointer, normalized.effective_defaults)
+                                self.assertTrue(any(
+                                    fact.identifier == "org.motionpack.ik.two-bone"
+                                    and fact.interpretation
+                                    == "observed-with-version-spec-mismatch"
+                                    for fact in normalized.capability_facts
+                                ))
+                            else:
+                                effective = normalized.effective_defaults[pointer]
                             self.assertEqual(effective.value, 1)
                             self.assertEqual(effective.source_version, version)
                             self.assertEqual(effective.source_pointer, pointer)
