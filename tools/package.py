@@ -101,7 +101,7 @@ def _encode_rgba_png(decoded):
     stride = width * 4
     for row in range(height):
         start = row * stride
-        encoded = compressor.compress(b"\\0" + rgba[start:start + stride])
+        encoded = compressor.compress(b"\0" + rgba[start:start + stride])
         if encoded:
             idat.append(_png_chunk(b"IDAT", encoded))
     tail = compressor.flush()
@@ -109,7 +109,7 @@ def _encode_rgba_png(decoded):
         idat.append(_png_chunk(b"IDAT", tail))
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
     return (
-        b"\\x89PNG\\r\\n\\x1a\\n" + _png_chunk(b"IHDR", ihdr)
+        b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", ihdr)
         + b"".join(idat) + _png_chunk(b"IEND", b"")
     )
 
