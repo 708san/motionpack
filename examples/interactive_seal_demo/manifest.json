@@ -1,0 +1,60 @@
+{
+  "format": "motionpack",
+  "version": "0.4",
+  "id": "interactive-seal-demo",
+  "canvas": {
+    "width": 910,
+    "height": 550,
+    "background": "#d9efea"
+  },
+  "assets": {
+    "background": "assets/background.svg",
+    "shadow": "assets/shadow.svg",
+    "flippers": "assets/flippers.svg",
+    "body": "assets/body.svg",
+    "squash": "assets/body_squash.svg",
+    "face": "assets/face.svg",
+    "hit": "assets/seal_hit.svg"
+  },
+  "nodes": [
+    {"id":"background","asset":"background","x":455,"y":275,"width":910,"height":550,"anchor":[0.5,0.5],"z":0},
+    {"id":"shadow","asset":"shadow","x":455,"y":449,"width":330,"height":52,"anchor":[0.5,0.5],"z":1,"opacity":0.55},
+    {"id":"flippers","asset":"flippers","x":455,"y":351,"width":370,"height":245,"anchor":[0.5,0.5],"z":2},
+    {"id":"body","asset":"body","x":455,"y":351,"width":370,"height":245,"anchor":[0.5,0.5],"z":3},
+    {"id":"squash","asset":"squash","x":455,"y":351,"width":370,"height":245,"anchor":[0.5,0.5],"z":4,"opacity":0},
+    {"id":"face","asset":"face","x":455,"y":317,"width":285,"height":126,"anchor":[0.5,0.5],"z":5},
+    {"id":"seal_hit","asset":"hit","x":455,"y":351,"width":370,"height":245,"anchor":[0.5,0.5],"z":6,"interaction":{"hover":true,"tap":true,"click":true}}
+  ],
+  "clips": {
+    "idle": {
+      "duration_ms": 2600,
+      "loop": true,
+      "tracks": [
+        {"node":"body","property":"y","keys":[{"time_ms":0,"value":351},{"time_ms":1300,"value":345},{"time_ms":2600,"value":351}]},
+        {"node":"squash","property":"y","keys":[{"time_ms":0,"value":351},{"time_ms":1300,"value":345},{"time_ms":2600,"value":351}]},
+        {"node":"face","property":"y","keys":[{"time_ms":0,"value":317},{"time_ms":1300,"value":312},{"time_ms":2600,"value":317}]},
+        {"node":"shadow","property":"opacity","keys":[{"time_ms":0,"value":0.52},{"time_ms":1300,"value":0.42},{"time_ms":2600,"value":0.52}]}
+      ],
+      "effects": []
+    },
+    "squish": {
+      "duration_ms": 560,
+      "loop": false,
+      "tracks": [
+        {"node":"body","property":"opacity","keys":[{"time_ms":0,"value":1},{"time_ms":90,"value":0.58},{"time_ms":190,"value":0},{"time_ms":560,"value":0}]},
+        {"node":"squash","property":"opacity","keys":[{"time_ms":0,"value":0},{"time_ms":90,"value":0.42},{"time_ms":190,"value":1},{"time_ms":400,"value":1},{"time_ms":560,"value":0}]},
+        {"node":"body","property":"y","keys":[{"time_ms":0,"value":351},{"time_ms":150,"value":364},{"time_ms":330,"value":347},{"time_ms":560,"value":351}]},
+        {"node":"squash","property":"y","keys":[{"time_ms":0,"value":351},{"time_ms":150,"value":364},{"time_ms":330,"value":347},{"time_ms":560,"value":351}]},
+        {"node":"face","property":"y","keys":[{"time_ms":0,"value":317},{"time_ms":135,"value":331},{"time_ms":330,"value":308},{"time_ms":560,"value":317}]},
+        {"node":"shadow","property":"scale","keys":[{"time_ms":0,"value":1},{"time_ms":150,"value":1.12},{"time_ms":330,"value":0.96},{"time_ms":560,"value":1}]}
+      ],
+      "effects": []
+    }
+  },
+  "variants": {
+    "default": {"nodes":{"body":{"opacity":1},"squash":{"opacity":0}}},
+    "rest": {"nodes":{"body":{"opacity":1},"squash":{"opacity":0}}}
+  },
+  "defaults": {"clip":"idle","variant":"default"},
+  "notes": "Layered offline interaction example. Tap and click notifications are mapped to sample-only host behavior; the manifest contains no executable actions."
+}

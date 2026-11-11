@@ -27,7 +27,7 @@ function matrix(n){const r=(n.rotation||0)*Math.PI/180,s=n.scale??1;return {a:Ma
 function frame(time){
  if(playbackFailed)return;
  let pose,state,t;
- const delta=time-previousFrameTime;previousFrameTime=time;
+ const delta=time<previousFrameTime?0:time-previousFrameTime;previousFrameTime=time;
  try{
   const before=player.getState();
   pose=player.advance(delta);

@@ -28,5 +28,12 @@ controls.transform.onclick();frame(1600);assert(controls.status.textContent.incl
 frame(3000);assert(controls.status.textContent.includes('form_b'));
 controls.reset.onclick();frame(5100);assert(controls.status.textContent.includes('form_a'));
 assert(typeof sandbox.window.MotionPackPlayer.playClip==='function');
+sandbox.window.MotionPackPlayer.playClip('fire');
+frame(5200);
+const beforeClockJump=controls.status.textContent;
+frame(10);
+assert.strictEqual(controls.status.textContent,beforeClockJump,'a backward RAF timestamp must not advance or rewind playback');
+frame(110);
+assert.notStrictEqual(controls.status.textContent,beforeClockJump,'playback must resume when RAF timestamps move forward again');
 if(m.iks){controls.aim.onclick();assert(controls.aim.textContent.includes('ON'));}
 console.log('OK: robot_demo runtime smoke');
