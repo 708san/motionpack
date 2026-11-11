@@ -160,6 +160,8 @@ class FormatTests(unittest.TestCase):
             ('OpenAI key-like value','xsk-proj-'+'A'*24),
             ('AWS access-key ID-like value','xAKIA'+'A'*16),
             ('Slack token-like value','xoxb-'+'A'*24),
+            ('Slack token-like value','xapp-'+'B'*24),
+            ('Slack token-like value','xwfp-'+'C'*24),
             ('private-key header','-----BEGIN ENCRYPTED PRIVATE KEY-----'),
             ('private-key header','-----BEGIN PGP PRIVATE KEY BLOCK-----'),
         )
