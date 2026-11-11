@@ -286,3 +286,110 @@ test('collect report-only package, reader and browser performance measurements',
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   await testInfo.attach('performance.json', { path: reportPath, contentType: 'application/json' });
 });
+
+test('collect unbaselined interactive seal art and motion review frames', async ({ page }, testInfo) => {
+  const sealPreview = path.join(output, 'seal-review', 'preview');
+  const sealHtml = path.join(sealPreview, 'interactive_seal_demo.html');
+  execFileSync('python3', [
+    'examples/interactive_seal_demo/build_preview.py', '--out', sealPreview
+  ], { cwd: root, stdio: 'inherit' });
+
+  const externalRequests = [];
+  const pageErrors = [];
+  page.on('request', request => {
+    if (/^https?:/i.test(request.url())) externalRequests.push(request.url());
+  });
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', message => {
+    if (message.type() === 'error') pageErrors.push(message.text());
+  });
+  await page.route(/^https?:\/\//i, route => route.abort());
+  await page.clock.install({ time: new Date('2024-01-01T00:00:00.000Z') });
+  await page.goto(pathToFileURL(sealHtml).href);
+  await page.locator('#stage').waitFor({ state: 'visible' });
+  await page.waitForFunction(() =>
+    [...document.images].every(image => image.complete && image.naturalWidth > 0)
+  );
+  await page.waitForFunction(() => document.querySelector('#static-fallback').hidden);
+  await page.clock.pauseAt(new Date('2024-01-01T00:01:00.000Z'));
+  await page.clock.runFor(16);
+
+  const captureSealFrame = async name => {
+    const imagePath = path.join(candidateDir, `seal-${name}.png`);
+    await page.locator('#stage').screenshot({ path: imagePath, animations: 'disabled', scale: 'css' });
+    await testInfo.attach(`seal-${name}.png`, { path: imagePath, contentType: 'image/png' });
+    const status = await page.locator('#status').textContent();
+    const canvasSize = await page.locator('#stage').evaluate(canvas => ({
+      logicalWidth: canvas.width,
+      logicalHeight: canvas.height,
+      cssWidth: canvas.getBoundingClientRect().width,
+      cssHeight: canvas.getBoundingClientRect().height
+    }));
+    fs.appendFileSync(path.join(output, 'capture-metadata.txt'),
+      `seal-${name}: ${status}; viewport=${page.viewportSize().width}x${page.viewportSize().height}; ` +
+      `deviceScaleFactor=1; canvasLogical=${canvasSize.logicalWidth}x${canvasSize.logicalHeight}; ` +
+      `canvasCss=${canvasSize.cssWidth}x${canvasSize.cssHeight}; ` +
+      `platform=${process.platform}-${process.arch}; ` +
+      `playwright=${require('@playwright/test/package.json').version}; ` +
+      `chromium=${page.context().browser().version()}; unbaselined-human-review-required\n`);
+    return status;
+  };
+
+  await page.clock.runFor(800);
+  const idle = await captureSealFrame('idle-800ms');
+  await page.evaluate(() => window.MotionPackPlayer.setVariant('rest'));
+  await page.clock.runFor(16);
+  const rest = await captureSealFrame('rest-closed-eyes');
+  await page.evaluate(() => window.MotionPackPlayer.setVariant('default'));
+  const sealPoint = await page.locator('#stage').evaluate(canvas => {
+    const box = canvas.getBoundingClientRect();
+    return { x: box.x + box.width * 0.5, y: box.y + box.height * (351 / 550) };
+  });
+  await page.mouse.move(sealPoint.x, sealPoint.y);
+  await expect.poll(() => page.locator('body').getAttribute('data-seal-hover')).toBe('true');
+  await page.clock.runFor(16);
+  await captureSealFrame('hover-on-seal');
+  await page.mouse.click(sealPoint.x, sealPoint.y);
+  expect(await page.evaluate(() => window.__sealActivations)).toBe(1);
+  expect(await page.evaluate(() => window.__lastInteraction?.type)).toBe('click');
+  expect(await page.evaluate(() => window.__lastInteraction?.pointerType)).toBe('mouse');
+  expect(await page.evaluate(() => window.__lastInteraction?.nodeId)).toBe('seal_hit');
+
+  const motion = [];
+  for (const [name, advance] of [
+    ['squish-90ms', 90], ['squish-190ms', 100], ['squish-330ms', 140],
+    ['squish-520ms', 190], ['return-780ms', 260]
+  ]) {
+    await page.clock.runFor(advance);
+    motion.push(await captureSealFrame(name));
+  }
+  const finalState = await page.evaluate(() => window.MotionPackPlayer.getState());
+  expect(finalState.variant).toBe('rest');
+  expect(await page.evaluate(() => window.__sealActivations)).toBe(1);
+  for (const state of motion.slice(0, 4)) expect(state).toContain('squish |');
+  expect(motion[4]).toContain('idle | rest |');
+  await page.mouse.move(2, 2);
+  await expect.poll(() => page.locator('body').getAttribute('data-seal-hover')).toBe('false');
+  await page.evaluate(({ x, y }) => {
+    const canvas = document.querySelector('#stage');
+    canvas.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y
+    }));
+    window.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true, pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y
+    }));
+  }, sealPoint);
+  expect(await page.evaluate(() => window.__lastInteraction?.type)).toBe('tap');
+  expect(await page.evaluate(() => window.__lastInteraction?.pointerType)).toBe('touch');
+  expect(await page.evaluate(() => window.__sealActivations)).toBe(2);
+  await page.clock.runFor(780);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.runFor(16);
+  await captureSealFrame('idle-390x844');
+  expect(externalRequests, 'preview must not make runtime network requests').toEqual([]);
+  expect(pageErrors, 'preview must not raise uncaught browser errors').toEqual([]);
+  expect(idle).toContain('idle |');
+  expect(rest).toContain('| rest |');
+  expect(motion[0]).toContain('squish |');
+  expect(motion.at(-1)).toContain('idle | rest |');
+});
