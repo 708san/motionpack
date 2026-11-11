@@ -1,6 +1,6 @@
 # Experimental v0.1–v0.4 feature inventory
 
-Status: implementation inventory for v1.0 migration planning. This document records the experimental behavior represented by the repository at PR #61 merge commit `7fb362bfe9cf2b4f763898b5ff0669b23f8cb42a`. PR #61 adds an experimental normalized read-only view over the earlier PR #59 snapshot. This inventory is evidence for planning, not a new normative format specification or a backward-compatibility guarantee.
+Status: implementation inventory for v1.0 migration planning, reconciled with main at `c7d27c068b9d80f9cae4e03bf04f16cdd9bb879a`. This inventory is evidence for planning, not a new normative format specification or a backward-compatibility guarantee.
 
 Use [FORMAT_SPEC.md](FORMAT_SPEC.md) for the current stated format rules, [LEGACY_IMPORT_SNAPSHOT.md](LEGACY_IMPORT_SNAPSHOT.md) for the first read-only import API, and the cited validators/tests/fixtures for implementation evidence. “Format rule” below means explicitly documented behavior; “implementation” means current repository behavior; “gap” means the two should not be conflated.
 
@@ -27,6 +27,24 @@ The validator and archive reader recognize versions 0.1–0.4. The generated pre
 | IK | Optional two-bone chain declarations and IK axis tracks. Missing weight and bend behave as 1 in current validator/runtime; weight is clamped by the runtime. | The format spec introduces IK in v0.2, but validator/runtime do not gate `iks` or `ik_tracks` by version. Therefore a v0.1 manifest can currently contain IK constructs. This is an implementation/spec mismatch; do not silently reinterpret or discard such data during migration. A maintainer decision is required before changing acceptance. |
 | Interaction | A node’s omitted interaction flags are disabled; host receives events and chooses any action. | Runtime hit testing is rectangular, not alpha-aware. Events are not proof of trusted activation. |
 | Sparse data/unknown fields | The v1 read-only importer retains original manifest bytes and parsed data; it reports unrecognized top-level fields. | Current validation is generally permissive for unrecognized manifest/node fields (with explicit checks such as interaction flags). Nested unknown fields are preserved but not semantically classified. This is not a forward-compatibility guarantee. |
+
+## Nested field observations for migration reporting
+
+This section records which structures the current tools inspect. A recognized field is not necessarily the only field permitted in that object. Unless the format description explicitly says a child set is limited, extra fields remain accepted by the permissive v0.x validator and must not be labeled invalid source data.
+
+| Source path | Explicitly described or checked fields | Current boundary for migration reporting |
+|---|---|---|
+| `/canvas` | `width`, `height`; optional `background`. The validator checks integer width and height from 1 through 8,192. | The specification does not say these are the only child fields, and the validator does not reject extra keys. Preserve extras; do not infer that they are invalid in the source. |
+| `/assets` | Asset ID to local path mapping; path and referenced image checks are applied. | Asset IDs are dynamic map keys, not schema field names. Do not classify those keys as unknown fields. |
+| `/nodes/{index}` | `id`, `asset`, `parent`; selected transform fields (`x`, `y`, `rotation`, `opacity`, `scale`, `width`, `height`). Anchor and Z-order are described at a high level, but their complete field grammar is not specified. | The validator permits extra node fields. The normalized view preserves authored fields, so the importer cannot claim a complete nested node schema. |
+| `/nodes/{index}/interaction` (v0.4 only) | Exactly the flags `hover`, `tap`, and `click`, each boolean; the format text says the object contains only these keys and the validator rejects others. | This is the only nested record currently specified as a closed key set. An unknown direct flag can be reported as unsupported by the experimental normalized view while retaining the source manifest; it does not make the original bytes unavailable. |
+| `/clips/{name}` | `duration_ms`, optional `loop`, `tracks`, `ik_tracks`, and `effects`. | Clip names are dynamic map keys. The validator does not reject extra clip fields; effect parameter grammar and several track details remain incomplete. Preserve extras without claiming a complete schema. |
+| `/clips/{name}/tracks/{index}` and `/keys/{index}` | Node tracks use `node`, `property`, `keys`; IK tracks use `ik`, `axis`, `keys`; keyframes use `time_ms` and `value`. | The validator checks selected fields and behavior but does not reject every additional key. Preserve and leave extras unclassified unless a versioned closed field set is approved. |
+| `/iks/{index}` | Two-bone chain fields include `id`, `upper`, `lower`, `lengths`, `target`, `bend`, and `weight`. | The spec introduces IK in v0.2, but current validation does not gate it by source version or reject extra fields. Non-empty v0.1 IK remains preserved and uninterpreted for v1 migration. |
+| `/variants/{name}/nodes/{nodeId}` | Sparse node overlays; current checks include asset references and positive width/height. | Variant and node IDs are dynamic keys; overlay fields are not a closed schema. Preserve and leave unknown overlay data unclassified. |
+| `/defaults` | `clip` and `variant` select initial values. | The validator checks those references but does not reject extra fields. The format text does not explicitly make this a closed object. |
+
+The migration report's `unsupported` disposition means “no mapping in the current experimental normalized projection”; it does not mean the v0.x package is invalid, its data was dropped, or a future v1 schema has rejected it. Today the report classifies unrecognized top-level fields and the specific v0.1 IK ambiguity. Unknown nested fields remain preserved but unclassified, except that the v0.4 interaction record has an explicitly closed key set. See [LEGACY_IMPORT_SNAPSHOT.md](LEGACY_IMPORT_SNAPSHOT.md) for the report's current scope.
 
 ## Cross-version validation and tool limits
 
