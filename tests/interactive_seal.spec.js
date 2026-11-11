@@ -45,7 +45,26 @@ async function captureCandidate(page, testInfo, name) {
   });
 }
 
-test('touch tap only activates the seal and returns to idle', async ({ page }, testInfo) => {
+test('invalid fallback SVG is rejected before package output', async () => {
+  const invalidFallback = path.join(output, 'invalid-fallback.svg');
+  const rejectedOutput = path.join(output, 'rejected-build');
+  fs.rmSync(rejectedOutput, { recursive: true, force: true });
+  fs.writeFileSync(invalidFallback,
+    '<svg xmlns="http://www.w3.org/2000/svg" width="910" height="550" viewBox="0 0 910 550" onload="alert(1)"></svg>');
+  const result = require('node:child_process').spawnSync('python3', [
+    'examples/interactive_seal_demo/build_preview.py',
+    '--out', rejectedOutput,
+    '--fallback', invalidFallback
+  ], { cwd: root, encoding: 'utf8' });
+  expect(result.status).not.toBe(0);
+  expect(fs.existsSync(path.join(rejectedOutput, 'interactive_seal_demo.motionpack'))).toBe(false);
+});
+
+test('touch tap only activates the seal and returns to idle', async ({ browser }, testInfo) => {
+  const context = await browser.newContext({
+    hasTouch: true, viewport: { width: 1000, height: 1400 }, deviceScaleFactor: 1
+  });
+  const page = await context.newPage();
   const { externalRequests, pageErrors } = await openDemo(page);
   const geometry = await page.locator('#stage').evaluate(canvas => {
     const rect = canvas.getBoundingClientRect();
@@ -55,36 +74,13 @@ test('touch tap only activates the seal and returns to idle', async ({ page }, t
   expect(geometry.ratio).toBeCloseTo(910 / 550, 2);
   await captureCandidate(page, testInfo, 'idle');
 
-  await page.evaluate(() => {
-    const canvas = document.querySelector('#stage');
-    const rect = canvas.getBoundingClientRect();
-    const x = rect.left + rect.width * 0.5;
-    const y = rect.top + rect.height * 0.12;
-    canvas.dispatchEvent(new PointerEvent('pointerdown', {
-      bubbles: true, pointerId: 31, pointerType: 'touch', isPrimary: true,
-      clientX: x, clientY: y
-    }));
-    window.dispatchEvent(new PointerEvent('pointerup', {
-      bubbles: true, pointerId: 31, pointerType: 'touch', isPrimary: true,
-      clientX: x, clientY: y
-    }));
-  });
+  const canvasBox = await page.locator('#stage').boundingBox();
+  await page.touchscreen.tap(canvasBox.x + canvasBox.width * 0.5,
+    canvasBox.y + canvasBox.height * 0.12);
   await expect.poll(() => page.evaluate(() => window.__sealActivations)).toBe(0);
 
-  await page.evaluate(() => {
-    const canvas = document.querySelector('#stage');
-    const rect = canvas.getBoundingClientRect();
-    const x = rect.left + rect.width * 0.5;
-    const y = rect.top + rect.height * 0.64;
-    canvas.dispatchEvent(new PointerEvent('pointerdown', {
-      bubbles: true, pointerId: 32, pointerType: 'touch', isPrimary: true,
-      clientX: x, clientY: y
-    }));
-    window.dispatchEvent(new PointerEvent('pointerup', {
-      bubbles: true, pointerId: 32, pointerType: 'touch', isPrimary: true,
-      clientX: x, clientY: y
-    }));
-  });
+  await page.touchscreen.tap(canvasBox.x + canvasBox.width * 0.5,
+    canvasBox.y + canvasBox.height * 0.64);
   await expect.poll(() => page.evaluate(() => window.__sealActivations)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
     .toBe('squish');
@@ -104,6 +100,7 @@ test('touch tap only activates the seal and returns to idle', async ({ page }, t
     '; deviceScaleFactor=' + (await page.evaluate(() => window.devicePixelRatio)) +
     '; bitmap=' + geometry.bitmapWidth + 'x' + geometry.bitmapHeight +
     '; physical-device=false; visual-baseline=not-yet-reviewed\n');
+  await context.close();
 });
 
 test('mouse click and host keyboard activation use the same opt-in node', async ({ page }) => {
