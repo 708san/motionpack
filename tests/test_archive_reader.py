@@ -753,7 +753,13 @@ class ArchiveReaderTests(unittest.TestCase):
                 read_package(disguised)
 
     def test_accepts_non_archive_with_archive_signature_after_prefix(self):
-        harmless = b"S" * 512 + b"PK\x03\x04" + b"not a valid ZIP local header"
+        # Includes an EOCD signature, but claims one central-directory entry
+        # without providing a central directory, so it is not a valid ZIP.
+        invalid_eocd = b"PK\x05\x06" + b"\x00" * 4 + b"\x01\x00\x01\x00" + b"\x00" * 10
+        harmless = (
+            b"S" * 512 + b"PK\x03\x04" + b"not a valid ZIP local header"
+            + b"ordinary payload bytes" + invalid_eocd
+        )
 
         with tempfile.TemporaryDirectory() as tmp:
             valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
@@ -765,14 +771,20 @@ class ArchiveReaderTests(unittest.TestCase):
             self.assertIn("background", result.assets)
 
     def test_source_archive_entries_remain_opaque(self):
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w", compression=zipfile.ZIP_STORED) as nested:
+            nested.writestr("payload.txt", b"opaque source payload")
+        source_zip = b"S" * 512 + inner.getvalue()
+
         with tempfile.TemporaryDirectory() as tmp:
             valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
             with zipfile.ZipFile(valid) as original:
                 entries = [(item.filename, original.read(item)) for item in original.infolist()]
-            entries.append(("source/original.zip", b"PK\x03\x04" + b"opaque source bytes"))
+            entries.append(("source/original.zip", source_zip))
             package = self._zip(pathlib.Path(tmp) / "source-opaque.motionpack", entries)
-            result = read_package(package)
+            result = read_package(package, include_entries=True)
             self.assertNotIn("source/original.zip", result.assets)
+            self.assertEqual(result.source_entries["source/original.zip"], source_zip)
 
     def test_root_entry_named_source_is_not_treated_as_source_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
