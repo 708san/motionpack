@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from dataclasses import FrozenInstanceError
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
@@ -105,14 +106,15 @@ class LegacyImporterTests(unittest.TestCase):
                     manifest = json.loads(members["manifest.json"].decode("utf-8"))
                     clip_names = list(manifest["clips"])
                     self.assertTrue(clip_names)
-                    if len(clip_names) == 1:
-                        probe_name = "loop_default_probe"
+                    while len(clip_names) < 3:
+                        probe_name = f"loop_default_probe_{len(clip_names)}"
                         manifest["clips"][probe_name] = json.loads(
                             json.dumps(manifest["clips"][clip_names[0]])
                         )
                         clip_names.append(probe_name)
                     manifest["clips"][clip_names[0]]["loop"] = True
-                    for name in clip_names[1:]:
+                    manifest["clips"][clip_names[1]]["loop"] = False
+                    for name in clip_names[2:]:
                         manifest["clips"][name].pop("loop", None)
                     members["manifest.json"] = json.dumps(
                         manifest, separators=(",", ":"), ensure_ascii=False
@@ -131,14 +133,25 @@ class LegacyImporterTests(unittest.TestCase):
 
                     normalized = snapshot.normalized
                     self.assertEqual(snapshot.source_version, version)
-                    first = normalized.clips[clip_names[0]]
-                    self.assertTrue(first.loop_present)
-                    self.assertTrue(first.loop_value)
+                    authored_true = normalized.clips[clip_names[0]]
+                    authored_false = normalized.clips[clip_names[1]]
+                    self.assertTrue(authored_true.loop_present)
+                    self.assertTrue(authored_true.loop_value)
+                    self.assertTrue(authored_false.loop_present)
+                    self.assertFalse(authored_false.loop_value)
+                    self.assertNotIn(
+                        authored_true.source_pointer + "/loop",
+                        normalized.effective_defaults,
+                    )
+                    self.assertNotIn(
+                        authored_false.source_pointer + "/loop",
+                        normalized.effective_defaults,
+                    )
                     self.assertEqual(
                         set(normalized.effective_defaults),
-                        {f"/clips/{name}/loop" for name in clip_names[1:]},
+                        {f"/clips/{name}/loop" for name in clip_names[2:]},
                     )
-                    for name in clip_names[1:]:
+                    for name in clip_names[2:]:
                         pointer = f"/clips/{name}/loop"
                         effective = normalized.effective_defaults[pointer]
                         self.assertFalse(normalized.clips[name].loop_present)
@@ -152,6 +165,8 @@ class LegacyImporterTests(unittest.TestCase):
                             "motionpack.v0.clip.loop.default-false",
                         )
                         self.assertEqual(effective.rule_origin, "format-spec")
+                        with self.assertRaises(FrozenInstanceError):
+                            effective.value = True
                     with self.assertRaises(TypeError):
                         normalized.effective_defaults["/clips/injected/loop"] = None
 
