@@ -154,6 +154,67 @@ class FormatTests(unittest.TestCase):
                 self.assertTrue(all(not p.startswith('/') and '..' not in pathlib.PurePosixPath(p).parts for p in z.namelist()))
                 asset_data=z.read(json.loads(z.read('manifest.json'))['assets']['background'])
             self.assertIn(base64.b64encode(asset_data).decode('ascii'),preview.read_text(encoding='utf8'))
+    @mock.patch.object(package_module, "decode_raster_assets_isolated", create=True)
+    def test_opt_in_isolated_raster_preview_preserves_archive_source_bytes(self, decode):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self._copy(tmp)
+            manifest_path = project / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            original_assets = {}
+            rewritten = {}
+            decoded = {}
+            for index, (asset_id, _old_path) in enumerate(manifest["assets"].items()):
+                rel = f"assets/preview-{index}.png"
+                payload = png_ihdr(1, 1)
+                target = project / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(payload)
+                original_assets[rel] = payload
+                rewritten[asset_id] = rel
+                decoded[asset_id] = package_module.DecodedRaster(
+                    "PNG", 1, 1, bytes((20, 40, 60, 255))
+                )
+            manifest["assets"] = rewritten
+            manifest_path.write_text(json.dumps(manifest))
+            decode.return_value = decoded
+
+            archive, preview = build(
+                project, pathlib.Path(tmp) / "dist", isolated_raster_decode=True
+            )
+
+            decode.assert_called_once()
+            with zipfile.ZipFile(archive) as packaged:
+                for rel, expected in original_assets.items():
+                    self.assertEqual(packaged.read(rel), expected)
+            html = preview.read_text(encoding="utf-8")
+            payload_match = re.search(
+                r"window.__MOTIONPACK__=(\{.*?\});</script>", html, re.DOTALL
+            )
+            self.assertIsNotNone(payload_match)
+            embedded = json.loads(payload_match.group(1))
+            for asset in embedded["assets"].values():
+                self.assertTrue(asset.startswith("data:image/png;base64,"))
+                canonical_png = base64.b64decode(asset.split(",", 1)[1])
+                self.assertTrue(canonical_png.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    @mock.patch.object(package_module, "decode_raster_assets_isolated", create=True)
+    def test_opt_in_decoder_failure_preserves_existing_outputs(self, decode):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self._copy(tmp)
+            out = pathlib.Path(tmp) / "dist"
+            out.mkdir()
+            archive = out / (project.name + ".motionpack")
+            preview = out / "preview.html"
+            archive.write_bytes(b"previous archive")
+            preview.write_bytes(b"previous preview")
+            decode.side_effect = RuntimeError("injected decoder failure")
+
+            with self.assertRaises(ValueError):
+                build(project, out, isolated_raster_decode=True)
+
+            self.assertEqual(archive.read_bytes(), b"previous archive")
+            self.assertEqual(preview.read_bytes(), b"previous preview")
+
     def test_package_warns_on_secret_like_referenced_asset_without_rejecting_or_disclosing(self):
         examples=(
             ('GitHub token-like value','xghp_'+'A'*36),
