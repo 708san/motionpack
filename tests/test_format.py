@@ -168,7 +168,6 @@ class FormatTests(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text())
             original_assets = {}
             rewritten = {}
-            decoded = {}
             for index, (asset_id, _old_path) in enumerate(manifest["assets"].items()):
                 rel = f"assets/preview-{index}.png"
                 payload = png_ihdr(1, 1)
@@ -177,18 +176,19 @@ class FormatTests(unittest.TestCase):
                 target.write_bytes(payload)
                 original_assets[rel] = payload
                 rewritten[asset_id] = rel
-                decoded[asset_id] = package_module.DecodedRaster(
-                    "PNG", 1, 1, bytes((20, 40, 60, 255))
-                )
             manifest["assets"] = rewritten
             manifest_path.write_text(json.dumps(manifest))
-            decode.return_value = decoded
+            decode.return_value = {
+                "asset": package_module.DecodedRaster(
+                    "PNG", 1, 1, bytes((20, 40, 60, 255))
+                )
+            }
 
             archive, preview = build(
                 project, pathlib.Path(tmp) / "dist", isolated_raster_decode=True
             )
 
-            decode.assert_called_once()
+            self.assertEqual(decode.call_count, len(original_assets))
             with zipfile.ZipFile(archive) as packaged:
                 for rel, expected in original_assets.items():
                     self.assertEqual(packaged.read(rel), expected)
