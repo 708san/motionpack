@@ -15,6 +15,7 @@ from isolated_process import apply_linux_memory_limit  # noqa: E402
 REQUEST_MAGIC = b"MPRQ\x01"
 RESPONSE_MAGIC = b"MPRS\x01"
 MAX_REQUEST_METADATA = 128 * 1024
+MAX_WORKER_RESPONSE_BYTES = 64_000_000 * 4 + 2 * 1024 * 1024
 FORMAT_CODES = {"PNG": 1, "JPEG": 2, "WEBP": 3}
 EXTENSION_FORMATS = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP"}
 
@@ -38,8 +39,10 @@ def _read_request(stream):
     if metadata_size > MAX_REQUEST_METADATA:
         raise ValueError("worker request metadata exceeds limit")
     metadata = json.loads(_read_exact(stream, metadata_size).decode("utf-8"))
-    if not isinstance(metadata, dict):
-        raise ValueError("invalid worker request metadata")
+    if (not isinstance(metadata, dict)
+            or type(metadata.get("max_response_bytes")) is not int
+            or not 1 <= metadata["max_response_bytes"] <= MAX_WORKER_RESPONSE_BYTES):
+        raise ValueError("invalid worker response byte limit")
     if os.name != "nt":
         apply_linux_memory_limit(metadata["memory_limit_bytes"])
 
@@ -138,7 +141,16 @@ def _write_response(output, entries, metadata):
     # Do not publish a success prefix until every image has decoded. If a later
     # entry is rejected, main() can then return one clean failure frame.
     with tempfile.TemporaryFile(mode="w+b") as response:
-        response.write(RESPONSE_MAGIC + b"\x00" + struct.pack("!I", len(entries)))
+        response_bytes = 0
+
+        def write_bounded(chunk):
+            nonlocal response_bytes
+            if len(chunk) > metadata["max_response_bytes"] - response_bytes:
+                raise RasterResourceLimit("raster worker response exceeds byte limit")
+            response.write(chunk)
+            response_bytes += len(chunk)
+
+        write_bounded(RESPONSE_MAGIC + b"\x00" + struct.pack("!I", len(entries)))
         total_decoded_pixels = 0
         for asset_id, extension, data in entries:
             result = _decode_one(asset_id, extension, data, metadata)
@@ -147,9 +159,9 @@ def _write_response(output, entries, metadata):
             if total_decoded_pixels > metadata["max_decoded_pixels"]:
                 raise RasterResourceLimit("decoded image aggregate exceeds limit")
             encoded_id = asset_id.encode("utf-8")
-            response.write(struct.pack("!H", len(encoded_id)) + encoded_id)
-            response.write(struct.pack("!BIIIIQ", format_code, width, height, frame_width, frame_height, len(rgba)))
-            response.write(rgba)
+            write_bounded(struct.pack("!H", len(encoded_id)) + encoded_id)
+            write_bounded(struct.pack("!BIIIIQ", format_code, width, height, frame_width, frame_height, len(rgba)))
+            write_bounded(rgba)
             del rgba
         response.flush()
         response.seek(0)
