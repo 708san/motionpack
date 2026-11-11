@@ -213,7 +213,7 @@ The validator rejects runtime references into `source/` and local project paths
 with symlink components. The packager snapshots the bounded asset bytes used by
 validation and uses those same bytes for the ZIP and preview. It scans raw
 serialized manifest (including asset paths) and referenced-asset bytes for a
-small set of private-key headers and GitHub, OpenAI, and AWS credential-like
+small set of private-key headers and GitHub, Slack, OpenAI, and AWS credential-like
 patterns, then prints only a generic metadata location or the 1-based
 referenced-asset ordinal and category to standard error. It does not print
 paths or matched values. By default, this is warning-only and matching
