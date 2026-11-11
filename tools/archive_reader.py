@@ -346,11 +346,29 @@ def _is_zip_archive_entry(archive, info):
     payload = _bounded_read(archive, info, info.file_size, "archive entry")
     try:
         with zipfile.ZipFile(io.BytesIO(payload), "r") as nested:
-            nested.infolist()  # Parse and validate the central directory.
-        return True
+            entries = nested.infolist()  # Parse the central-directory records.
     except (zipfile.BadZipFile, OSError, EOFError, struct.error, UnicodeError):
         # Signature-like bytes alone do not make an ordinary payload an archive.
         return False
+
+    # ZipFile accepts some inconsistent empty directories. Cross-check the
+    # classic EOCD entry count when it is available; 0xffff denotes ZIP64.
+    eocd_offset = payload.rfind(b"PK\\x05\\x06", max(0, len(payload) - 22 - 0xFFFF))
+    if eocd_offset < 0 or eocd_offset + 22 > len(payload):
+        return False
+    try:
+        end_record = struct.unpack_from("<4s4H2LH", payload, eocd_offset)
+    except struct.error:
+        return False
+    comment_length = end_record[-1]
+    if eocd_offset + 22 + comment_length != len(payload):
+        return False
+    entries_on_disk, total_entries = end_record[3], end_record[4]
+    if entries_on_disk != 0xFFFF and entries_on_disk != len(entries):
+        return False
+    if total_entries != 0xFFFF and total_entries != len(entries):
+        return False
+    return True
 
 
 def _bounded_prefix_read(archive, info, limit=_ARCHIVE_PREFIX_BYTES):
