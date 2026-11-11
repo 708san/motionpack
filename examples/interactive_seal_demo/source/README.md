@@ -11,10 +11,11 @@ The runtime drawing was manually separated from this shared 910 × 550 coordinat
 | `assets/flippers.svg` | Paired rear flippers | Separated as a layer behind the seal body to keep the silhouette readable. |
 | `assets/body.svg` | Seal silhouette, coat shading and flipper details | Edited into a reusable body layer. |
 | `assets/body_squash.svg` | Wider, lower seal silhouette | Hand-drawn squash pose, cross-faded by the sample clip. |
-| `assets/face.svg` | Eyes, muzzle, nose, smile and cheeks | Independent facial layer. |
+| `assets/face.svg` | Open eyes, muzzle, nose, smile and cheeks | Idle facial layer. |
+| `assets/face_rest.svg` | Closed-eye version of the same face | Derived rest expression, independently layered and cross-faded from the idle face by the `rest` variant. |
 | `assets/seal_hit.svg` | Near-transparent silhouette | Input target; v0.4 hit-testing uses the node rectangle, not vector pixels. |
 
-This is manually authored artwork, not AI-generated or automatically segmented. The original and runtime layers are kept together so the source-to-layer relationship is reproducible. No hidden pixels are reconstructed. The sample host script, rather than the manifest, maps tap/click notifications to animation playback. It does not add a portable squash feature to the format.
+This is manually authored artwork, not AI-generated or automatically segmented. The original and runtime layers are kept together so the source-to-layer relationship is reproducible. The closed-eye rest expression is a manually authored derivative; the complete original source illustration remains unchanged. No hidden pixels are reconstructed. The sample host script, rather than the manifest, maps tap/click notifications to animation playback. It does not add a portable squash feature to the format.
 
 The preview generator creates a self-contained HTML file. No remote assets, network service, or external runtime is used. The static fallback is embedded in the HTML and remains visible if scripts or image decoding fail. Browser emulation is not evidence of physical-device behavior.
 

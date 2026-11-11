@@ -60,6 +60,37 @@ async function captureCandidate(page, testInfo, name) {
   });
 }
 
+async function measureLeftEyeInk(page) {
+  return page.locator('#stage').evaluate(canvas => {
+    const context = canvas.getContext('2d');
+    const scaleX = canvas.width / 910;
+    const scaleY = canvas.height / 550;
+    const centerX = (455 - 285 / 2 + 99) * scaleX;
+    const centerY = (317 - 126 / 2 + 45) * scaleY;
+    const x0 = Math.max(0, Math.floor(centerX - 18 * scaleX));
+    const y0 = Math.max(0, Math.floor(centerY - 18 * scaleY));
+    const width = Math.min(canvas.width - x0, Math.ceil(36 * scaleX));
+    const height = Math.min(canvas.height - y0, Math.ceil(36 * scaleY));
+    const pixels = context.getImageData(x0, y0, width, height).data;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const offset = (y * width + x) * 4;
+        if (pixels[offset] < 100 && pixels[offset + 1] < 130 && pixels[offset + 2] < 130) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+    return { width: maxX - minX + 1, height: maxY - minY + 1 };
+  });
+}
+
 test('invalid fallback SVG is rejected before package output', async () => {
   const invalidFallback = path.join(output, 'invalid-fallback.svg');
   const rejectedOutput = path.join(output, 'rejected-build');
@@ -89,6 +120,7 @@ test('touch tap only activates the seal and returns to idle', async ({ browser }
   });
   expect(geometry.ratio).toBeCloseTo(910 / 550, 2);
   await captureCandidate(page, testInfo, 'idle');
+  const idleEyeInk = await measureLeftEyeInk(page);
 
   const canvasBox = await page.locator('#stage').boundingBox();
   await page.touchscreen.tap(canvasBox.x + canvasBox.width * 0.5,
@@ -110,7 +142,18 @@ test('touch tap only activates the seal and returns to idle', async ({ browser }
     .toBe('idle');
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().variant))
     .toBe('rest');
+  const facialVariants = await page.evaluate(() => ({
+    idle: window.__MOTIONPACK__.variants.default.nodes,
+    rest: window.__MOTIONPACK__.variants.rest.nodes
+  }));
+  expect(facialVariants.idle.face.opacity).toBe(1);
+  expect(facialVariants.idle.face_rest.opacity).toBe(0);
+  expect(facialVariants.rest.face.opacity).toBe(0);
+  expect(facialVariants.rest.face_rest.opacity).toBe(1);
   await captureCandidate(page, testInfo, 'rest');
+  const restEyeInk = await measureLeftEyeInk(page);
+  expect(idleEyeInk.height).toBeGreaterThan(idleEyeInk.width);
+  expect(restEyeInk.width).toBeGreaterThan(restEyeInk.height);
 
   expect(externalRequests).toEqual([]);
   expect(pageErrors).toEqual([]);
