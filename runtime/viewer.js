@@ -27,7 +27,7 @@ function matrix(n){const r=(n.rotation||0)*Math.PI/180,s=n.scale??1;return {a:Ma
 function frame(time){
  if(playbackFailed)return;
  let pose,state,t;
- const delta=previousFrameTime===null?0:time-previousFrameTime;previousFrameTime=time;
+ const delta=previousFrameTime===null||time<previousFrameTime?0:time-previousFrameTime;previousFrameTime=time;
  try{
   const before=player.getState();
   pose=player.advance(delta);
@@ -67,7 +67,7 @@ function frame(time){
  ctx.restore();}
  document.getElementById('status').textContent=clip+' | '+variant+' | '+Math.round(t)+' ms';requestAnimationFrame(frame);
 }
-function playClip(name,next){if(!Object.prototype.hasOwnProperty.call(S.clips,name))return;player.play(name);previousFrameTime=null;transition=next||null;}
+function playClip(name,next){if(!Object.prototype.hasOwnProperty.call(S.clips,name))return;player.play(name);transition=next||null;}
 document.getElementById('idle').onclick=()=>playClip('idle');
 document.getElementById('fire').onclick=()=>playClip('fire');
 document.getElementById('transform').onclick=()=>playClip('transform',player.getState().variant==='form_a'?'form_b':'form_a');
