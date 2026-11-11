@@ -155,6 +155,10 @@ def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=Fals
             raise ValueError("isolated raster preview decoding failed") from exc
         if set(decoded_preview_assets) != set(canonical_manifest["assets"]):
             raise ValueError("isolated raster decoder returned unexpected assets")
+        preview_png_by_asset = {
+            asset_id: _encode_rgba_png(decoded_preview_assets[asset_id])
+            for asset_id in canonical_manifest["assets"]
+        }
 
     with tempfile.TemporaryDirectory(prefix="motionpack-build-") as snapshot_name:
         snapshot_root = Path(snapshot_name)
@@ -181,7 +185,7 @@ def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=Fals
                 data = asset_data[rel]
                 mime = mimetypes.guess_type(rel)[0] or "application/octet-stream"
             else:
-                data = _encode_rgba_png(decoded_preview_assets[key])
+                data = preview_png_by_asset[key]
                 mime = "image/png"
             embedded["assets"][key] = "data:" + mime + ";base64," + base64.b64encode(data).decode("ascii")
         runtime = Path(__file__).resolve().parent.parent / "runtime"
