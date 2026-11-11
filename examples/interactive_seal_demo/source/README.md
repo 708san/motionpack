@@ -8,6 +8,7 @@ The runtime drawing was manually separated from this shared 910 × 550 coordinat
 |---|---|---|
 | `assets/background.svg` | Sea gradient, shoreline, distant wave and bubbles | Separated without external references. |
 | `assets/shadow.svg` | Soft oval contact shadow | Isolated for a subtle idle pulse and squash feedback. |
+| `assets/flippers.svg` | Paired rear flippers | Separated as a layer behind the seal body to keep the silhouette readable. |
 | `assets/body.svg` | Seal silhouette, coat shading and flipper details | Edited into a reusable body layer. |
 | `assets/body_squash.svg` | Wider, lower seal silhouette | Hand-drawn squash pose, cross-faded by the sample clip. |
 | `assets/face.svg` | Eyes, muzzle, nose, smile and cheeks | Independent facial layer. |
