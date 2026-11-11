@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PROJECT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "tools"))
 from package import build  # noqa: E402
+from validate import MAX_ASSET, validate_svg  # noqa: E402
 
 
 def replace_once(document, old, new):
@@ -17,11 +18,23 @@ def replace_once(document, old, new):
     return document.replace(old, new, 1)
 
 
-def build_demo(out):
+def load_fallback(path):
+    data = Path(path).read_bytes()
+    if len(data) > MAX_ASSET:
+        raise ValueError("static fallback SVG exceeds the asset size limit")
+    errors = validate_svg(data, require_dimensions=True)
+    if errors:
+        raise ValueError("invalid static fallback SVG: " + "; ".join(errors))
+    return data
+
+
+def build_demo(out, fallback_path=None):
     out = Path(out).resolve()
+    fallback_path = Path(fallback_path) if fallback_path else PROJECT / "assets" / "static_fallback.svg"
+    fallback_data = load_fallback(fallback_path)
     package, preview = build(PROJECT, out, fail_on_secret_like=True)
     html = preview.read_text(encoding="utf-8")
-    fallback = base64.b64encode((PROJECT / "assets" / "static_fallback.svg").read_bytes()).decode("ascii")
+    fallback = base64.b64encode(fallback_data).decode("ascii")
 
     html = replace_once(html, "<title>MotionPack Preview</title>",
                         "<title>Interactive Seal — MotionPack example</title>")
@@ -99,9 +112,10 @@ def build_demo(out):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", default="dist")
+    parser.add_argument("--fallback", default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
     try:
-        package, html = build_demo(args.out)
+        package, html = build_demo(args.out, args.fallback)
     except (OSError, ValueError, TypeError) as exc:
         print("Build failed:", exc, file=sys.stderr)
         raise SystemExit(1)
