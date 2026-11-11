@@ -20,7 +20,7 @@ The normalized package exposes:
 - IK chains and per-node interaction data only when present in source content.
 - Capability facts and diagnostics distinct from package payloads.
 
-Field-presence information is preserved so explicit values remain distinguishable from absent fields. This API does not materialize defaults into either the original manifest or the normalized source view. Version-aware effective defaults can be added later as a separate, traced interpretation.
+Field-presence information is preserved so explicit values remain distinguishable from absent fields. Defaults are not materialized into the original manifest or sparse normalized source view. The separate immutable `effective_defaults` view currently exposes only the documented omitted clip `loop` value (`false`), keyed by its JSON Pointer. Each record includes the source version and pointer, confirms the field was absent, and identifies the rule as `motionpack.v0.clip.loop.default-false` from `FORMAT_SPEC.md`. No IK or other implementation-derived default is inferred in this view. This is an experimental importer projection, not a v1 schema or serializer contract.
 
 Unknown or unclassified fields remain recoverable from the immutable original parsed manifest and raw manifest bytes. The normalized view may report them as preserved and uninterpreted; it must not drop them.
 
