@@ -177,6 +177,11 @@ def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=Fals
             total_preview_png_bytes += len(preview_png)
             preview_png_by_path[rel] = preview_png
             remaining_pixels -= raster.width * raster.height
+        total_embedded_png_bytes = 0
+        for rel in canonical_manifest["assets"].values():
+            total_embedded_png_bytes += len(preview_png_by_path[rel])
+            if total_embedded_png_bytes > 64 * 1024 * 1024:
+                raise ValueError("isolated raster preview exceeds its 64 MiB encoded output limit")
 
     with tempfile.TemporaryDirectory(prefix="motionpack-build-") as snapshot_name:
         snapshot_root = Path(snapshot_name)
