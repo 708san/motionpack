@@ -206,6 +206,47 @@ class FormatTests(unittest.TestCase):
 
     @mock.patch.object(package_module, "_encode_rgba_png")
     @mock.patch.object(package_module, "decode_raster_assets_isolated")
+    def test_opt_in_aliases_count_toward_embedded_preview_size_limit(self, decode, encode):
+        class SizedPreview:
+            def __len__(self):
+                return 33 * 1024 * 1024
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self._copy(tmp)
+            manifest_path = project / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            self.assertGreaterEqual(len(manifest["assets"]), 2)
+            shared_path = "assets/shared-preview.png"
+            target = project / shared_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(png_ihdr(1, 1))
+            manifest["assets"] = {
+                asset_id: shared_path for asset_id in manifest["assets"]
+            }
+            manifest_path.write_text(json.dumps(manifest))
+
+            out = pathlib.Path(tmp) / "dist"
+            out.mkdir()
+            archive = out / (project.name + ".motionpack")
+            preview = out / "preview.html"
+            archive.write_bytes(b"previous archive")
+            preview.write_bytes(b"previous preview")
+            decode.return_value = {
+                "asset": raster_decoder.DecodedRaster(
+                    "PNG", 1, 1, bytes((20, 40, 60, 255))
+                )
+            }
+            encode.return_value = SizedPreview()
+
+            with self.assertRaisesRegex(ValueError, "64 MiB"):
+                build(project, out, isolated_raster_decode=True)
+
+            decode.assert_called_once()
+            self.assertEqual(archive.read_bytes(), b"previous archive")
+            self.assertEqual(preview.read_bytes(), b"previous preview")
+
+    @mock.patch.object(package_module, "_encode_rgba_png")
+    @mock.patch.object(package_module, "decode_raster_assets_isolated")
     def test_opt_in_preview_size_limit_preserves_existing_outputs(self, decode, encode):
         class OversizedPreview:
             def __len__(self):
@@ -232,7 +273,7 @@ class FormatTests(unittest.TestCase):
             archive.write_bytes(b"previous archive")
             preview.write_bytes(b"previous preview")
             decode.return_value = {
-                "asset": package_module.DecodedRaster(
+                "asset": raster_decoder.DecodedRaster(
                     "PNG", 1, 1, bytes((20, 40, 60, 255))
                 )
             }
