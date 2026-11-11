@@ -337,6 +337,15 @@ def _looks_like_archive(data):
     return header_sum == expected
 
 
+def _is_zip_archive_entry(archive, info):
+    """Recognize ZIP payloads even when an executable-style stub precedes them."""
+    try:
+        with archive.open(info, "r") as member:
+            return zipfile.is_zipfile(member)
+    except (OSError, RuntimeError, EOFError, zipfile.BadZipFile, NotImplementedError, zlib.error) as exc:
+        _error("unable to inspect archive entry", exc)
+
+
 def _bounded_prefix_read(archive, info, limit=_ARCHIVE_PREFIX_BYTES):
     """Read only a small decompressed prefix of an entry for format sniffing."""
     chunks = []
@@ -426,11 +435,14 @@ def _preflight(archive, limits):
             if ratio > limits.max_compression_ratio:
                 _error("archive compression ratio exceeds limit")
 
-        # Keep source/ opaque. Prefix reads elsewhere are bounded and include
-        # unreferenced entries, so disguised nested archives cannot bypass checks.
+        # Keep source/ opaque. All other entries are within the aggregate
+        # uncompressed-size limit above. Inspect ZIP structure as well as a
+        # bounded prefix so executable-style stubs cannot hide an inner ZIP.
         source_tree_payload = _is_source_path(name) and len(parts) > 1
         if not info.is_dir() and not source_tree_payload:
             if _looks_like_archive(_bounded_prefix_read(archive, info)):
+                _error("nested archive entries are unsupported")
+            if _is_zip_archive_entry(archive, info):
                 _error("nested archive entries are unsupported")
 
     manifests = [item for item in infos if item.filename == "manifest.json"]
