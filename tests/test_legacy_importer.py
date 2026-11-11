@@ -170,6 +170,77 @@ class LegacyImporterTests(unittest.TestCase):
                     with self.assertRaises(TypeError):
                         normalized.effective_defaults["/clips/injected/loop"] = None
 
+    def test_ik_weight_default_is_version_gated_and_has_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = self._fixture("0.2")
+            with zipfile.ZipFile(source, "r") as archive:
+                source_members = {
+                    info.filename: archive.read(info)
+                    for info in archive.infolist()
+                    if not info.is_dir()
+                }
+
+            for version in ("0.1", "0.2", "0.3", "0.4"):
+                for authored_weight in (None, 0.25):
+                    with self.subTest(version=version, authored_weight=authored_weight):
+                        target = pathlib.Path(tmp) / (
+                            f"ik-weight-{version}-{authored_weight}.motionpack"
+                        )
+                        members = dict(source_members)
+                        manifest = json.loads(members["manifest.json"].decode("utf-8"))
+                        manifest["version"] = version
+                        chain = manifest["iks"][0]
+                        if authored_weight is None:
+                            chain.pop("weight", None)
+                        else:
+                            chain["weight"] = authored_weight
+                        members["manifest.json"] = json.dumps(
+                            manifest, separators=(",", ":"), ensure_ascii=False
+                        ).encode("utf-8")
+                        with zipfile.ZipFile(
+                            target, "w", compression=zipfile.ZIP_DEFLATED
+                        ) as archive:
+                            for name, payload in members.items():
+                                archive.writestr(name, payload)
+
+                        before_digest = hashlib.sha256(target.read_bytes()).digest()
+                        snapshot = import_legacy_package(target, timeout=20)
+                        self.assertEqual(
+                            hashlib.sha256(target.read_bytes()).digest(),
+                            before_digest,
+                        )
+                        self.assertEqual(snapshot.source_version, version)
+                        normalized = snapshot.normalized
+                        pointer = "/iks/0/weight"
+                        self.assertNotIn("weight", normalized.ik_chains[0].present_fields)
+                        self.assertNotIn("weight", normalized.ik_chains[0].values)
+
+                        if authored_weight is not None:
+                            self.assertEqual(
+                                normalized.ik_chains[0].values["weight"],
+                                authored_weight,
+                            )
+                            self.assertNotIn(pointer, normalized.effective_defaults)
+                        elif version == "0.1":
+                            self.assertNotIn(pointer, normalized.effective_defaults)
+                            self.assertTrue(any(
+                                fact.identifier == "org.motionpack.ik.two-bone"
+                                and fact.interpretation
+                                == "observed-with-version-spec-mismatch"
+                                for fact in normalized.capability_facts
+                            ))
+                        else:
+                            effective = normalized.effective_defaults[pointer]
+                            self.assertEqual(effective.value, 1)
+                            self.assertEqual(effective.source_version, version)
+                            self.assertEqual(effective.source_pointer, pointer)
+                            self.assertFalse(effective.field_present)
+                            self.assertEqual(
+                                effective.rule_id,
+                                "motionpack.v0.2.ik.weight.default-one",
+                            )
+                            self.assertEqual(effective.rule_origin, "format-spec")
+
     def test_normalized_view_projects_sparse_fields_and_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:
             for version in ("0.1", "0.2", "0.3", "0.4"):
