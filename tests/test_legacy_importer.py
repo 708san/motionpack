@@ -92,9 +92,10 @@ class LegacyImporterTests(unittest.TestCase):
 
 
     def test_omitted_loop_default_is_separate_and_has_provenance(self):
-        for version in ("0.1", "0.2", "0.3", "0.4"):
-            with self.subTest(version=version):
-                source = self._fixture(version)
+        with tempfile.TemporaryDirectory() as tmp:
+            for version in ("0.1", "0.2", "0.3", "0.4"):
+                with self.subTest(version=version):
+                    source = self._fixture(version)
                     target = pathlib.Path(tmp) / f"loop-default-{version}.motionpack"
                     with zipfile.ZipFile(source, "r") as archive:
                         members = {
