@@ -20,7 +20,8 @@ The paths below come from each example's `manifest.json`. The two robot examples
 
 - `examples/layered_plant_demo/source/plant_original.svg` and `examples/interactive_seal_demo/source/interactive_seal_original.svg` are preserved source illustrations. The normal example packager excludes `source/`; repository/source archive distribution still requires rights review.
 - `examples/interactive_seal_demo/assets/static_fallback.svg` is read by the preview generator and embedded in its generated HTML fallback. It is excluded from the `.motionpack` runtime archive by the example's package check, but requires separate rights confirmation if the preview or repository is distributed.
-- Playwright screenshot baselines, CI screenshot artifacts, and security/fuzz corpus images are not itemized here. Decide whether each is part of a release or source archive and review its rights separately.
+- The tracked compatibility archives `tests/fixtures/compatibility_archive_reader/valid_v03.motionpack` and `valid_v04.motionpack` are generated from the plant and interaction examples and contain their referenced runtime assets. The historical `tests/fuzz_corpus/archive_reader/valid_v01.motionpack` and `valid_v02.motionpack` packages are also tracked; their embedded assets and rights have not been itemized. Review all four if test fixtures are included in a source archive or release distribution.
+- Playwright screenshot baselines, CI screenshot artifacts, and other security/fuzz corpus images are not itemized here. Decide whether each is part of a release or source archive and review its rights separately.
 
 ## What is not established
 
