@@ -1,0 +1,155 @@
+{
+  "coverage": {
+    "assurance": "Offline provenance/drift inventory, not a complete SBOM or license/legal determination",
+    "container_images": "workflow image/container references; SHA-256 digest required",
+    "github_actions": "unquoted block-style workflow uses references; full commit SHA required; quoted, inline and explicit-key forms fail closed",
+    "not_covered": [
+      "packages bundled inside third-party GitHub Actions",
+      "OS/browser packages inside OCI images",
+      "GitHub-hosted runner contents",
+      "native libraries bundled inside binary wheels"
+    ],
+    "npm": "package-lock.json v3 entries; resolved URL, integrity and declared license",
+    "python": "requirements-*.txt; exact versions and SHA-256 hashes required"
+  },
+  "dependencies": [
+    {
+      "commit": "11bd71901bbe5b1630ceea73d27597364c9af683",
+      "ecosystem": "github-action",
+      "license": {
+        "evidence": "https://github.com/actions/checkout/blob/11bd71901bbe5b1630ceea73d27597364c9af683/LICENSE",
+        "expression": "MIT",
+        "status": "pinned-license-file"
+      },
+      "name": "actions/checkout",
+      "source": "https://github.com/actions/checkout",
+      "version": null,
+      "workflows": [
+        "ci.yml",
+        "governance.yml",
+        "isolated-reader.yml",
+        "visual-regression.yml",
+        "zip-reader-fuzz.yml"
+      ]
+    },
+    {
+      "commit": "a26af69be951a213d495a4c3e4e4022e16d87065",
+      "ecosystem": "github-action",
+      "license": {
+        "evidence": "https://github.com/actions/setup-python/blob/a26af69be951a213d495a4c3e4e4022e16d87065/LICENSE",
+        "expression": "MIT",
+        "status": "pinned-license-file"
+      },
+      "name": "actions/setup-python",
+      "source": "https://github.com/actions/setup-python",
+      "version": "v5.6.0",
+      "workflows": [
+        "isolated-reader.yml",
+        "zip-reader-fuzz.yml"
+      ]
+    },
+    {
+      "commit": "cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+      "ecosystem": "github-action",
+      "license": {
+        "evidence": "https://github.com/actions/upload-artifact/blob/cf430e030ddbb5b0abf93d22962f4752f3646cd9/LICENSE",
+        "expression": "MIT",
+        "status": "pinned-license-file"
+      },
+      "name": "actions/upload-artifact",
+      "source": "https://github.com/actions/upload-artifact",
+      "version": null,
+      "workflows": [
+        "visual-regression.yml"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "integrity": "sha512-iGURLGuKDLakSEl7Pgfv8h7f+XLT+V861Wfhz0zlEl5nyFuKUopdkFBPKqTllTUp06aOwPuH8iuUEb3yp3MpbQ==",
+      "license": {
+        "evidence": "package-lock.json",
+        "expression": "Apache-2.0",
+        "status": "declared-in-lock"
+      },
+      "name": "@playwright/test",
+      "source": "https://registry.npmjs.org/@playwright/test/-/test-1.65.0.tgz",
+      "version": "1.65.0"
+    },
+    {
+      "ecosystem": "npm",
+      "integrity": "sha512-F3AMWcR44qMBt4kq+6Kb6mX7bjGXshktKFOPULd7reED6ZJWevjbNRqysP7q+AATE9kdPEZBibex1BYsvpVoeA==",
+      "license": {
+        "evidence": "package-lock.json",
+        "expression": "Apache-2.0",
+        "status": "declared-in-lock"
+      },
+      "name": "playwright",
+      "source": "https://registry.npmjs.org/playwright/-/playwright-1.65.0.tgz",
+      "version": "1.65.0"
+    },
+    {
+      "ecosystem": "npm",
+      "integrity": "sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA==",
+      "license": {
+        "evidence": "package-lock.json",
+        "expression": "Apache-2.0",
+        "status": "declared-in-lock"
+      },
+      "name": "playwright-core",
+      "source": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.65.0.tgz",
+      "version": "1.65.0"
+    },
+    {
+      "digest": "sha256:6e3fb709361521eb27161606e6da6d2674e5e89fa16516cb37d6fdd91372273d",
+      "ecosystem": "oci-image",
+      "license": {
+        "evidence": "Nested OS/browser packages are not enumerated; obtain and review an image SBOM before release.",
+        "expression": null,
+        "status": "not-assessed-composite-image"
+      },
+      "name": "mcr.microsoft.com/playwright:v1.65.0-noble",
+      "source": "https://mcr.microsoft.com",
+      "version": "v1.65.0-noble",
+      "workflows": [
+        "visual-regression.yml"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "groups": [
+        "image"
+      ],
+      "hashes": [
+        "sha256:42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca",
+        "sha256:fc481f742ccda20e9ed760b8f978dff50f2a4e9bc253ac167fb0a05b0783ef52",
+        "sha256:ff3fe9eb621fbb9db4c4be33ab946f6bac5f98ab50ca8d3260503653656c961b"
+      ],
+      "license": {
+        "evidence": "https://github.com/python-pillow/Pillow/blob/13.0.0/LICENSE",
+        "expression": "MIT-CMU",
+        "status": "upstream-license-file"
+      },
+      "name": "Pillow",
+      "source": "https://pypi.org/project/pillow/13.0.0/",
+      "version": "13.0.0"
+    },
+    {
+      "ecosystem": "pypi",
+      "groups": [
+        "fuzz"
+      ],
+      "hashes": [
+        "sha256:ec5e11f21a4c197fe91f7aea2b2de88e623c73a21fc07b105ac6329a1588457b"
+      ],
+      "license": {
+        "evidence": "SECURITY.md",
+        "expression": "Apache-2.0",
+        "status": "maintainer-documented"
+      },
+      "name": "atheris",
+      "source": "https://pypi.org/project/atheris/3.1.0/",
+      "version": "3.1.0"
+    }
+  ],
+  "schema_version": 1
+}
