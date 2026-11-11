@@ -549,6 +549,7 @@ class LegacyImporterTests(unittest.TestCase):
                 }
             manifest = json.loads(members["manifest.json"].decode("utf-8"))
             manifest["version"] = "0.1"
+            manifest["iks"][0].pop("bend", None)
             members["manifest.json"] = json.dumps(
                 manifest, separators=(",", ":"), ensure_ascii=False
             ).encode("utf-8")
@@ -563,6 +564,8 @@ class LegacyImporterTests(unittest.TestCase):
             self.assertEqual(snapshot.normalized.manifest_bytes, members["manifest.json"])
             self.assertTrue(snapshot.normalized.ik_chains)
             self.assertIn("org.motionpack.ik.two-bone", snapshot.capabilities)
+            self.assertNotIn("bend", snapshot.normalized.ik_chains[0].present_fields)
+            self.assertNotIn("bend", snapshot.normalized.ik_chains[0].values)
             self.assertNotIn(
                 "/iks/0/bend", snapshot.normalized.effective_defaults
             )
