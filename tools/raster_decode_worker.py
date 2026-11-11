@@ -67,54 +67,67 @@ def _read_request(stream):
     return metadata, entries
 
 
+class InvalidRasterInput(Exception):
+    """The bounded static-raster decoder rejected input image data."""
+
+
 def _decode_one(asset_id, extension, data, metadata):
     from io import BytesIO
-    from PIL import Image
-    from PIL import ImageOps
+    from PIL import Image, ImageOps, UnidentifiedImageError
     from validate import parse_raster_dimensions, parse_webp_raster, RasterHeaderError, RasterLimitError
 
     expected_format = EXTENSION_FORMATS.get(extension)
     if expected_format is None:
-        raise RasterHeaderError("unsupported raster extension")
-    if extension == ".webp":
-        width, height, header_pixels = parse_webp_raster(
-            data, metadata["max_dimension"], metadata["max_image_pixels"],
-            metadata["max_input_pixels"],
-        )
-    else:
-        width, height = parse_raster_dimensions(data, extension)
-        header_pixels = width * height
-        if width > metadata["max_dimension"] or height > metadata["max_dimension"]:
-            raise RasterLimitError("raster dimension limit exceeded")
-        if header_pixels > metadata["max_image_pixels"]:
-            raise RasterLimitError("raster pixel limit exceeded")
-        if header_pixels > metadata["max_input_pixels"]:
-            raise RasterLimitError("total raster pixel budget exceeded")
+        raise InvalidRasterInput("unsupported raster extension")
+    try:
+        if extension == ".webp":
+            width, height, _header_pixels = parse_webp_raster(
+                data, metadata["max_dimension"], metadata["max_image_pixels"],
+                metadata["max_input_pixels"],
+            )
+        else:
+            width, height = parse_raster_dimensions(data, extension)
+            header_pixels = width * height
+            if width > metadata["max_dimension"] or height > metadata["max_dimension"]:
+                raise RasterLimitError("raster dimension limit exceeded")
+            if header_pixels > metadata["max_image_pixels"]:
+                raise RasterLimitError("raster pixel limit exceeded")
+            if header_pixels > metadata["max_input_pixels"]:
+                raise RasterLimitError("total raster pixel budget exceeded")
+    except (RasterHeaderError, RasterLimitError) as exc:
+        raise InvalidRasterInput("raster header validation failed") from exc
 
     Image.MAX_IMAGE_PIXELS = metadata["max_image_pixels"]
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", Image.DecompressionBombWarning)
-        with Image.open(BytesIO(data), formats=(expected_format,)) as image:
-            if image.format != expected_format:
-                raise RasterHeaderError("decoded format does not match extension")
-            if image.size != (width, height):
-                raise RasterHeaderError("decoded dimensions disagree with header")
-            if getattr(image, "n_frames", 1) != 1:
-                raise RasterHeaderError("animated raster is not supported by this decoder")
-            image.load()
-            frame = ImageOps.exif_transpose(image).convert("RGBA")
-            frame_width, frame_height = frame.size
-            pixels = frame_width * frame_height
-            if (frame_width < 1 or frame_height < 1
-                    or frame_width > metadata["max_dimension"]
-                    or frame_height > metadata["max_dimension"]
-                    or pixels > metadata["max_image_pixels"]
-                    or pixels > metadata["max_decoded_pixels"]):
-                raise RasterLimitError("decoded raster exceeds limits")
-            rgba = frame.tobytes("raw", "RGBA")
-            if len(rgba) != pixels * 4:
-                raise RasterHeaderError("decoded RGBA length is inconsistent")
-            return asset_id, FORMAT_CODES[expected_format], width, height, frame_width, frame_height, rgba
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(BytesIO(data), formats=(expected_format,)) as image:
+                if image.format != expected_format:
+                    raise RasterHeaderError("decoded format does not match extension")
+                if image.size != (width, height):
+                    raise RasterHeaderError("decoded dimensions disagree with header")
+                if getattr(image, "n_frames", 1) != 1:
+                    raise RasterHeaderError("animated raster is not supported by this decoder")
+                image.load()
+                frame = ImageOps.exif_transpose(image).convert("RGBA")
+                frame_width, frame_height = frame.size
+                pixels = frame_width * frame_height
+                if (frame_width < 1 or frame_height < 1
+                        or frame_width > metadata["max_dimension"]
+                        or frame_height > metadata["max_dimension"]
+                        or pixels > metadata["max_image_pixels"]
+                        or pixels > metadata["max_decoded_pixels"]):
+                    raise RasterLimitError("decoded raster exceeds limits")
+                rgba = frame.tobytes("raw", "RGBA")
+                if len(rgba) != pixels * 4:
+                    raise RasterHeaderError("decoded RGBA length is inconsistent")
+                return asset_id, FORMAT_CODES[expected_format], width, height, frame_width, frame_height, rgba
+    except InvalidRasterInput:
+        raise
+    except (RasterHeaderError, RasterLimitError, UnidentifiedImageError, OSError,
+            SyntaxError, ValueError, Image.DecompressionBombError,
+            Image.DecompressionBombWarning) as exc:
+        raise InvalidRasterInput("raster decoder rejected the image") from exc
 
 
 def _write_response(output, entries, metadata):
@@ -147,8 +160,10 @@ def main():
         return 0
     except MemoryError:
         output.write(RESPONSE_MAGIC + b"\x02")
-    except BaseException:
+    except InvalidRasterInput:
         output.write(RESPONSE_MAGIC + b"\x01")
+    except BaseException:
+        output.write(RESPONSE_MAGIC + b"\x03")
     output.flush()
     return 0
 
