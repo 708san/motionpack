@@ -372,6 +372,22 @@ def _normalize(manifest, frozen_manifest, manifest_bytes, assets, entries, versi
                 rule_origin="format-spec",
             )
 
+    if version in ("0.1", "0.2", "0.3", "0.4"):
+        for clip_name, clip in manifest.get("clips", {}).items():
+            for index, effect in enumerate(clip.get("effects", [])):
+                if effect.get("kind") == "burst" and "count" not in effect:
+                    pointer = _pointer(
+                        "clips", clip_name, "effects", index, "count"
+                    )
+                    effective_defaults[pointer] = EffectiveValue(
+                        value=28,
+                        source_version=version,
+                        source_pointer=pointer,
+                        field_present=False,
+                        rule_id="motionpack.v0.effect.burst.count.default-28",
+                        rule_origin="implementation",
+                    )
+
     if version in ("0.2", "0.3", "0.4"):
         for index, chain in enumerate(manifest.get("iks", [])):
             if "weight" not in chain:
