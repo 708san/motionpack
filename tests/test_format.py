@@ -154,6 +154,12 @@ class FormatTests(unittest.TestCase):
                 self.assertTrue(all(not p.startswith('/') and '..' not in pathlib.PurePosixPath(p).parts for p in z.namelist()))
                 asset_data=z.read(json.loads(z.read('manifest.json'))['assets']['background'])
             self.assertIn(base64.b64encode(asset_data).decode('ascii'),preview.read_text(encoding='utf8'))
+    @mock.patch.object(package_module, "decode_raster_assets_isolated")
+    def test_default_package_does_not_start_raster_decoder(self, decode):
+        with tempfile.TemporaryDirectory() as tmp:
+            build(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "dist")
+        decode.assert_not_called()
+
     @mock.patch.object(package_module, "decode_raster_assets_isolated", create=True)
     def test_opt_in_isolated_raster_preview_preserves_archive_source_bytes(self, decode):
         with tempfile.TemporaryDirectory() as tmp:
@@ -207,7 +213,7 @@ class FormatTests(unittest.TestCase):
             preview = out / "preview.html"
             archive.write_bytes(b"previous archive")
             preview.write_bytes(b"previous preview")
-            decode.side_effect = RuntimeError("injected decoder failure")
+            decode.side_effect = package_module.RasterDecodeError("injected decoder failure")
 
             with self.assertRaises(ValueError):
                 build(project, out, isolated_raster_decode=True)
