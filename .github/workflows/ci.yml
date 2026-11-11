@@ -18,8 +18,8 @@ jobs:
         run: |
           python3 tools/validate.py examples/robot_demo
           python3 tools/validate.py examples/robot_ik_demo
-      - name: Build offline preview
-        run: python3 tools/package.py examples/robot_ik_demo --out /tmp/motionpack_build
+      - name: Build offline preview with strict secret scan
+        run: python3 tools/package.py examples/robot_ik_demo --out /tmp/motionpack_build --fail-on-secret-like
       - name: IK and runtime smoke tests
         run: |
           node tests/ik_test.js
