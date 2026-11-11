@@ -5,6 +5,7 @@ never extracts ZIP members to a caller-controlled path and does not interpret
 optional ``source/`` entries.
 """
 from dataclasses import dataclass
+import bisect
 import json
 import math
 import os
@@ -337,6 +338,194 @@ def _looks_like_archive(data):
     return header_sum == expected
 
 
+def _is_zip_archive_entry(archive, info, limits):
+    """Recognize structurally valid classic or ZIP64 payloads with bounded parsing."""
+    # _preflight has already bounded aggregate expanded size and ratio.
+    payload = _bounded_read(archive, info, info.file_size, "archive entry")
+    eocd_signature = b"PK\x05\x06"
+    search_start = max(0, len(payload) - 22 - 0xFFFF)
+    candidates = []
+    cursor = payload.find(eocd_signature, search_start)
+    while cursor >= 0:
+        candidates.append(cursor)
+        cursor = payload.find(eocd_signature, cursor + 1)
+
+    # EOCD signatures are only possible inside the final 65,557 bytes.
+    # Bound candidate and central-record work even for adversarial comments.
+    if len(candidates) > limits.max_entries:
+        return True
+    central_records_examined = 0
+    zip64_offsets = None
+
+    for cursor in reversed(candidates):
+        if cursor + 22 <= len(payload):
+            try:
+                end_record = struct.unpack_from("<4s4H2LH", payload, cursor)
+            except struct.error:
+                end_record = None
+            if end_record is not None:
+                comment_length = end_record[-1]
+                if cursor + 22 + comment_length == len(payload):
+                    disk, directory_disk = end_record[1:3]
+                    entries_on_disk, total_entries = end_record[3:5]
+                    directory_size, directory_offset = end_record[5:7]
+
+                    # ZIP64 archives are unsupported package members too. Require
+                    # the locator signature adjacent to EOCD before classifying.
+                    zip64_sentinel = (
+                        entries_on_disk == 0xFFFF
+                        or total_entries == 0xFFFF
+                        or directory_size == 0xFFFFFFFF
+                        or directory_offset == 0xFFFFFFFF
+                    )
+                    if zip64_sentinel:
+                        locator_offset = cursor - 20
+                        if locator_offset >= 0:
+                            try:
+                                locator = struct.unpack_from("<4sLQL", payload, locator_offset)
+                            except struct.error:
+                                locator = None
+                            if (
+                                locator is not None and locator[0] == b"PK\x06\x07"
+                                and locator[1] == 0 and locator[3] == 1
+                            ):
+                                zip64_signature = b"PK\x06\x06"
+                                if zip64_offsets is None:
+                                    zip64_offsets = []
+                                    zip64_cursor = payload.find(zip64_signature)
+                                    while zip64_cursor >= 0:
+                                        if len(zip64_offsets) >= limits.max_entries:
+                                            return True
+                                        zip64_offsets.append(zip64_cursor)
+                                        zip64_cursor = payload.find(zip64_signature, zip64_cursor + 1)
+                                zip64_index = bisect.bisect_left(zip64_offsets, locator_offset) - 1
+                                while zip64_index >= 0:
+                                    zip64_cursor = zip64_offsets[zip64_index]
+                                    try:
+                                        zip64 = struct.unpack_from("<4sQ2H2L4Q", payload, zip64_cursor)
+                                    except struct.error:
+                                        zip64 = None
+                                    if (
+                                        zip64 is not None and zip64[0] == zip64_signature
+                                        and zip64[1] >= 44
+                                        and zip64_cursor + 12 + zip64[1] == locator_offset
+                                        and zip64[4] == 0 and zip64[5] == 0
+                                        and zip64[6] == zip64[7]
+                                    ):
+                                        zip64_entries, zip64_size, zip64_offset = zip64[7:10]
+                                        concat = zip64_cursor - locator[2]
+                                        directory_start = zip64_offset + concat
+                                        directory_end = directory_start + zip64_size
+                                        if (
+                                            concat >= 0 and directory_end == zip64_cursor
+                                            and zip64_entries * 46 <= zip64_size
+                                        ):
+                                            if zip64_entries == 0 and zip64_size == 0:
+                                                return True
+                                            central_header = struct.Struct("<4s4B4HL2L5H2L")
+                                            if directory_start + central_header.size <= directory_end:
+                                                first_record = central_header.unpack_from(payload, directory_start)
+                                                first_end = (
+                                                    directory_start + central_header.size
+                                                    + first_record[12] + first_record[13] + first_record[14]
+                                                )
+                                                if first_record[0] == b"PK\x01\x02" and first_end <= directory_end:
+                                                    if (
+                                                        zip64_entries > limits.max_entries
+                                                        or zip64_size > limits.max_central_directory_bytes
+                                                    ):
+                                                        return True
+                                                    position = directory_start
+                                                    parsed_entries = 0
+                                                    valid_directory = True
+                                                    while parsed_entries < zip64_entries:
+                                                        if central_records_examined >= limits.max_entries:
+                                                            return True
+                                                        if position + central_header.size > directory_end:
+                                                            valid_directory = False
+                                                            break
+                                                        fields = central_header.unpack_from(payload, position)
+                                                        if fields[0] != b"PK\x01\x02":
+                                                            valid_directory = False
+                                                            break
+                                                        name_length, extra_length, item_comment_length = fields[12:15]
+                                                        record_end = (
+                                                            position + central_header.size + name_length
+                                                            + extra_length + item_comment_length
+                                                        )
+                                                        if record_end > directory_end:
+                                                            valid_directory = False
+                                                            break
+                                                        position = record_end
+                                                        parsed_entries += 1
+                                                        central_records_examined += 1
+                                                    if valid_directory and position == directory_end:
+                                                        return True
+                                    zip64_index -= 1
+                    elif (
+                        disk == 0 and directory_disk == 0
+                        and entries_on_disk == total_entries
+                    ):
+                        concat = cursor - (directory_offset + directory_size)
+                        if concat >= 0:
+                            directory_start = directory_offset + concat
+                            directory_end = directory_start + directory_size
+                            minimum_size = total_entries * 46
+                            if directory_end == cursor and minimum_size <= directory_size:
+                                if total_entries == 0 and directory_size == 0:
+                                    return True
+
+                                central_header = struct.Struct("<4s4B4HL2L5H2L")
+                                first_record = central_header.unpack_from(
+                                    payload, directory_start
+                                ) if directory_start + central_header.size <= directory_end else None
+                                if first_record is not None and first_record[0] == b"PK\x01\x02":
+                                    first_end = (
+                                        directory_start + central_header.size
+                                        + first_record[12] + first_record[13] + first_record[14]
+                                    )
+                                    if first_end > directory_end:
+                                        first_record = None
+                                if first_record is not None and first_record[0] == b"PK\x01\x02":
+                                    # An over-limit inner directory is still a
+                                    # nested archive; recognize it without
+                                    # allocating one object per inner entry.
+                                    if (
+                                        total_entries > limits.max_entries
+                                        or directory_size > limits.max_central_directory_bytes
+                                    ):
+                                        return True
+
+                                    position = directory_start
+                                    parsed_entries = 0
+                                    valid_directory = True
+                                    while parsed_entries < total_entries:
+                                        if central_records_examined >= limits.max_entries:
+                                            return True
+                                        if position + central_header.size > directory_end:
+                                            valid_directory = False
+                                            break
+                                        fields = central_header.unpack_from(payload, position)
+                                        if fields[0] != b"PK\x01\x02":
+                                            valid_directory = False
+                                            break
+                                        name_length, extra_length, comment_length = fields[12:15]
+                                        record_end = (
+                                            position + central_header.size + name_length
+                                            + extra_length + comment_length
+                                        )
+                                        if record_end > directory_end:
+                                            valid_directory = False
+                                            break
+                                        position = record_end
+                                        parsed_entries += 1
+                                        central_records_examined += 1
+                                    if valid_directory and position == directory_end:
+                                        return True
+
+    return False
+
+
 def _bounded_prefix_read(archive, info, limit=_ARCHIVE_PREFIX_BYTES):
     """Read only a small decompressed prefix of an entry for format sniffing."""
     chunks = []
@@ -426,11 +615,14 @@ def _preflight(archive, limits):
             if ratio > limits.max_compression_ratio:
                 _error("archive compression ratio exceeds limit")
 
-        # Keep source/ opaque. Prefix reads elsewhere are bounded and include
-        # unreferenced entries, so disguised nested archives cannot bypass checks.
+        # Keep source/ opaque. All other entries are within the aggregate
+        # uncompressed-size limit above. Inspect ZIP structure as well as a
+        # bounded prefix so executable-style stubs cannot hide an inner ZIP.
         source_tree_payload = _is_source_path(name) and len(parts) > 1
         if not info.is_dir() and not source_tree_payload:
             if _looks_like_archive(_bounded_prefix_read(archive, info)):
+                _error("nested archive entries are unsupported")
+            if _is_zip_archive_entry(archive, info, limits):
                 _error("nested archive entries are unsupported")
 
     manifests = [item for item in infos if item.filename == "manifest.json"]
