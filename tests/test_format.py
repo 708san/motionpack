@@ -203,6 +203,46 @@ class FormatTests(unittest.TestCase):
                 canonical_png = base64.b64decode(asset.split(",", 1)[1])
                 self.assertTrue(canonical_png.startswith(b"\x89PNG\r\n\x1a\n"))
 
+    @mock.patch.object(package_module, "_encode_rgba_png")
+    @mock.patch.object(package_module, "decode_raster_assets_isolated")
+    def test_opt_in_preview_size_limit_preserves_existing_outputs(self, decode, encode):
+        class OversizedPreview:
+            def __len__(self):
+                return 64 * 1024 * 1024 + 1
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self._copy(tmp)
+            manifest_path = project / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            asset_id, old_rel = next(iter(manifest["assets"].items()))
+            source = project / old_rel
+            source.unlink()
+            rel = "assets/preview.png"
+            target = project / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(png_ihdr(1, 1))
+            manifest["assets"][asset_id] = rel
+            manifest_path.write_text(json.dumps(manifest))
+
+            out = pathlib.Path(tmp) / "dist"
+            out.mkdir()
+            archive = out / (project.name + ".motionpack")
+            preview = out / "preview.html"
+            archive.write_bytes(b"previous archive")
+            preview.write_bytes(b"previous preview")
+            decode.return_value = {
+                "asset": package_module.DecodedRaster(
+                    "PNG", 1, 1, bytes((20, 40, 60, 255))
+                )
+            }
+            encode.return_value = OversizedPreview()
+
+            with self.assertRaisesRegex(ValueError, "64 MiB"):
+                build(project, out, isolated_raster_decode=True)
+
+            self.assertEqual(archive.read_bytes(), b"previous archive")
+            self.assertEqual(preview.read_bytes(), b"previous preview")
+
     @mock.patch.object(package_module, "decode_raster_assets_isolated", create=True)
     def test_opt_in_decoder_failure_preserves_existing_outputs(self, decode):
         with tempfile.TemporaryDirectory() as tmp:
