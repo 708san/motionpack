@@ -121,7 +121,7 @@ def _write_response(output, entries, metadata):
     # Do not publish a success prefix until every image has decoded. If a later
     # entry is rejected, main() can then return one clean failure frame.
     with tempfile.TemporaryFile(mode="w+b") as response:
-        response.write(RESPONSE_MAGIC + b"\\x00" + struct.pack("!I", len(entries)))
+        response.write(RESPONSE_MAGIC + b"\x00" + struct.pack("!I", len(entries)))
         total_decoded_pixels = 0
         for asset_id, extension, data in entries:
             result = _decode_one(asset_id, extension, data, metadata)
