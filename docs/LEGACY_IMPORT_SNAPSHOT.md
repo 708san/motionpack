@@ -20,7 +20,7 @@ The importer reads validated v0.1, v0.2, v0.3, or v0.4 packages into one engine-
 
 The source-fact ledger is additive to the existing `capabilities`, normalized `capability_facts`, `effective_defaults`, and diagnostics. It does not replace or reinterpret those fields.
 
-The importer preserves sparse fields as written and does not inject defaults into the manifest or sparse normalized view. Its separate `normalized.effective_defaults` view currently exposes only the documented omitted clip `loop: false` rule with source-version, JSON Pointer, field-presence, and rule provenance. It does not infer IK defaults or other implementation-derived values. This experimental view does not define v1 semantics or serialization.
+The importer preserves sparse fields as written and does not inject defaults into the manifest or sparse normalized view. Its separate `normalized.effective_defaults` view contains provenance-bearing values for documented and implementation-observed defaults. See [NORMALIZED_LEGACY_MODEL.md](NORMALIZED_LEGACY_MODEL.md) for the current per-version rules. These experimental values do not define v1 semantics or serialization.
 
 ## Preservation and loss
 
