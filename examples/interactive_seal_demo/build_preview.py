@@ -85,6 +85,15 @@ def build_demo(out, fallback_path=None):
   button.addEventListener('click',function(){
     if(window.MotionPackInteractions)window.MotionPackInteractions.activate('seal_hit');
   });
+  var assetsReady=false;
+  Promise.all(Object.values(window.__MOTIONPACK__.assets).map(function(source){
+    return new Promise(function(resolve){
+      var image=new Image();
+      image.onload=function(){resolve(true);};
+      image.onerror=function(){resolve(false);};
+      image.src=source;
+    });
+  })).then(function(results){assetsReady=results.every(Boolean);});
   var attempts=0;
   var reveal=setInterval(function(){
     attempts+=1;
@@ -93,7 +102,7 @@ def build_demo(out, fallback_path=None):
       var x=Math.max(0,Math.floor(canvas.width*.5));
       var y=Math.max(0,Math.floor(canvas.height*.73));
       var pixel=context.getImageData(x,y,1,1).data;
-      if(Math.abs(pixel[0]-217)+Math.abs(pixel[1]-239)+Math.abs(pixel[2]-234)>12){
+      if(assetsReady && Math.abs(pixel[0]-217)+Math.abs(pixel[1]-239)+Math.abs(pixel[2]-234)>12){
         fallback.hidden=true;
         clearInterval(reveal);
       }
