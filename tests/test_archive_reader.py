@@ -1140,7 +1140,7 @@ class ArchiveReaderTests(unittest.TestCase):
                     for staged_path in staged_paths:
                         self.assertRegex(
                             staged_path,
-                            r"^assets/asset-[0-9]+\\.(svg|png|jpe?g|webp)$",
+                            r"^assets/asset-[0-9]+\.(svg|png|jpe?g|webp)$",
                         )
 
     def test_deterministic_archive_mutations_reject_or_return_consistent_package(self):
