@@ -123,6 +123,65 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     self.assertEqual(retained.entries, isolated_retained.entries)
                     self.assertEqual(retained.source_entries, isolated_retained.source_entries)
 
+    def test_snapshot_rejects_in_place_content_change_with_restored_mtime(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = pathlib.Path(tmp) / "mutable.motionpack"
+            destination = pathlib.Path(tmp) / "snapshot.motionpack"
+            original = b"A" * (64 * 1024) + b"B" * (64 * 1024)
+            changed = b"X" * (64 * 1024)
+            source.write_bytes(original)
+            initial = source.stat()
+            os.utime(source, ns=(initial.st_atime_ns, 1_700_000_000_000_000_000))
+            initial = source.stat()
+            real_fdopen = os.fdopen
+
+            class MutatingReader:
+                def __init__(self, wrapped):
+                    self.wrapped = wrapped
+                    self.read_count = 0
+
+                def __enter__(self):
+                    self.wrapped.__enter__()
+                    return self
+
+                def __exit__(self, *args):
+                    return self.wrapped.__exit__(*args)
+
+                def __getattr__(self, name):
+                    return getattr(self.wrapped, name)
+
+                def read(self, size=-1):
+                    self.read_count += 1
+                    if self.read_count == 2:
+                        with source.open("r+b") as writer:
+                            writer.seek(64 * 1024)
+                            writer.write(changed)
+                        os.utime(source, ns=(initial.st_atime_ns, initial.st_mtime_ns))
+                        try:
+                            data = self.wrapped.read(size)
+                        finally:
+                            with source.open("r+b") as writer:
+                                writer.seek(64 * 1024)
+                                writer.write(original[64 * 1024:])
+                            os.utime(source, ns=(initial.st_atime_ns, initial.st_mtime_ns))
+                        return data
+                    return self.wrapped.read(size)
+
+            with mock.patch(
+                "isolated_archive_reader.os.fdopen",
+                side_effect=lambda fd, *args, **kwargs: MutatingReader(
+                    real_fdopen(fd, *args, **kwargs)
+                ),
+            ):
+                with self.assertRaisesRegex(ArchiveError, "archive input changed while taking isolated snapshot"):
+                    _snapshot_archive(source, destination, ReaderLimits())
+
+            final = source.stat()
+            self.assertEqual(final.st_size, initial.st_size)
+            self.assertEqual(final.st_ino, initial.st_ino)
+            self.assertEqual(final.st_mtime_ns, initial.st_mtime_ns)
+            self.assertEqual(source.read_bytes(), original)
+
     def test_snapshot_rejects_different_regular_file_opened_after_stat(self):
         with tempfile.TemporaryDirectory() as tmp:
             checked = self._valid_fixture(tmp, "0.1")
