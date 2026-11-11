@@ -737,6 +737,33 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError, "nested archive"):
                 read_package(disguised)
 
+    def test_rejects_self_extracting_nested_zip_with_512_byte_stub(self):
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w", compression=zipfile.ZIP_STORED) as nested:
+            nested.writestr("payload.txt", b"nested archive payload")
+        self_extracting = b"S" * 512 + inner.getvalue()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/data.bin", self_extracting))
+            disguised = self._zip(pathlib.Path(tmp) / "sfx.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(disguised)
+
+    def test_accepts_non_archive_with_archive_signature_after_prefix(self):
+        harmless = b"S" * 512 + b"PK\\x03\\x04" + b"not a valid ZIP local header"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/data.bin", harmless))
+            package = self._zip(pathlib.Path(tmp) / "prefixed-signature.motionpack", entries)
+            result = read_package(package)
+            self.assertIn("background", result.assets)
+
     def test_source_archive_entries_remain_opaque(self):
         with tempfile.TemporaryDirectory() as tmp:
             valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
