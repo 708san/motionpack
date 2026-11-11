@@ -785,6 +785,19 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError, "nested archive"):
                 read_package(package)
 
+    def test_rejects_excessive_eocd_candidates_within_bounded_scan_window(self):
+        signature = b"PK\x05\x06" + b"\x00" * 18
+        payload = b"S" * 512 + signature * (ReaderLimits().max_entries + 1) + b"tail"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/signature-storm.bin", payload))
+            package = self._zip(pathlib.Path(tmp) / "signature-storm.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(package)
+
     def test_accepts_non_archive_with_archive_signature_after_prefix(self):
         # Includes an EOCD signature, but claims one central-directory entry
         # without providing a central directory, so it is not a valid ZIP.
