@@ -147,8 +147,13 @@ class LegacyImporterTests(unittest.TestCase):
                         authored_false.source_pointer + "/loop",
                         normalized.effective_defaults,
                     )
+                    actual_loop_defaults = {
+                        pointer
+                        for pointer in normalized.effective_defaults
+                        if pointer.startswith("/clips/") and pointer.endswith("/loop")
+                    }
                     self.assertEqual(
-                        set(normalized.effective_defaults),
+                        actual_loop_defaults,
                         {f"/clips/{name}/loop" for name in clip_names[2:]},
                     )
                     for name in clip_names[2:]:
@@ -267,6 +272,83 @@ class LegacyImporterTests(unittest.TestCase):
                                 self.assertEqual(
                                     effective.rule_origin, "format-spec"
                                 )
+
+    def test_v04_interaction_defaults_are_version_gated_and_provenanced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = pathlib.Path(tmp) / "interaction-defaults.motionpack"
+            source = self._fixture("0.4")
+            with zipfile.ZipFile(source, "r") as archive:
+                members = {
+                    info.filename: archive.read(info)
+                    for info in archive.infolist()
+                    if not info.is_dir()
+                }
+            manifest = json.loads(members["manifest.json"].decode("utf-8"))
+            manifest["nodes"][0]["interaction"] = {
+                "hover": True,
+                "click": False,
+            }
+            manifest["nodes"][1].pop("interaction", None)
+            members["manifest.json"] = json.dumps(
+                manifest, separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")
+            with zipfile.ZipFile(
+                target, "w", compression=zipfile.ZIP_DEFLATED
+            ) as archive:
+                for name, payload in members.items():
+                    archive.writestr(name, payload)
+
+            before_digest = hashlib.sha256(target.read_bytes()).digest()
+            snapshot = import_legacy_package(target, timeout=20)
+            self.assertEqual(
+                hashlib.sha256(target.read_bytes()).digest(), before_digest
+            )
+            normalized = snapshot.normalized
+            self.assertEqual(snapshot.source_version, "0.4")
+
+            expected_pointers = set()
+            for index, node in enumerate(manifest["nodes"]):
+                flags = node.get("interaction", {})
+                for flag in ("hover", "tap", "click"):
+                    pointer = f"/nodes/{index}/interaction/{flag}"
+                    if flag not in flags:
+                        expected_pointers.add(pointer)
+                        effective = normalized.effective_defaults[pointer]
+                        self.assertFalse(effective.value)
+                        self.assertEqual(effective.source_version, "0.4")
+                        self.assertEqual(effective.source_pointer, pointer)
+                        self.assertFalse(effective.field_present)
+                        self.assertEqual(
+                            effective.rule_id,
+                            "motionpack.v0.4.interaction.flag.default-disabled",
+                        )
+                        self.assertEqual(effective.rule_origin, "format-spec")
+                    else:
+                        self.assertNotIn(pointer, normalized.effective_defaults)
+            actual_node_defaults = {
+                pointer
+                for pointer in normalized.effective_defaults
+                if pointer.startswith("/nodes/")
+            }
+            self.assertEqual(actual_node_defaults, expected_pointers)
+            self.assertEqual(
+                normalized.nodes[0].fields["interaction"]["hover"], True
+            )
+            self.assertEqual(
+                normalized.nodes[0].fields["interaction"]["click"], False
+            )
+            with self.assertRaises(TypeError):
+                normalized.effective_defaults["/nodes/injected/interaction/tap"] = None
+
+            for version in ("0.1", "0.2", "0.3"):
+                with self.subTest(version=version):
+                    legacy = import_legacy_package(
+                        self._fixture(version), timeout=20
+                    )
+                    self.assertFalse(any(
+                        pointer.startswith("/nodes/")
+                        for pointer in legacy.normalized.effective_defaults
+                    ))
 
     def test_normalized_view_projects_sparse_fields_and_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:
