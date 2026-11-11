@@ -22,6 +22,8 @@ jobs:
         run: |
           python -m venv .venv-fuzz
           .venv-fuzz/bin/python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r requirements-fuzz.txt -r requirements-image.txt
+      - name: Verify isolated raster decoder behavior
+        run: .venv-fuzz/bin/python -m unittest discover -s tests -p test_isolated_raster_decoder.py -v
       - name: Run bounded ZIP reader, SVG validator, and raster decoder fuzz targets
         env:
           FUZZ_TRIGGER: ${{ github.event_name }}
