@@ -71,6 +71,10 @@ class InvalidRasterInput(Exception):
     """The bounded static-raster decoder rejected input image data."""
 
 
+class RasterResourceLimit(Exception):
+    """The worker exhausted or exceeded a configured resource bound."""
+
+
 def _decode_one(asset_id, extension, data, metadata):
     from io import BytesIO
     from PIL import Image, ImageOps, UnidentifiedImageError
@@ -141,7 +145,7 @@ def _write_response(output, entries, metadata):
             _asset_id, format_code, width, height, frame_width, frame_height, rgba = result
             total_decoded_pixels += frame_width * frame_height
             if total_decoded_pixels > metadata["max_decoded_pixels"]:
-                raise ValueError("decoded image aggregate exceeds limit")
+                raise RasterResourceLimit("decoded image aggregate exceeds limit")
             encoded_id = asset_id.encode("utf-8")
             response.write(struct.pack("!H", len(encoded_id)) + encoded_id)
             response.write(struct.pack("!BIIIIQ", format_code, width, height, frame_width, frame_height, len(rgba)))
@@ -158,7 +162,7 @@ def main():
         metadata, entries = _read_request(sys.stdin.buffer)
         _write_response(output, entries, metadata)
         return 0
-    except MemoryError:
+    except (MemoryError, RasterResourceLimit):
         output.write(RESPONSE_MAGIC + b"\x02")
     except InvalidRasterInput:
         output.write(RESPONSE_MAGIC + b"\x01")
