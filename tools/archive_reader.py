@@ -419,7 +419,37 @@ def _is_zip_archive_entry(archive, info, limits):
                                                     + first_record[12] + first_record[13] + first_record[14]
                                                 )
                                                 if first_record[0] == b"PK\x01\x02" and first_end <= directory_end:
-                                                    return True
+                                                    if (
+                                                        zip64_entries > limits.max_entries
+                                                        or zip64_size > limits.max_central_directory_bytes
+                                                    ):
+                                                        return True
+                                                    position = directory_start
+                                                    parsed_entries = 0
+                                                    valid_directory = True
+                                                    while parsed_entries < zip64_entries:
+                                                        if central_records_examined >= limits.max_entries:
+                                                            return True
+                                                        if position + central_header.size > directory_end:
+                                                            valid_directory = False
+                                                            break
+                                                        fields = central_header.unpack_from(payload, position)
+                                                        if fields[0] != b"PK\x01\x02":
+                                                            valid_directory = False
+                                                            break
+                                                        name_length, extra_length, item_comment_length = fields[12:15]
+                                                        record_end = (
+                                                            position + central_header.size + name_length
+                                                            + extra_length + item_comment_length
+                                                        )
+                                                        if record_end > directory_end:
+                                                            valid_directory = False
+                                                            break
+                                                        position = record_end
+                                                        parsed_entries += 1
+                                                        central_records_examined += 1
+                                                    if valid_directory and position == directory_end:
+                                                        return True
                                     zip64_cursor = payload.find(zip64_signature, zip64_cursor + 1, locator_offset)
                     elif (
                         disk == 0 and directory_disk == 0
