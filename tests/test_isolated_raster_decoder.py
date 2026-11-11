@@ -97,16 +97,28 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
                 with self.assertRaises(decoder.RasterDecodeResourceLimit):
                     self.decode(self.image_bytes("PNG"), ".png", limits=limits)
 
-    def test_unexpected_worker_failure_is_not_input_rejection(self):
+    def test_unexpected_worker_exception_is_not_input_rejection(self):
         with tempfile.TemporaryDirectory() as directory:
-            script = pathlib.Path(directory) / "failed_worker.py"
+            script = pathlib.Path(directory) / "raising_worker.py"
+            tools_path = pathlib.Path(decoder.__file__).resolve().parent
             script.write_text(
-                "import sys\nsys.stdout.buffer.write(bytes.fromhex('4d5052530103'))\n",
+                "import sys\\n"
+                + "sys.path.insert(0, " + repr(str(tools_path)) + ")\\n"
+                + "import raster_decode_worker as worker\\n"
+                + "worker._read_request = lambda stream: ({}, [])\\n"
+                + "def fail(*args):\\n    raise RuntimeError('injected worker error')\\n"
+                + "worker._write_response = fail\\n"
+                + "raise SystemExit(worker.main())\\n",
                 encoding="utf-8",
             )
             with mock.patch.object(decoder, "WORKER_SCRIPT", script):
                 with self.assertRaises(decoder.RasterDecodeWorkerFailure):
                     self.decode(self.image_bytes("PNG"), ".png")
+
+    def test_worker_enforces_response_limit_before_staging(self):
+        limits = decoder.RasterDecodeLimits(max_response_bytes=1)
+        with self.assertRaises(decoder.RasterDecodeResourceLimit):
+            self.decode(self.image_bytes("PNG"), ".png", limits=limits)
 
     def test_timeout_terminates_worker(self):
         with tempfile.TemporaryDirectory() as directory:
