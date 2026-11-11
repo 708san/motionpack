@@ -5,7 +5,6 @@ never extracts ZIP members to a caller-controlled path and does not interpret
 optional ``source/`` entries.
 """
 from dataclasses import dataclass
-import io
 import json
 import math
 import os
@@ -338,37 +337,91 @@ def _looks_like_archive(data):
     return header_sum == expected
 
 
-def _is_zip_archive_entry(archive, info):
-    """Recognize structurally parseable ZIP payloads, including prefixed ZIPs."""
-    # _preflight has already bounded the aggregate expanded size and ratio.
-    # Reading the entry to EOF validates the outer member before parsing its
-    # bytes as a nested ZIP, and is required to inspect the ZIP end record.
+def _is_zip_archive_entry(archive, info, limits):
+    """Recognize structurally valid classic or ZIP64 payloads with bounded parsing."""
+    # _preflight has already bounded aggregate expanded size and ratio.
     payload = _bounded_read(archive, info, info.file_size, "archive entry")
-    try:
-        with zipfile.ZipFile(io.BytesIO(payload), "r") as nested:
-            entries = nested.infolist()  # Parse the central-directory records.
-    except (zipfile.BadZipFile, OSError, EOFError, struct.error, UnicodeError):
-        # Signature-like bytes alone do not make an ordinary payload an archive.
-        return False
+    eocd_signature = b"PK\x05\x06"
+    cursor = payload.rfind(eocd_signature, max(0, len(payload) - 22 - 0xFFFF))
 
-    # ZipFile accepts some inconsistent empty directories. Cross-check the
-    # classic EOCD entry count when it is available; 0xffff denotes ZIP64.
-    eocd_offset = payload.rfind(b"PK\x05\x06", max(0, len(payload) - 22 - 0xFFFF))
-    if eocd_offset < 0 or eocd_offset + 22 > len(payload):
-        return False
-    try:
-        end_record = struct.unpack_from("<4s4H2LH", payload, eocd_offset)
-    except struct.error:
-        return False
-    comment_length = end_record[-1]
-    if eocd_offset + 22 + comment_length != len(payload):
-        return False
-    entries_on_disk, total_entries = end_record[3], end_record[4]
-    if entries_on_disk != 0xFFFF and entries_on_disk != len(entries):
-        return False
-    if total_entries != 0xFFFF and total_entries != len(entries):
-        return False
-    return True
+    while cursor >= 0:
+        if cursor + 22 <= len(payload):
+            try:
+                end_record = struct.unpack_from("<4s4H2LH", payload, cursor)
+            except struct.error:
+                end_record = None
+            if end_record is not None:
+                comment_length = end_record[-1]
+                if cursor + 22 + comment_length == len(payload):
+                    disk, directory_disk = end_record[1:3]
+                    entries_on_disk, total_entries = end_record[3:5]
+                    directory_size, directory_offset = end_record[5:7]
+
+                    # ZIP64 archives are unsupported package members too. Require
+                    # the locator signature adjacent to EOCD before classifying.
+                    zip64_sentinel = (
+                        entries_on_disk == 0xFFFF
+                        or total_entries == 0xFFFF
+                        or directory_size == 0xFFFFFFFF
+                        or directory_offset == 0xFFFFFFFF
+                    )
+                    if zip64_sentinel:
+                        if cursor >= 20 and payload[cursor - 20:cursor - 16] == b"PK\x06\x07":
+                            return True
+                    elif (
+                        disk == 0 and directory_disk == 0
+                        and entries_on_disk == total_entries
+                    ):
+                        concat = cursor - (directory_offset + directory_size)
+                        if concat >= 0:
+                            directory_start = directory_offset + concat
+                            directory_end = directory_start + directory_size
+                            minimum_size = total_entries * 46
+                            if directory_end == cursor and minimum_size <= directory_size:
+                                if total_entries == 0 and directory_size == 0:
+                                    return True
+
+                                central_header = struct.Struct("<4s4B4HL2L5H2L")
+                                first_record = central_header.unpack_from(
+                                    payload, directory_start
+                                ) if directory_start + central_header.size <= directory_end else None
+                                if first_record is not None and first_record[0] == b"PK\x01\x02":
+                                    # An over-limit inner directory is still a
+                                    # nested archive; recognize it without
+                                    # allocating one object per inner entry.
+                                    if (
+                                        total_entries > limits.max_entries
+                                        or directory_size > limits.max_central_directory_bytes
+                                    ):
+                                        return True
+
+                                    position = directory_start
+                                    parsed_entries = 0
+                                    valid_directory = True
+                                    while parsed_entries < total_entries:
+                                        if position + central_header.size > directory_end:
+                                            valid_directory = False
+                                            break
+                                        fields = central_header.unpack_from(payload, position)
+                                        if fields[0] != b"PK\x01\x02":
+                                            valid_directory = False
+                                            break
+                                        name_length, extra_length, comment_length = fields[12:15]
+                                        record_end = (
+                                            position + central_header.size + name_length
+                                            + extra_length + comment_length
+                                        )
+                                        if record_end > directory_end:
+                                            valid_directory = False
+                                            break
+                                        position = record_end
+                                        parsed_entries += 1
+                                    if valid_directory and position == directory_end:
+                                        return True
+
+        cursor = payload.rfind(eocd_signature, 0, cursor)
+
+    return False
 
 
 def _bounded_prefix_read(archive, info, limit=_ARCHIVE_PREFIX_BYTES):
@@ -467,7 +520,7 @@ def _preflight(archive, limits):
         if not info.is_dir() and not source_tree_payload:
             if _looks_like_archive(_bounded_prefix_read(archive, info)):
                 _error("nested archive entries are unsupported")
-            if _is_zip_archive_entry(archive, info):
+            if _is_zip_archive_entry(archive, info, limits):
                 _error("nested archive entries are unsupported")
 
     manifests = [item for item in infos if item.filename == "manifest.json"]
