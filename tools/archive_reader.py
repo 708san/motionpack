@@ -5,6 +5,7 @@ never extracts ZIP members to a caller-controlled path and does not interpret
 optional ``source/`` entries.
 """
 from dataclasses import dataclass
+import bisect
 import json
 import math
 import os
@@ -354,6 +355,7 @@ def _is_zip_archive_entry(archive, info, limits):
     if len(candidates) > limits.max_entries:
         return True
     central_records_examined = 0
+    zip64_offsets = None
 
     for cursor in reversed(candidates):
         if cursor + 22 <= len(payload):
@@ -388,8 +390,17 @@ def _is_zip_archive_entry(archive, info, limits):
                                 and locator[1] == 0 and locator[3] == 1
                             ):
                                 zip64_signature = b"PK\x06\x06"
-                                zip64_cursor = payload.find(zip64_signature, 0, locator_offset)
-                                while zip64_cursor >= 0:
+                                if zip64_offsets is None:
+                                    zip64_offsets = []
+                                    zip64_cursor = payload.find(zip64_signature)
+                                    while zip64_cursor >= 0:
+                                        if len(zip64_offsets) >= limits.max_entries:
+                                            return True
+                                        zip64_offsets.append(zip64_cursor)
+                                        zip64_cursor = payload.find(zip64_signature, zip64_cursor + 1)
+                                zip64_index = bisect.bisect_left(zip64_offsets, locator_offset) - 1
+                                while zip64_index >= 0:
+                                    zip64_cursor = zip64_offsets[zip64_index]
                                     try:
                                         zip64 = struct.unpack_from("<4sQ2H2L4Q", payload, zip64_cursor)
                                     except struct.error:
@@ -450,7 +461,7 @@ def _is_zip_archive_entry(archive, info, limits):
                                                         central_records_examined += 1
                                                     if valid_directory and position == directory_end:
                                                         return True
-                                    zip64_cursor = payload.find(zip64_signature, zip64_cursor + 1, locator_offset)
+                                    zip64_index -= 1
                     elif (
                         disk == 0 and directory_disk == 0
                         and entries_on_disk == total_entries
