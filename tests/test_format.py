@@ -22,6 +22,7 @@ sys.path.insert(0,str(ROOT/'tools'))
 import validate as validator_module
 from validate import validate
 import package as package_module
+import isolated_raster_decoder as raster_decoder
 from package import build
 
 def png_ihdr(width,height,*,bad_crc=False):
@@ -179,7 +180,7 @@ class FormatTests(unittest.TestCase):
             manifest["assets"] = rewritten
             manifest_path.write_text(json.dumps(manifest))
             decode.return_value = {
-                "asset": package_module.DecodedRaster(
+                "asset": raster_decoder.DecodedRaster(
                     "PNG", 1, 1, bytes((20, 40, 60, 255))
                 )
             }
