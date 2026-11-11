@@ -15,7 +15,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from archive_reader import ArchiveError, ReaderLimits, read_package
+import archive_reader
+from archive_reader import ArchiveError, ReaderLimits, read_package as read_package_in_process
 from isolated_archive_reader import _snapshot_archive
 from isolated_archive_reader import (
     IsolatedReadTimeout,
@@ -100,22 +101,42 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             time.sleep(0.05)
         self.fail("isolated worker remains alive after wrapper returned")
 
+    def test_public_read_package_delegates_to_isolated_reader(self):
+        archive = pathlib.Path("unopened.motionpack")
+        limits = ReaderLimits()
+        expected = object()
+        with mock.patch(
+            "isolated_archive_reader.read_package_isolated",
+            return_value=expected,
+        ) as isolated:
+            result = archive_reader.read_package(
+                archive, limits=limits, include_entries=True
+            )
+        self.assertIs(result, expected)
+        isolated.assert_called_once_with(
+            archive,
+            limits=limits,
+            timeout=30.0,
+            memory_limit_bytes=None,
+            include_entries=True,
+        )
+
     def test_reads_v01_through_v04_packages(self):
         with tempfile.TemporaryDirectory() as tmp:
             for version in ("0.1", "0.2", "0.3", "0.4"):
                 with self.subTest(version=version):
                     archive = self._valid_fixture(tmp, version)
-                    direct_result = read_package(archive)
+                    direct_result = read_package_in_process(archive)
                     self.assertEqual(direct_result.manifest["version"], version)
                     snapshot = pathlib.Path(tmp) / f"snapshot-v{version}.motionpack"
                     _snapshot_archive(archive, snapshot, ReaderLimits())
-                    snapshot_result = read_package(snapshot)
+                    snapshot_result = read_package_in_process(snapshot)
                     self.assertEqual(snapshot_result.manifest["version"], version)
                     result = read_package_isolated(archive, timeout=20)
                     self.assertEqual(result.manifest["version"], version)
                     self.assertEqual(set(result.assets), set(result.manifest["assets"]))
                     self.assertTrue(all(isinstance(data, bytes) for data in result.assets.values()))
-                    retained = read_package(archive, include_entries=True)
+                    retained = read_package_in_process(archive, include_entries=True)
                     isolated_retained = read_package_isolated(
                         archive, timeout=20, include_entries=True
                     )
@@ -214,7 +235,7 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             self.assertEqual(read_package_isolated(alias, timeout=20).manifest["version"], "0.1")
             snapshot = pathlib.Path(tmp) / "snapshot.motionpack"
             _snapshot_archive(alias, snapshot, ReaderLimits())
-            self.assertEqual(read_package(snapshot).manifest["version"], "0.1")
+            self.assertEqual(read_package_in_process(snapshot).manifest["version"], "0.1")
 
     def test_snapshot_rejects_unavailable_file_identity_before_open(self):
         with tempfile.TemporaryDirectory() as tmp:
