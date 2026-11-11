@@ -112,6 +112,18 @@ class V1CapabilityPreflightTests(unittest.TestCase):
                 raw, supported_capabilities=APPROVED_CAPABILITY_IDS
             )
 
+    def test_accepts_json_nesting_at_operational_limit(self):
+        nested_arrays = MAX_JSON_NESTING - 1  # root object contributes one level
+        raw = (
+            b'{"format":"motionpack","version":"1.0",'
+            b'"capabilities":{"required":[],"optional":[]},"nested":'
+            + b"[" * nested_arrays + b"0" + b"]" * nested_arrays + b"}"
+        )
+        result = preflight_v1_capabilities(
+            raw, supported_capabilities=APPROVED_CAPABILITY_IDS
+        )
+        self.assertEqual(result.required, ())
+
     def test_rejects_missing_or_non_object_capabilities(self):
         cases = [None, "bad", []]
         missing = json.dumps({"format": "motionpack", "version": "1.0"}).encode()
@@ -196,6 +208,19 @@ class V1CapabilityPreflightTests(unittest.TestCase):
                 b'"extensions":{"example.invalid.value":' + constant + b"}}"
             )
             with self.subTest(constant=constant):
+                with self.assertRaisesRegex(CapabilityPreflightError, "invalid or too deeply nested"):
+                    preflight_v1_capabilities(
+                        raw, supported_capabilities=APPROVED_CAPABILITY_IDS
+                    )
+
+    def test_rejects_exponent_overflow_to_non_finite_float(self):
+        for number in (b"1e999", b"-1e999"):
+            raw = (
+                b'{"format":"motionpack","version":"1.0",'
+                b'"capabilities":{"required":[],"optional":[]},'
+                b'"extensions":{"example.invalid.value":' + number + b"}}"
+            )
+            with self.subTest(number=number):
                 with self.assertRaisesRegex(CapabilityPreflightError, "invalid or too deeply nested"):
                     preflight_v1_capabilities(
                         raw, supported_capabilities=APPROVED_CAPABILITY_IDS
