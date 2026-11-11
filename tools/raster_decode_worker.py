@@ -122,7 +122,7 @@ def _decode_one(asset_id, extension, data, metadata):
                 raise InvalidRasterInput("animated raster is not supported by this decoder")
             try:
                 image.load()
-            except (OSError, SyntaxError, ValueError,
+            except (OSError, SyntaxError,
                     Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
                 raise InvalidRasterInput("raster decoder rejected the image") from exc
             frame = ImageOps.exif_transpose(image).convert("RGBA")
