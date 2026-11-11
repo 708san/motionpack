@@ -84,6 +84,8 @@ def validate_input(data):
         )
     except (decoder.RasterDecodeWorkerFailure, decoder.RasterDecodeTimeout) as error:
         raise AssertionError("isolated raster worker failed on fuzz input") from error
+    except decoder.RasterDecodeResourceLimit as error:
+        raise AssertionError("isolated raster worker exceeded a resource limit") from error
     except decoder.RasterDecodeError:
         return None
 
