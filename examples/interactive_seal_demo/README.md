@@ -2,7 +2,7 @@
 
 A small offline example for inspecting editable art layers and host-driven interaction in a 91:55 frame. The seal idles gently. Touching or clicking the seal cross-fades into a soft flattened pose, rebounds, and returns to idle. The background is not interactive.
 
-The manifest uses existing v0.4 node interaction notifications. It contains no script, callback name, URL or action. The generated HTML includes a trusted, example-only host wrapper that maps notifications to the sample clips and provides a keyboard activation button.
+The manifest uses existing v0.4 node interaction notifications. The body, paired rear flippers, face, and shadow remain independently editable. It contains no script, callback name, URL or action. The generated HTML includes a trusted, example-only host wrapper that maps notifications to the sample clips and provides a keyboard activation button.
 
 Run from the repository root:
 
