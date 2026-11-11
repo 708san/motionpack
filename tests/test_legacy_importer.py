@@ -273,6 +273,89 @@ class LegacyImporterTests(unittest.TestCase):
                                     effective.rule_origin, "format-spec"
                                 )
 
+    def test_ik_bend_default_is_version_gated_and_implementation_sourced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for version in ("0.2", "0.3", "0.4"):
+                source = self._fixture(version)
+                with zipfile.ZipFile(source, "r") as archive:
+                    source_members = {
+                        info.filename: archive.read(info)
+                        for info in archive.infolist()
+                        if not info.is_dir()
+                    }
+
+                for authored_bend in (None, -1):
+                    with self.subTest(version=version, authored_bend=authored_bend):
+                        target = pathlib.Path(tmp) / (
+                            f"ik-bend-{version}-{authored_bend}.motionpack"
+                        )
+                        members = dict(source_members)
+                        manifest = json.loads(
+                            members["manifest.json"].decode("utf-8")
+                        )
+                        if version in ("0.3", "0.4"):
+                            manifest["nodes"].extend([
+                                {"id": "ik_bend_upper_test", "x": 0, "y": 0, "z": 10},
+                                {
+                                    "id": "ik_bend_lower_test",
+                                    "parent": "ik_bend_upper_test",
+                                    "x": 10,
+                                    "y": 0,
+                                    "z": 11,
+                                },
+                            ])
+                            manifest["iks"] = [{
+                                "id": "ik_bend_test",
+                                "upper": "ik_bend_upper_test",
+                                "lower": "ik_bend_lower_test",
+                                "lengths": [10, 10],
+                                "target": [15, 0],
+                            }]
+                        chain = manifest["iks"][0]
+                        if authored_bend is None:
+                            chain.pop("bend", None)
+                        else:
+                            chain["bend"] = authored_bend
+                        members["manifest.json"] = json.dumps(
+                            manifest, separators=(",", ":"), ensure_ascii=False
+                        ).encode("utf-8")
+                        with zipfile.ZipFile(
+                            target, "w", compression=zipfile.ZIP_DEFLATED
+                        ) as archive:
+                            for name, payload in members.items():
+                                archive.writestr(name, payload)
+
+                        before_digest = hashlib.sha256(target.read_bytes()).digest()
+                        snapshot = import_legacy_package(target, timeout=20)
+                        self.assertEqual(
+                            hashlib.sha256(target.read_bytes()).digest(),
+                            before_digest,
+                        )
+                        self.assertEqual(snapshot.source_version, version)
+                        pointer = "/iks/0/bend"
+                        normalized_chain = snapshot.normalized.ik_chains[0]
+                        if authored_bend is None:
+                            self.assertNotIn("bend", normalized_chain.present_fields)
+                            self.assertNotIn("bend", normalized_chain.values)
+                            effective = snapshot.normalized.effective_defaults[pointer]
+                            self.assertEqual(effective.value, 1)
+                            self.assertEqual(effective.source_version, version)
+                            self.assertEqual(effective.source_pointer, pointer)
+                            self.assertFalse(effective.field_present)
+                            self.assertEqual(
+                                effective.rule_id,
+                                "motionpack.v0.2.ik.bend.default-one",
+                            )
+                            self.assertEqual(effective.rule_origin, "implementation")
+                        else:
+                            self.assertIn("bend", normalized_chain.present_fields)
+                            self.assertEqual(
+                                normalized_chain.values["bend"], authored_bend
+                            )
+                            self.assertNotIn(
+                                pointer, snapshot.normalized.effective_defaults
+                            )
+
     def test_v04_interaction_defaults_are_version_gated_and_provenanced(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = pathlib.Path(tmp) / "interaction-defaults.motionpack"
@@ -466,6 +549,7 @@ class LegacyImporterTests(unittest.TestCase):
                 }
             manifest = json.loads(members["manifest.json"].decode("utf-8"))
             manifest["version"] = "0.1"
+            manifest["iks"][0].pop("bend", None)
             members["manifest.json"] = json.dumps(
                 manifest, separators=(",", ":"), ensure_ascii=False
             ).encode("utf-8")
@@ -480,6 +564,11 @@ class LegacyImporterTests(unittest.TestCase):
             self.assertEqual(snapshot.normalized.manifest_bytes, members["manifest.json"])
             self.assertTrue(snapshot.normalized.ik_chains)
             self.assertIn("org.motionpack.ik.two-bone", snapshot.capabilities)
+            self.assertNotIn("bend", snapshot.normalized.ik_chains[0].present_fields)
+            self.assertNotIn("bend", snapshot.normalized.ik_chains[0].values)
+            self.assertNotIn(
+                "/iks/0/bend", snapshot.normalized.effective_defaults
+            )
             fact = next(
                 item for item in snapshot.normalized.capability_facts
                 if item.identifier == "org.motionpack.ik.two-bone"
