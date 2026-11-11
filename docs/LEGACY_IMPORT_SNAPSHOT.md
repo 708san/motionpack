@@ -16,7 +16,9 @@ The importer reads validated v0.1, v0.2, v0.3, or v0.4 packages into one engine-
 - Capabilities inferred from legacy content: `org.motionpack.ik.two-bone` when non-empty IK declarations are present, and `org.motionpack.interaction` when a node declares interaction settings.
 - A v0.3 SVG-dimensions validation profile fact for v0.3 and v0.4 inputs. This is a validation rule, not a playback capability.
 - An immutable normalized view of canvas, assets, nodes, clips/tracks/effects, variants/defaults, IK, interaction fields, capability facts, sparse field presence, and source pointers. It preserves authored data without materializing defaults. See [NORMALIZED_LEGACY_MODEL.md](NORMALIZED_LEGACY_MODEL.md).
-- A report with unrecognized top-level manifest fields (preserved verbatim), payload preservation totals, and the container metadata that the snapshot does not retain.
+- A report with unrecognized top-level manifest fields (preserved verbatim), payload preservation totals, container metadata that the snapshot does not retain, and immutable `source_facts` recording the source format version, observed IK/interaction constructs, v0.1 IK mismatch, and v0.3/v0.4 SVG-dimensions validation profile. Each fact includes a source version and JSON Pointers. These are source observations only; they do not map to v1 semantics, required/optional capabilities, or runtime support.
+
+The source-fact ledger is additive to the existing `capabilities`, normalized `capability_facts`, `effective_defaults`, and diagnostics. It does not replace or reinterpret those fields.
 
 The importer preserves sparse fields as written and does not inject defaults into the manifest or sparse normalized view. Its separate `normalized.effective_defaults` view currently exposes only the documented omitted clip `loop: false` rule with source-version, JSON Pointer, field-presence, and rule provenance. It does not infer IK defaults or other implementation-derived values. This experimental view does not define v1 semantics or serialization.
 
