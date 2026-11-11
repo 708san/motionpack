@@ -110,6 +110,14 @@ test('touch tap only activates the seal and returns to idle', async ({ browser }
     .toBe('idle');
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().variant))
     .toBe('rest');
+  const facialVariants = await page.evaluate(() => ({
+    idle: window.__MOTIONPACK__.variants.default.nodes,
+    rest: window.__MOTIONPACK__.variants.rest.nodes
+  }));
+  expect(facialVariants.idle.face.opacity).toBe(1);
+  expect(facialVariants.idle.face_rest.opacity).toBe(0);
+  expect(facialVariants.rest.face.opacity).toBe(0);
+  expect(facialVariants.rest.face_rest.opacity).toBe(1);
   await captureCandidate(page, testInfo, 'rest');
 
   expect(externalRequests).toEqual([]);
