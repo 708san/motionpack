@@ -753,7 +753,7 @@ class ArchiveReaderTests(unittest.TestCase):
                 read_package(disguised)
 
     def test_accepts_non_archive_with_archive_signature_after_prefix(self):
-        harmless = b"S" * 512 + b"PK\\x03\\x04" + b"not a valid ZIP local header"
+        harmless = b"S" * 512 + b"PK\x03\x04" + b"not a valid ZIP local header"
 
         with tempfile.TemporaryDirectory() as tmp:
             valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
