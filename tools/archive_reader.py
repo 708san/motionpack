@@ -366,8 +366,50 @@ def _is_zip_archive_entry(archive, info, limits):
                         or directory_offset == 0xFFFFFFFF
                     )
                     if zip64_sentinel:
-                        if cursor >= 20 and payload[cursor - 20:cursor - 16] == b"PK\x06\x07":
-                            return True
+                        locator_offset = cursor - 20
+                        if locator_offset >= 0:
+                            try:
+                                locator = struct.unpack_from("<4sLQL", payload, locator_offset)
+                            except struct.error:
+                                locator = None
+                            if (
+                                locator is not None and locator[0] == b"PK\x06\x07"
+                                and locator[1] == 0 and locator[3] == 1
+                            ):
+                                zip64_signature = b"PK\x06\x06"
+                                zip64_cursor = payload.rfind(zip64_signature, 0, locator_offset)
+                                while zip64_cursor >= 0:
+                                    try:
+                                        zip64 = struct.unpack_from("<4sQ2H2L4Q", payload, zip64_cursor)
+                                    except struct.error:
+                                        zip64 = None
+                                    if (
+                                        zip64 is not None and zip64[0] == zip64_signature
+                                        and zip64[1] >= 44
+                                        and zip64_cursor + 12 + zip64[1] == locator_offset
+                                        and zip64[4] == 0 and zip64[5] == 0
+                                        and zip64[6] == zip64[7]
+                                    ):
+                                        zip64_entries, zip64_size, zip64_offset = zip64[7:10]
+                                        concat = zip64_cursor - locator[2]
+                                        directory_start = zip64_offset + concat
+                                        directory_end = directory_start + zip64_size
+                                        if (
+                                            concat >= 0 and directory_end == zip64_cursor
+                                            and zip64_entries * 46 <= zip64_size
+                                        ):
+                                            if zip64_entries == 0 and zip64_size == 0:
+                                                return True
+                                            central_header = struct.Struct("<4s4B4HL2L5H2L")
+                                            if directory_start + central_header.size <= directory_end:
+                                                first_record = central_header.unpack_from(payload, directory_start)
+                                                first_end = (
+                                                    directory_start + central_header.size
+                                                    + first_record[12] + first_record[13] + first_record[14]
+                                                )
+                                                if first_record[0] == b"PK\x01\x02" and first_end <= directory_end:
+                                                    return True
+                                    zip64_cursor = payload.rfind(zip64_signature, 0, zip64_cursor)
                     elif (
                         disk == 0 and directory_disk == 0
                         and entries_on_disk == total_entries
@@ -385,6 +427,13 @@ def _is_zip_archive_entry(archive, info, limits):
                                 first_record = central_header.unpack_from(
                                     payload, directory_start
                                 ) if directory_start + central_header.size <= directory_end else None
+                                if first_record is not None and first_record[0] == b"PK\x01\x02":
+                                    first_end = (
+                                        directory_start + central_header.size
+                                        + first_record[12] + first_record[13] + first_record[14]
+                                    )
+                                    if first_end > directory_end:
+                                        first_record = None
                                 if first_record is not None and first_record[0] == b"PK\x01\x02":
                                     # An over-limit inner directory is still a
                                     # nested archive; recognize it without
