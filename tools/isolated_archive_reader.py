@@ -4,6 +4,7 @@ This is defense in depth, not a sandbox. Platform memory enforcement differs:
 Linux limits address space, Windows limits committed process memory, and macOS
 has no supported hard memory limit in this implementation.
 """
+import hashlib
 import json
 import math
 import os
@@ -87,6 +88,7 @@ def _snapshot_archive(source, destination, limits):
         if initial.st_size > ceiling:
             raise ArchiveError("archive file size exceeds isolated reader limit")
         total = 0
+        copied_digest = hashlib.sha256()
         with os.fdopen(descriptor, "rb", closefd=False) as source_file:
             with open(destination, "wb") as snapshot:
                 while True:
@@ -96,7 +98,26 @@ def _snapshot_archive(source, destination, limits):
                     total += len(chunk)
                     if total > ceiling:
                         raise ArchiveError("archive file size exceeds isolated reader limit")
+                    copied_digest.update(chunk)
                     snapshot.write(chunk)
+
+            source_file.seek(0)
+            verification_digest = hashlib.sha256()
+            verification_total = 0
+            while True:
+                chunk = source_file.read(min(64 * 1024, ceiling - verification_total + 1))
+                if not chunk:
+                    break
+                verification_total += len(chunk)
+                if verification_total > ceiling:
+                    raise ArchiveError("archive file size exceeds isolated reader limit")
+                verification_digest.update(chunk)
+            if (
+                verification_total != total
+                or verification_digest.digest() != copied_digest.digest()
+            ):
+                raise ArchiveError("archive input changed while taking isolated snapshot")
+
         final = os.fstat(descriptor)
         if (initial.st_size, initial.st_mtime_ns, initial.st_ino) != (
             final.st_size, final.st_mtime_ns, final.st_ino
