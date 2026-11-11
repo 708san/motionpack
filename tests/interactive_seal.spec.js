@@ -97,9 +97,12 @@ test('touch tap only activates the seal and returns to idle', async ({ browser }
 
   await page.touchscreen.tap(canvasBox.x + canvasBox.width * 0.5,
     canvasBox.y + canvasBox.height * 0.64);
-  await expect.poll(() => page.evaluate(() => window.__sealActivations)).toBe(1);
-  await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
-    .toBe('squish');
+  await expect.poll(() => page.evaluate(() => ({
+    activations: window.__sealActivations,
+    clip: window.MotionPackPlayer.getState().clip,
+    status: document.querySelector('#status').textContent,
+    assetError: document.querySelector('#asset-error').textContent
+  }))).toMatchObject({ activations: 1, clip: 'squish' });
   await page.clock.runFor(190);
   await captureCandidate(page, testInfo, 'squish-peak');
   await page.clock.runFor(900);
@@ -140,7 +143,14 @@ test('mouse click activates the opted-in seal node', async ({ page }) => {
   expect(nativeClick, 'capture the browser-generated mouse click event').toMatchObject({
     pointerType: 'mouse'
   });
-  await expect.poll(() => page.evaluate(() => window.__sealActivations), { message: 'mouse interaction: ' + JSON.stringify({ nativeClick, interaction }) }).toBe(1);
+  await expect.poll(() => page.evaluate(() => ({
+    activations: window.__sealActivations,
+    clip: window.MotionPackPlayer.getState().clip,
+    status: document.querySelector('#status').textContent,
+    assetError: document.querySelector('#asset-error').textContent,
+    interaction: window.__lastInteraction
+  })), { message: 'mouse click state: ' + JSON.stringify({ nativeClick, interaction }) })
+    .toMatchObject({ activations: 1, clip: 'squish' });
   await page.waitForTimeout(700);
   await page.getByRole('button', { name: 'Activate the seal' }).focus();
   await page.keyboard.press('Enter');
@@ -161,8 +171,11 @@ test('host keyboard activation triggers the seal action', async ({ page }) => {
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
     .toBe('squish');
   await page.waitForTimeout(900);
-  await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
-    .toBe('idle');
+  await expect.poll(() => page.evaluate(() => ({
+    clip: window.MotionPackPlayer.getState().clip,
+    status: document.querySelector('#status').textContent,
+    assetError: document.querySelector('#asset-error').textContent
+  }))).toMatchObject({ clip: 'idle' });
   expect(externalRequests).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
