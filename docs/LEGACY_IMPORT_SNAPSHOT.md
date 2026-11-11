@@ -34,7 +34,7 @@ The importer uses the isolated archive reader by default. It retains payloads on
 
 The isolated worker response remains capped at 40 MiB. If the complete snapshot, including names and protocol framing, exceeds that ceiling, import fails with a resource-limit error rather than returning a partial snapshot. On macOS, the worker retains its documented timeout and result-size limits but has no whole-process hard memory guarantee. This API is not a complete OS sandbox.
 
-The existing `read_package()` and `read_package_isolated()` behavior remains unchanged by default. Full entry retention is an explicit opt-in used by this importer.
+The default `read_package()` API uses the isolated worker and returns manifest-referenced assets only. `read_package_in_process()` remains available for explicit in-process parsing of trusted local inputs. Full entry retention remains an explicit opt-in used by this importer; it does not change normal reader behavior.
 
 ## Acceptance evidence
 
