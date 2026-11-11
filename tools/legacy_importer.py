@@ -385,6 +385,24 @@ def _normalize(manifest, frozen_manifest, manifest_bytes, assets, entries, versi
                     rule_origin="format-spec",
                 )
 
+    if version == "0.4":
+        for index, node in enumerate(manifest.get("nodes", [])):
+            interaction = node.get("interaction", {})
+            for flag in ("hover", "tap", "click"):
+                if flag not in interaction:
+                    pointer = _pointer("nodes", index, "interaction", flag)
+                    effective_defaults[pointer] = EffectiveValue(
+                        value=False,
+                        source_version=version,
+                        source_pointer=pointer,
+                        field_present=False,
+                        rule_id=(
+                            "motionpack.v0.4.interaction."
+                            "flag.default-disabled"
+                        ),
+                        rule_origin="format-spec",
+                    )
+
     capabilities = _capability_facts(manifest, version)
     diagnostics = list(report_diagnostics)
     diagnostics.extend(
