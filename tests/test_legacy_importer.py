@@ -206,7 +206,7 @@ class LegacyImporterTests(unittest.TestCase):
                                 "upper": "ik_upper_test",
                                 "lower": "ik_lower_test",
                                 "lengths": [10, 10],
-                                "target": [20, 10],
+                                "target": [15, 0],
                                 "bend": -1,
                             }]
                         chain = manifest["iks"][0]
