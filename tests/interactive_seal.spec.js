@@ -109,8 +109,22 @@ test('touch tap only activates the seal and returns to idle', async ({ page }, t
 test('mouse click and host keyboard activation use the same opt-in node', async ({ page }) => {
   const { externalRequests, pageErrors } = await openDemo(page);
   const canvas = page.locator('#stage');
+  await canvas.evaluate(element => {
+    element.addEventListener('click', event => {
+      window.__nativeSealClick = {
+        constructor: event.constructor.name,
+        pointerType: event.pointerType || '',
+        x: event.clientX,
+        y: event.clientY
+      };
+    }, { once: true });
+  });
   const rect = await canvas.boundingBox();
   await page.mouse.click(rect.x + rect.width * 0.5, rect.y + rect.height * 0.64);
+  const nativeClick = await page.evaluate(() => window.__nativeSealClick);
+  expect(nativeClick, 'capture the browser-generated mouse click event').toMatchObject({
+    pointerType: 'mouse'
+  });
   await expect.poll(() => page.evaluate(() => window.__sealActivations)).toBe(1);
   await page.waitForTimeout(700);
   await page.getByRole('button', { name: 'Activate the seal' }).focus();
