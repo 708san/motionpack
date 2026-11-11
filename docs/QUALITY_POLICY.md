@@ -12,6 +12,8 @@
 - The current pilot covers idle, fire, transform, completed form change, and pointer IK. It does not establish cross-browser parity or subjective motion quality.
 - The robot demo's v0.2 canvas and background are framed at 1000 × 1000 so the five captured states keep the full character and effects within the reference image.
 - Human reviewers must still assess naturalness and artistic quality; pixel thresholds measure image changes only.
+- Before v1.0, review representative layered artwork and animation for composition, silhouette, visual clarity at intended sizes, palette/contrast, layer separation and editability, timing, motion naturalness and interaction feedback. Record the reviewed artifact, viewport/state, reviewer decision and any accepted limitations. A green screenshot diff is not an art-quality approval.
+- AI authoring is not currently a v1.0 core requirement. If release materials claim that MotionPack can be authored with AI, require a reproducible end-to-end example that yields an editable package, preserves the original and provenance, allows human correction, states what data leaves the device, and offers a non-AI route. Treat unverified AI output quality as an open release gap.
 - Do not claim natural whole-body motion, full mesh deformation or production performance without evidence.
 
 ## Performance
