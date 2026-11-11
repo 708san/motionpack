@@ -18,7 +18,7 @@ The importer reads validated v0.1, v0.2, v0.3, or v0.4 packages into one engine-
 - An immutable normalized view of canvas, assets, nodes, clips/tracks/effects, variants/defaults, IK, interaction fields, capability facts, sparse field presence, and source pointers. It preserves authored data without materializing defaults. See [NORMALIZED_LEGACY_MODEL.md](NORMALIZED_LEGACY_MODEL.md).
 - A report with unrecognized top-level manifest fields (preserved verbatim), payload preservation totals, and the container metadata that the snapshot does not retain.
 
-The importer preserves sparse fields as written. It does not inject defaults such as `loop: false` or IK weight `1` into the manifest. Interpretation of those defaults remains governed by the source-version rules in [FORMAT_SPEC.md](FORMAT_SPEC.md).
+The importer preserves sparse fields as written and does not inject defaults into the manifest or sparse normalized view. Its separate `normalized.effective_defaults` view currently exposes only the documented omitted clip `loop: false` rule with source-version, JSON Pointer, field-presence, and rule provenance. It does not infer IK defaults or other implementation-derived values. This experimental view does not define v1 semantics or serialization.
 
 ## Preservation and loss
 
