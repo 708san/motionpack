@@ -41,6 +41,17 @@ class ImportedAsset:
 
 
 @dataclass(frozen=True)
+class SourceFact:
+    """A source-side observation; it does not claim any v1 support or meaning."""
+
+    source_version: str
+    category: str
+    identifier: str
+    source_pointers: tuple
+    diagnostic: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class ImportReport:
     """Preservation and interpretation diagnostics for one snapshot."""
 
@@ -49,6 +60,7 @@ class ImportReport:
     preserved_payload_bytes: int
     container_metadata_not_retained: tuple
     diagnostics: tuple
+    source_facts: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -274,6 +286,57 @@ def _capability_facts(manifest, version):
             origin="version-rule",
             source_pointers=("/version",),
             interpretation="applies-to-package",
+        ))
+    return tuple(facts)
+
+
+def _source_facts(manifest, version):
+    """Record source observations without mapping them to v1 semantics."""
+    facts = [
+        SourceFact(
+            source_version=version,
+            category="source-format-version",
+            identifier="motionpack.format",
+            source_pointers=("/version",),
+        )
+    ]
+
+    ik_pointers = []
+    if manifest.get("iks"):
+        ik_pointers.append("/iks")
+    for clip_name, clip in manifest.get("clips", {}).items():
+        if isinstance(clip, dict) and clip.get("ik_tracks"):
+            ik_pointers.append(_pointer("clips", clip_name, "ik_tracks"))
+    if ik_pointers:
+        diagnostic = None
+        if version == "0.1":
+            diagnostic = (
+                "IK content is present in v0.1 input although FORMAT_SPEC.md "
+                "introduces IK in v0.2; its v1 meaning is unresolved."
+            )
+        facts.append(SourceFact(
+            source_version=version,
+            category="observed-construct",
+            identifier=_IK_CAPABILITY,
+            source_pointers=tuple(ik_pointers),
+            diagnostic=diagnostic,
+        ))
+
+    for index, node in enumerate(manifest.get("nodes", [])):
+        if isinstance(node, dict) and "interaction" in node:
+            facts.append(SourceFact(
+                source_version=version,
+                category="observed-declaration",
+                identifier=_INTERACTION_CAPABILITY,
+                source_pointers=(_pointer("nodes", index, "interaction"),),
+            ))
+
+    if version in ("0.3", "0.4"):
+        facts.append(SourceFact(
+            source_version=version,
+            category="validation-profile",
+            identifier=_SVG_DIMENSIONS_PROFILE,
+            source_pointers=("/version",),
         ))
     return tuple(facts)
 
@@ -511,6 +574,7 @@ def import_legacy_package(path, *, limits: Optional[ReaderLimits] = None,
             fact.diagnostic for fact in _capability_facts(package.manifest, version)
             if fact.diagnostic is not None
         ),
+        source_facts=_source_facts(package.manifest, version),
     )
     normalized = _normalize(
         package.manifest, frozen_manifest, package.manifest_bytes, frozen_assets, frozen_entries,
