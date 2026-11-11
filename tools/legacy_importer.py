@@ -30,6 +30,18 @@ _IK_CAPABILITY = "org.motionpack.ik.two-bone"
 _INTERACTION_CAPABILITY = "org.motionpack.interaction"
 _SVG_DIMENSIONS_PROFILE = "org.motionpack.validation.svg-dimensions-v0.3"
 
+_NORMALIZED_ROOT_TARGETS = {
+    "version": "source_version",
+    "id": "identifier",
+    "canvas": "canvas",
+    "assets": "assets",
+    "nodes": "nodes",
+    "clips": "clips",
+    "variants": "variants",
+    "defaults": "defaults",
+    "iks": "ik_chains",
+}
+
 
 @dataclass(frozen=True)
 class ImportedAsset:
@@ -52,6 +64,19 @@ class SourceFact:
 
 
 @dataclass(frozen=True)
+class MigrationFinding:
+    """Experimental source disposition; never a v1 support claim."""
+
+    source_version: str
+    disposition: str
+    source_pointer: str
+    source_field: str
+    normalized_target: Optional[str]
+    scope: str
+    reason: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class ImportReport:
     """Preservation and interpretation diagnostics for one snapshot."""
 
@@ -61,6 +86,7 @@ class ImportReport:
     container_metadata_not_retained: tuple
     diagnostics: tuple
     source_facts: tuple = ()
+    migration_findings: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -341,6 +367,68 @@ def _source_facts(manifest, version):
     return tuple(facts)
 
 
+def _migration_findings(manifest, version):
+    """Report only source-to-normalized mappings backed by this importer.
+
+    This report does not assign v1 semantics or claim that a v1 runtime supports
+    any source construct. Unknown top-level fields remain in the immutable
+    manifest and are marked unsupported only by this experimental normalized
+    projection.
+    """
+    findings = []
+    for source_field, normalized_target in _NORMALIZED_ROOT_TARGETS.items():
+        if source_field not in manifest:
+            continue
+        if source_field == "iks" and version == "0.1" and manifest["iks"]:
+            continue
+        findings.append(MigrationFinding(
+            source_version=version,
+            disposition="confirmed_mapping",
+            source_pointer=_pointer(source_field),
+            source_field=source_field,
+            normalized_target=normalized_target,
+            scope="experimental-normalized-view",
+        ))
+
+    if version == "0.1":
+        ambiguous_ik_pointers = []
+        if manifest.get("iks"):
+            ambiguous_ik_pointers.append("/iks")
+        for clip_name, clip in manifest.get("clips", {}).items():
+            if isinstance(clip, dict) and clip.get("ik_tracks"):
+                ambiguous_ik_pointers.append(
+                    _pointer("clips", clip_name, "ik_tracks")
+                )
+        for source_pointer in ambiguous_ik_pointers:
+            findings.append(MigrationFinding(
+                source_version=version,
+                disposition="preserved_uninterpreted",
+                source_pointer=source_pointer,
+                source_field=source_pointer.rsplit("/", 1)[-1],
+                normalized_target=None,
+                scope="v1-semantics",
+                reason=(
+                    "The v0.1 IK/version mismatch is retained as source evidence; "
+                    "no v1 semantic meaning is assigned."
+                ),
+            ))
+
+    for source_field in sorted(set(manifest) - _KNOWN_TOP_LEVEL_FIELDS):
+        findings.append(MigrationFinding(
+            source_version=version,
+            disposition="unsupported",
+            source_pointer=_pointer(source_field),
+            source_field=source_field,
+            normalized_target=None,
+            scope="experimental-normalized-view",
+            reason=(
+                "No normalized semantic mapping is implemented; the immutable "
+                "source manifest still preserves this field."
+            ),
+        ))
+    return tuple(findings)
+
+
 def _normalize(manifest, frozen_manifest, manifest_bytes, assets, entries, version,
                validation_profiles, report_diagnostics):
     normalized_assets = MappingProxyType({
@@ -575,6 +663,7 @@ def import_legacy_package(path, *, limits: Optional[ReaderLimits] = None,
             if fact.diagnostic is not None
         ),
         source_facts=_source_facts(package.manifest, version),
+        migration_findings=_migration_findings(package.manifest, version),
     )
     normalized = _normalize(
         package.manifest, frozen_manifest, package.manifest_bytes, frozen_assets, frozen_entries,
