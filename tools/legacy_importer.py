@@ -384,6 +384,16 @@ def _normalize(manifest, frozen_manifest, manifest_bytes, assets, entries, versi
                     rule_id="motionpack.v0.2.ik.weight.default-one",
                     rule_origin="format-spec",
                 )
+            if "bend" not in chain:
+                pointer = _pointer("iks", index, "bend")
+                effective_defaults[pointer] = EffectiveValue(
+                    value=1,
+                    source_version=version,
+                    source_pointer=pointer,
+                    field_present=False,
+                    rule_id="motionpack.v0.2.ik.bend.default-one",
+                    rule_origin="implementation",
+                )
 
     if version == "0.4":
         for index, node in enumerate(manifest.get("nodes", [])):
