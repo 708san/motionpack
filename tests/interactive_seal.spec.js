@@ -81,6 +81,7 @@ test('touch tap only activates the seal and returns to idle', async ({ browser }
   });
   const page = await context.newPage();
   const { externalRequests, pageErrors } = await openDemo(page);
+  await page.clock.install({ time: new Date('2026-01-01T00:00:00.000Z') });
   const geometry = await page.locator('#stage').evaluate(canvas => {
     const rect = canvas.getBoundingClientRect();
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height,
@@ -99,9 +100,9 @@ test('touch tap only activates the seal and returns to idle', async ({ browser }
   await expect.poll(() => page.evaluate(() => window.__sealActivations)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
     .toBe('squish');
-  await page.waitForTimeout(190);
+  await page.clock.runFor(190);
   await captureCandidate(page, testInfo, 'squish-peak');
-  await page.waitForTimeout(450);
+  await page.clock.runFor(900);
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
     .toBe('idle');
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().variant))
@@ -159,7 +160,7 @@ test('host keyboard activation triggers the seal action', async ({ page }) => {
   await expect.poll(() => page.evaluate(() => window.__sealActivations)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
     .toBe('squish');
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(900);
   await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
     .toBe('idle');
   expect(externalRequests).toEqual([]);
