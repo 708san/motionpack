@@ -349,6 +349,12 @@ def _is_zip_archive_entry(archive, info, limits):
         candidates.append(cursor)
         cursor = payload.find(eocd_signature, cursor + 1)
 
+    # EOCD signatures are only possible inside the final 65,557 bytes.
+    # Bound candidate and central-record work even for adversarial comments.
+    if len(candidates) > limits.max_entries:
+        return True
+    central_records_examined = 0
+
     for cursor in reversed(candidates):
         if cursor + 22 <= len(payload):
             try:
@@ -453,6 +459,8 @@ def _is_zip_archive_entry(archive, info, limits):
                                     parsed_entries = 0
                                     valid_directory = True
                                     while parsed_entries < total_entries:
+                                        if central_records_examined >= limits.max_entries:
+                                            return True
                                         if position + central_header.size > directory_end:
                                             valid_directory = False
                                             break
@@ -470,6 +478,7 @@ def _is_zip_archive_entry(archive, info, limits):
                                             break
                                         position = record_end
                                         parsed_entries += 1
+                                        central_records_examined += 1
                                     if valid_directory and position == directory_end:
                                         return True
 
