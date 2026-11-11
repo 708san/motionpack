@@ -20,20 +20,20 @@ const interactionAdapter=S.version==='0.4'?InteractionAdapter.create({target:can
  hitTest:HitTest,emit:event=>window.dispatchEvent(new CustomEvent('motionpack:interaction',{detail:event}))}):null;
 if(interactionAdapter)window.MotionPackInteractions=Object.freeze({activate:nodeId=>interactionAdapter.activate(nodeId),dispose:()=>interactionAdapter.dispose()});
 window.MotionPackViewport=Object.freeze({configure:options=>viewport.configure(options),getState:()=>viewport.getState()});
-let transition=null,pointerIK=false,previousFrameTime=performance.now();
+let transition=null,pointerIK=false,previousFrameTime=null;
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),mix=(a,b,t)=>a+(b-a)*t,identity={a:1,b:0,c:0,d:1,e:0,f:0};
 function mm(a,b){return {a:a.a*b.a+a.c*b.b,b:a.b*b.a+a.d*b.b,c:a.a*b.c+a.c*b.d,d:a.b*b.c+a.d*b.d,e:a.a*b.e+a.c*b.f+a.e,f:a.b*b.e+a.d*b.f+a.f};}
 function matrix(n){const r=(n.rotation||0)*Math.PI/180,s=n.scale??1;return {a:Math.cos(r)*s,b:Math.sin(r)*s,c:-Math.sin(r)*s,d:Math.cos(r)*s,e:n.x||0,f:n.y||0};}
 function frame(time){
  if(playbackFailed)return;
  let pose,state,t;
- const delta=time-previousFrameTime;previousFrameTime=time;
+ const delta=previousFrameTime===null?0:time-previousFrameTime;previousFrameTime=time;
  try{
   const before=player.getState();
   pose=player.advance(delta);
   const crossedEnd=!before.loop&&(
    (before.state==='ended'&&delta>0)||
-   (before.state==='playing'&&before.timeMs+delta>before.durationMs)
+   (before.state==='playing'&&before.timeMs+delta>=before.durationMs)
   );
   if(crossedEnd){
    if(transition&&Object.prototype.hasOwnProperty.call(S.variants,transition))player.setVariant(transition);
@@ -67,7 +67,7 @@ function frame(time){
  ctx.restore();}
  document.getElementById('status').textContent=clip+' | '+variant+' | '+Math.round(t)+' ms';requestAnimationFrame(frame);
 }
-function playClip(name,next){if(!Object.prototype.hasOwnProperty.call(S.clips,name))return;player.play(name);previousFrameTime=performance.now();transition=next||null;}
+function playClip(name,next){if(!Object.prototype.hasOwnProperty.call(S.clips,name))return;player.play(name);previousFrameTime=null;transition=next||null;}
 document.getElementById('idle').onclick=()=>playClip('idle');
 document.getElementById('fire').onclick=()=>playClip('fire');
 document.getElementById('transform').onclick=()=>playClip('transform',player.getState().variant==='form_a'?'form_b':'form_a');
