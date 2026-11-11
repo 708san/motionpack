@@ -90,6 +90,71 @@ class LegacyImporterTests(unittest.TestCase):
                         self.assertEqual(snapshot.validation_profiles, ())
 
 
+    def test_omitted_loop_default_is_separate_and_has_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for version in ("0.1", "0.2", "0.3", "0.4"):
+                with self.subTest(version=version):
+                    source = self._fixture(version)
+                    target = pathlib.Path(tmp) / f"loop-default-{version}.motionpack"
+                    with zipfile.ZipFile(source, "r") as archive:
+                        members = {
+                            info.filename: archive.read(info)
+                            for info in archive.infolist()
+                            if not info.is_dir()
+                        }
+                    manifest = json.loads(members["manifest.json"].decode("utf-8"))
+                    clip_names = list(manifest["clips"])
+                    self.assertTrue(clip_names)
+                    if len(clip_names) == 1:
+                        probe_name = "loop_default_probe"
+                        manifest["clips"][probe_name] = json.loads(
+                            json.dumps(manifest["clips"][clip_names[0]])
+                        )
+                        clip_names.append(probe_name)
+                    manifest["clips"][clip_names[0]]["loop"] = True
+                    for name in clip_names[1:]:
+                        manifest["clips"][name].pop("loop", None)
+                    members["manifest.json"] = json.dumps(
+                        manifest, separators=(",", ":"), ensure_ascii=False
+                    ).encode("utf-8")
+                    with zipfile.ZipFile(
+                        target, "w", compression=zipfile.ZIP_DEFLATED
+                    ) as archive:
+                        for name, payload in members.items():
+                            archive.writestr(name, payload)
+
+                    before_digest = hashlib.sha256(target.read_bytes()).digest()
+                    snapshot = import_legacy_package(target, timeout=20)
+                    self.assertEqual(
+                        hashlib.sha256(target.read_bytes()).digest(), before_digest
+                    )
+
+                    normalized = snapshot.normalized
+                    self.assertEqual(snapshot.source_version, version)
+                    first = normalized.clips[clip_names[0]]
+                    self.assertTrue(first.loop_present)
+                    self.assertTrue(first.loop_value)
+                    self.assertEqual(
+                        set(normalized.effective_defaults),
+                        {f"/clips/{name}/loop" for name in clip_names[1:]},
+                    )
+                    for name in clip_names[1:]:
+                        pointer = f"/clips/{name}/loop"
+                        effective = normalized.effective_defaults[pointer]
+                        self.assertFalse(normalized.clips[name].loop_present)
+                        self.assertIsNone(normalized.clips[name].loop_value)
+                        self.assertFalse(effective.value)
+                        self.assertEqual(effective.source_version, version)
+                        self.assertEqual(effective.source_pointer, pointer)
+                        self.assertFalse(effective.field_present)
+                        self.assertEqual(
+                            effective.rule_id,
+                            "motionpack.v0.clip.loop.default-false",
+                        )
+                        self.assertEqual(effective.rule_origin, "format-spec")
+                    with self.assertRaises(TypeError):
+                        normalized.effective_defaults["/clips/injected/loop"] = None
+
     def test_normalized_view_projects_sparse_fields_and_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:
             for version in ("0.1", "0.2", "0.3", "0.4"):

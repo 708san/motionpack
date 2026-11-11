@@ -3,7 +3,7 @@
 The importer preserves source manifest and accepted ZIP payload bytes. It does
 not convert, render, execute, or write a package.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping, Optional
 
@@ -114,6 +114,18 @@ class CapabilityFact:
 
 
 @dataclass(frozen=True)
+class EffectiveValue:
+    """A derived value kept separate from authored sparse data."""
+
+    value: object
+    source_version: str
+    source_pointer: str
+    field_present: bool
+    rule_id: str
+    rule_origin: str
+
+
+@dataclass(frozen=True)
 class NormalizedLegacyPackage:
     """Immutable engine-independent read model over a preserved legacy snapshot.
 
@@ -140,6 +152,9 @@ class NormalizedLegacyPackage:
     capability_facts: tuple
     validation_profiles: tuple
     diagnostics: tuple
+    effective_defaults: Mapping = field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
     @property
     def source_entries(self):
@@ -344,6 +359,19 @@ def _normalize(manifest, frozen_manifest, manifest_bytes, assets, entries, versi
         _record(item, _pointer("iks", index))
         for index, item in enumerate(manifest.get("iks", []))
     )
+    effective_defaults = {}
+    for clip_name, clip in manifest.get("clips", {}).items():
+        if "loop" not in clip:
+            pointer = _pointer("clips", clip_name, "loop")
+            effective_defaults[pointer] = EffectiveValue(
+                value=False,
+                source_version=version,
+                source_pointer=pointer,
+                field_present=False,
+                rule_id="motionpack.v0.clip.loop.default-false",
+                rule_origin="format-spec",
+            )
+
     capabilities = _capability_facts(manifest, version)
     diagnostics = list(report_diagnostics)
     diagnostics.extend(
@@ -371,6 +399,7 @@ def _normalize(manifest, frozen_manifest, manifest_bytes, assets, entries, versi
         capability_facts=capabilities,
         validation_profiles=validation_profiles,
         diagnostics=tuple(diagnostics),
+        effective_defaults=MappingProxyType(effective_defaults),
     )
 
 
