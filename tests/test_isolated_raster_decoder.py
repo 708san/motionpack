@@ -1,14 +1,22 @@
+import base64
 import io
+import json
 import os
 import pathlib
+import re
+import shutil
 import struct
 import tempfile
 import time
 import unittest
+import zipfile
 from unittest import mock
 
 from tools import isolated_raster_decoder as decoder
+from tools import package as package_module
 from tests.jpeg_fixtures import jpeg_with_dnl_defined_height
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 try:
     from PIL import Image
@@ -31,6 +39,46 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
             {"asset": data}, {"asset": "assets/asset" + suffix},
             limits=limits, timeout=timeout,
         )["asset"]
+
+    def test_package_opt_in_converts_preview_but_preserves_original_jpeg_assets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = pathlib.Path(tmp) / "project"
+            shutil.copytree(ROOT / "examples" / "robot_ik_demo", project)
+            manifest_path = project / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            source_assets = {}
+            rewritten = {}
+            for index, asset_id in enumerate(manifest["assets"]):
+                rel = f"assets/isolated-{index}.jpg"
+                data = self.image_bytes("JPEG", size=(3, 2), color=(12, 90, 170, 255))
+                target = project / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+                source_assets[rel] = data
+                rewritten[asset_id] = rel
+            manifest["assets"] = rewritten
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            archive, preview = package_module.build(
+                project, pathlib.Path(tmp) / "dist", isolated_raster_decode=True
+            )
+
+            with zipfile.ZipFile(archive) as packaged:
+                for rel, original in source_assets.items():
+                    self.assertEqual(packaged.read(rel), original)
+            html = preview.read_text(encoding="utf-8")
+            payload_match = re.search(
+                r"window.__MOTIONPACK__=(\{.*?\});</script>", html, re.DOTALL
+            )
+            self.assertIsNotNone(payload_match)
+            embedded = json.loads(payload_match.group(1))
+            for data_url in embedded["assets"].values():
+                self.assertTrue(data_url.startswith("data:image/png;base64,"))
+                png_data = base64.b64decode(data_url.split(",", 1)[1])
+                self.assertTrue(png_data.startswith(b"\x89PNG\r\n\x1a\n"))
+                with Image.open(io.BytesIO(png_data)) as image:
+                    self.assertEqual(image.format, "PNG")
+                    self.assertEqual(image.size, (3, 2))
 
     def test_decodes_allowlisted_static_formats_to_rgba(self):
         for image_format, suffix in (("PNG", ".png"), ("JPEG", ".jpg"), ("WEBP", ".webp")):
