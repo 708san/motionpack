@@ -72,7 +72,8 @@ Atheris coverage-guided targets exercise the ZIP reader, SVG validator, and
 raster header parsers, each with a 15-second pull-request run and a 300-second
 weekly/manual campaign.
 Inputs are capped at 64 KiB, each case has a 2-second timeout, and the shared
-job has a 20-minute limit. This remains bounded fuzzing, not continuous fuzzing.
+job has a 25-minute limit so four scheduled 300-second campaigns can complete
+with setup overhead. This remains bounded fuzzing, not continuous fuzzing.
 The default `read_package()` path uses the isolated wrapper's platform-specific
 process and memory controls; it is defense in depth, not a sandbox. The explicit
 `read_package_in_process()` path parses in the caller process and should be used
@@ -215,8 +216,12 @@ dependency. Ordinary image rejection is expected; worker crashes, malformed
 worker responses, and timeouts fail the target. The target keeps dimensions at
 512 px per edge, total pixels at 262,144, each input at 64 KiB, and the corpus
 at 16 files / 1 MiB. It uses the same 15-second PR and 300-second weekly/manual
-budgets, 2-second case timeout, and 1,024 MiB job RSS limit. This exercises the
-decoder worker but does not sandbox it or prove decoder safety.
+budgets, 2-second case timeout, and 1,024 MiB job RSS limit. The decoder target
+is black-box with respect to Pillow: Atheris does not receive coverage feedback
+from the child worker or its native codecs. It mutates inputs and checks bounded
+results, worker failures, resource-limit failures and timeouts, but it is not
+coverage-guided inside Pillow. Process isolation does not sandbox the worker or
+prove decoder safety.
 
 Atheris is test-only and does not enter the runtime package. Version 3.1.0 is
 pinned to the Linux CPython 3.12 wheel hash; the upstream project is Apache-2.0.
