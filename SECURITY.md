@@ -3,6 +3,10 @@
 MotionPack is experimental pre-alpha software. Do not use its current tools to
 open untrusted packages in a production or high-privilege environment.
 
+## Dependency inventory
+
+The offline generated inventory at [docs/DEPENDENCY_INVENTORY.json](docs/DEPENDENCY_INVENTORY.json) covers hash-pinned Python requirements, npm lock entries, full-SHA GitHub Actions and digest-pinned workflow images. Regenerate and check it with 'python3 tools/dependency_inventory.py' and 'python3 tools/dependency_inventory.py --check'. It is a scoped provenance/drift record, not a complete software bill of materials (SBOM): bundled Action, OCI image, hosted runner and native wheel dependencies are not enumerated. The image license composition remains unassessed. License metadata is evidence for review, not a legal determination; MotionPack itself remains unlicensed.
+
 The bounded reader in `tools/archive_reader.py` supports experimental v0.1/v0.2/v0.3/v0.4
 packages. It checks ZIP member names and metadata, enforces configurable size
 and compression-ratio limits, and reads only the manifest and referenced image
