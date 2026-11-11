@@ -33,3 +33,5 @@ jobs:
               assert (base/p).is_file(), p
           print("Validated", len(agents), "agent definitions and governance files")
           PY
+      - name: Check dependency inventory drift
+        run: python3 tools/dependency_inventory.py --check
