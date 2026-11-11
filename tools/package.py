@@ -89,29 +89,39 @@ def _png_chunk(kind, payload):
     )
 
 
-def _encode_rgba_png(decoded):
+def _encode_rgba_png(decoded, *, max_output_bytes):
     width, height, rgba = decoded.width, decoded.height, decoded.rgba
     if (type(width) is not int or type(height) is not int
             or width < 1 or height < 1 or width > 8192 or height > 8192
             or width * height > 16_000_000
-            or not isinstance(rgba, bytes) or len(rgba) != width * height * 4):
+            or not isinstance(rgba, bytes) or len(rgba) != width * height * 4
+            or type(max_output_bytes) is not int or max_output_bytes < 1):
         raise ValueError("isolated raster decoder returned invalid RGBA dimensions")
+    output = bytearray(b"\x89PNG\r\n\x1a\n")
+    if len(output) + 25 + 12 > max_output_bytes:
+        raise ValueError("isolated raster preview exceeds its encoded output limit")
+
+    def append_chunk(kind, payload):
+        chunk_size = 12 + len(payload)
+        if len(output) + chunk_size > max_output_bytes:
+            raise ValueError("isolated raster preview exceeds its encoded output limit")
+        output.extend(_png_chunk(kind, payload))
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    append_chunk(b"IHDR", ihdr)
     compressor = zlib.compressobj(level=6)
-    idat = []
     stride = width * 4
     for row in range(height):
         start = row * stride
         encoded = compressor.compress(b"\0" + rgba[start:start + stride])
         if encoded:
-            idat.append(_png_chunk(b"IDAT", encoded))
+            append_chunk(b"IDAT", encoded)
     tail = compressor.flush()
     if tail:
-        idat.append(_png_chunk(b"IDAT", tail))
-    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
-    return (
-        b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", ihdr)
-        + b"".join(idat) + _png_chunk(b"IEND", b"")
-    )
+        append_chunk(b"IDAT", tail)
+    append_chunk(b"IEND", b"")
+    return bytes(output)
+
 
 
 def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=False):
@@ -161,10 +171,10 @@ def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=Fals
             if set(decoded) != {"asset"}:
                 raise ValueError("isolated raster decoder returned unexpected assets")
             raster = decoded["asset"]
-            preview_png = _encode_rgba_png(raster)
+            preview_png = _encode_rgba_png(
+                raster, max_output_bytes=64 * 1024 * 1024 - total_preview_png_bytes
+            )
             total_preview_png_bytes += len(preview_png)
-            if total_preview_png_bytes > 64 * 1024 * 1024:
-                raise ValueError("isolated raster preview exceeds its 64 MiB encoded output limit")
             preview_png_by_path[rel] = preview_png
             remaining_pixels -= raster.width * raster.height
 
