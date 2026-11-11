@@ -6,7 +6,7 @@
 
 - The v1.0 importer is to support all current experimental versions: v0.1, v0.2, v0.3 and v0.4. This direction requires a frozen, checksummed package fixture and reviewed feature inventory for each version before format freeze.
 - v1.0 will declare capabilities, and a reader must reject an unknown required capability before loading assets or starting playback.
-- The first importer stage is read-only: it returns an in-memory snapshot for v0.1–v0.4, preserves original manifest and opaque payload bytes, and reports unsupported or unclassified information. v1.0 serialization and conversion are separate later work.
+- The first importer stage is read-only: it returns an in-memory snapshot for v0.1–v0.4, preserves original manifest and opaque payload bytes, and reports unsupported or unclassified information. The experimental source-fact ledger records source observations without assigning v1 meanings or target capability requirements. v1.0 serialization and conversion are separate later work.
 
 These are scope and behavior decisions. The capability field layout and unknown-field policy below are also approved directions, but the overall v1.0 schema, importer workflow and format contract remain drafts.
 
