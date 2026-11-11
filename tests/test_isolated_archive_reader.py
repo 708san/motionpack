@@ -134,6 +134,18 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     self.assertEqual(snapshot_result.manifest["version"], version)
                     result = read_package_isolated(archive, timeout=20)
                     self.assertEqual(result.manifest["version"], version)
+                    if version == "0.1":
+                        default_result = archive_reader.read_package(archive, timeout=20)
+                        self.assertEqual(default_result.manifest, result.manifest)
+                        self.assertEqual(default_result.assets, result.assets)
+                        default_retained = archive_reader.read_package(
+                            archive, timeout=20, include_entries=True
+                        )
+                        retained_reference = read_package_isolated(
+                            archive, timeout=20, include_entries=True
+                        )
+                        self.assertEqual(default_retained.entries, retained_reference.entries)
+                        self.assertEqual(default_retained.source_entries, retained_reference.source_entries)
                     self.assertEqual(set(result.assets), set(result.manifest["assets"]))
                     self.assertTrue(all(isinstance(data, bytes) for data in result.assets.values()))
                     retained = read_package_in_process(archive, include_entries=True)
