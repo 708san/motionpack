@@ -1,6 +1,6 @@
 # Governed MotionPack roadmap
 
-Targets are exploratory, not release commitments. This plan is reconciled with `main` after PR #91 (2026-11-11). Update its evidence links as implementation and CI change.
+Targets are exploratory, not release commitments. This plan is reconciled with `main` after PR #95 (2026-11-11). Update its evidence links as implementation and CI change.
 
 ## Current implementation status
 
@@ -10,7 +10,7 @@ Targets are exploratory, not release commitments. This plan is reconciled with `
 | Offline preview | Implemented, browser-specific | Packager emits a self-contained Canvas 2D preview. Its legacy facade is backed by the experimental host-driven controller (PR #40). PR #47 adds host-configurable contain/cover/stretch viewport fitting, centered contain by default and logical coordinate mapping; PR #49 ensures the CSS-pixel backing buffer respects the DPR cap of 2 even when the logical canvas is larger. The backing-buffer caps remain 16 MP and 8192 px per edge; cross-browser parity, mobile Safari/Chrome and real-device behavior are not established. |
 | Motion | Partial | Keyframes, clips, variants, effects and two-bone IK work. No mesh skinning, blend graph, independent scale axes or authoring editor. |
 | Package tooling | Partial | Validator, packager and bounded archive inspection exist. PR #91 stages referenced assets under generated safe paths in the validation tree. PR #93 routes the default ZIP reader API through a bounded worker; `read_package_in_process()` remains an explicit direct parser. The worker is defense in depth, not an OS sandbox. |
-| Untrusted input security (Issue #4) | Partial, open | ZIP, SVG and raster header checks, bounded fuzz targets and isolated worker APIs exist; PR #41 adds valid DNL-defined JPEG rejection coverage. Browser preview still uses browser image decoding. Issue #4's production-readiness acceptance has not been closed. |
+| Untrusted input security (Issue #4) | Partial, open | ZIP, SVG and raster header checks, bounded fuzz targets and isolated worker APIs exist; PR #41 adds valid DNL-defined JPEG rejection coverage and PR #95 adds a bounded black-box mutation campaign for the isolated Pillow decoder (without coverage feedback from Pillow/native codecs). Browser preview still uses browser image decoding. Issue #4's production-readiness acceptance has not been closed. |
 | Visual and performance QA (Issue #5) | Pilot implemented, verification incomplete | Linux Chromium screenshot baselines and report-only timing/memory measurements exist. No mobile or cross-browser matrix, human motion-quality gate, or numeric performance thresholds exist. |
 | Layered source workflow | Demonstrated, not a production authoring pipeline | A manually separated v0.3 plant sample preserves source and provenance notes. Import, masks, editable rigging, and stable authoring APIs are missing. |
 | AI assistance and distribution | Not implemented / undecided | No AI authoring workflow or license selection. AI is optional and should follow stable authoring APIs; license choice requires maintainer decision. |
@@ -20,7 +20,7 @@ The isolated-reader matrix passed on main commit [`f1fe82c`](https://github.com/
 ## Phase A — stabilize the experimental baseline
 
 1. **Completed in PR #50:** obtain a successful isolated-reader matrix run and retain the run URL and per-OS test results. The successful main run is #175. If a later run fails, diagnose its actual job log before changing code.
-2. Keep Issue #4 open. Resolve its remaining acceptance items in small changes with adversarial regression tests and independent security review. PR #91 removes archive-controlled asset paths from the host filesystem boundary during temporary validation staging; it does not resolve path races, memory containment gaps, SVG renderer limits, private source handling, or browser-native decoder exposure. Track those separately.
+2. Keep Issue #4 open. Resolve its remaining acceptance items in small changes with adversarial regression tests and independent security review. PR #91 removes archive-controlled asset paths from the host filesystem boundary during temporary validation staging. PR #95 adds bounded black-box mutation testing for the isolated Pillow raster decoder; its CI also passes the full Python suite (176 tests, 14 skipped) and the isolated-reader matrix on Linux, macOS, and Windows. Neither PR resolves path races, memory containment gaps, SVG renderer limits, private source handling, or browser-native decoder exposure. Track those separately.
 3. **Updated in PR #57:** keep frozen regression fixtures with pinned SHA-256 checks and direct/isolated reader tests for v0.1–v0.4; run the current functional, negative, isolated-process, visual and performance-report checks.
 
 **Exit evidence:** green required checks on a named commit; no unsupported claim of a complete sandbox or browser decoder isolation.
