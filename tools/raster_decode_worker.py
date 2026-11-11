@@ -2,8 +2,10 @@
 import json
 import os
 import pathlib
+import shutil
 import struct
 import sys
+import tempfile
 import warnings
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -116,20 +118,25 @@ def _decode_one(asset_id, extension, data, metadata):
 
 
 def _write_response(output, entries, metadata):
-    output.write(RESPONSE_MAGIC + b"\x00" + struct.pack("!I", len(entries)))
-    total_decoded_pixels = 0
-    for asset_id, extension, data in entries:
-        result = _decode_one(asset_id, extension, data, metadata)
-        _asset_id, format_code, width, height, frame_width, frame_height, rgba = result
-        total_decoded_pixels += frame_width * frame_height
-        if total_decoded_pixels > metadata["max_decoded_pixels"]:
-            raise ValueError("decoded image aggregate exceeds limit")
-        encoded_id = asset_id.encode("utf-8")
-        output.write(struct.pack("!H", len(encoded_id)) + encoded_id)
-        output.write(struct.pack("!BIIIIQ", format_code, width, height, frame_width, frame_height, len(rgba)))
-        output.write(rgba)
-        output.flush()
-        del rgba
+    # Do not publish a success prefix until every image has decoded. If a later
+    # entry is rejected, main() can then return one clean failure frame.
+    with tempfile.TemporaryFile(mode="w+b") as response:
+        response.write(RESPONSE_MAGIC + b"\\x00" + struct.pack("!I", len(entries)))
+        total_decoded_pixels = 0
+        for asset_id, extension, data in entries:
+            result = _decode_one(asset_id, extension, data, metadata)
+            _asset_id, format_code, width, height, frame_width, frame_height, rgba = result
+            total_decoded_pixels += frame_width * frame_height
+            if total_decoded_pixels > metadata["max_decoded_pixels"]:
+                raise ValueError("decoded image aggregate exceeds limit")
+            encoded_id = asset_id.encode("utf-8")
+            response.write(struct.pack("!H", len(encoded_id)) + encoded_id)
+            response.write(struct.pack("!BIIIIQ", format_code, width, height, frame_width, frame_height, len(rgba)))
+            response.write(rgba)
+            del rgba
+        response.flush()
+        response.seek(0)
+        shutil.copyfileobj(response, output, length=64 * 1024)
 
 
 def main():
