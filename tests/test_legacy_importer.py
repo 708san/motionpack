@@ -630,54 +630,53 @@ class LegacyImporterTests(unittest.TestCase):
         self.assertIsNone(snapshot.normalized)
 
     def test_report_source_facts_are_deterministic_and_source_only(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            for version in ("0.1", "0.2", "0.3", "0.4"):
-                with self.subTest(version=version):
-                    source = self._fixture(version)
-                    before = hashlib.sha256(source.read_bytes()).digest()
-                    first = import_legacy_package(source, timeout=20)
-                    second = import_legacy_package(source, timeout=20)
+        for version in ("0.1", "0.2", "0.3", "0.4"):
+            with self.subTest(version=version):
+                source = self._fixture(version)
+                before = hashlib.sha256(source.read_bytes()).digest()
+                first = import_legacy_package(source, timeout=20)
+                second = import_legacy_package(source, timeout=20)
+                self.assertEqual(
+                    hashlib.sha256(source.read_bytes()).digest(), before
+                )
+                facts = first.report.source_facts
+                self.assertEqual(facts, second.report.source_facts)
+                version_fact = next(
+                    fact for fact in facts
+                    if fact.category == "source-format-version"
+                )
+                self.assertEqual(version_fact.source_version, version)
+                self.assertEqual(version_fact.identifier, "motionpack.format")
+                self.assertEqual(version_fact.source_pointers, ("/version",))
+                self.assertFalse(hasattr(version_fact, "target_capability"))
+
+                profile_facts = [
+                    fact for fact in facts
+                    if fact.category == "validation-profile"
+                ]
+                if version in ("0.3", "0.4"):
+                    self.assertEqual(len(profile_facts), 1)
                     self.assertEqual(
-                        hashlib.sha256(source.read_bytes()).digest(), before
+                        profile_facts[0].identifier,
+                        "org.motionpack.validation.svg-dimensions-v0.3",
                     )
-                    facts = first.report.source_facts
-                    self.assertEqual(facts, second.report.source_facts)
-                    version_fact = next(
-                        fact for fact in facts
-                        if fact.category == "source-format-version"
+                    self.assertEqual(
+                        profile_facts[0].source_pointers, ("/version",)
                     )
-                    self.assertEqual(version_fact.source_version, version)
-                    self.assertEqual(version_fact.identifier, "motionpack.format")
-                    self.assertEqual(version_fact.source_pointers, ("/version",))
-                    self.assertFalse(hasattr(version_fact, "target_capability"))
+                else:
+                    self.assertEqual(profile_facts, [])
 
-                    profile_facts = [
-                        fact for fact in facts
-                        if fact.category == "validation-profile"
-                    ]
-                    if version in ("0.3", "0.4"):
-                        self.assertEqual(len(profile_facts), 1)
-                        self.assertEqual(
-                            profile_facts[0].identifier,
-                            "org.motionpack.validation.svg-dimensions-v0.3",
-                        )
-                        self.assertEqual(
-                            profile_facts[0].source_pointers, ("/version",)
-                        )
-                    else:
-                        self.assertEqual(profile_facts, [])
+                if version == "0.4":
+                    self.assertTrue(any(
+                        fact.category == "observed-declaration"
+                        and fact.identifier == "org.motionpack.interaction"
+                        and fact.source_pointers[0].startswith("/nodes/")
+                        for fact in facts
+                    ))
 
-                    if version == "0.4":
-                        self.assertTrue(any(
-                            fact.category == "observed-declaration"
-                            and fact.identifier == "org.motionpack.interaction"
-                            and fact.source_pointers[0].startswith("/nodes/")
-                            for fact in facts
-                        ))
-
-                    with self.assertRaises(FrozenInstanceError):
-                        version_fact.category = "v1-required-capability"
-                    self.assertIsInstance(version_fact.source_pointers, tuple)
+                with self.assertRaises(FrozenInstanceError):
+                    version_fact.category = "v1-required-capability"
+                self.assertIsInstance(version_fact.source_pointers, tuple)
 
     def test_v01_ik_is_normalized_with_spec_mismatch_diagnostic(self):
         source_path = self._fixture("0.2")
