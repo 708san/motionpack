@@ -131,9 +131,8 @@ def _decode_one(asset_id, extension, data, metadata):
                 return asset_id, FORMAT_CODES[expected_format], width, height, frame_width, frame_height, rgba
     except InvalidRasterInput:
         raise
-    except (RasterHeaderError, RasterLimitError, UnidentifiedImageError, OSError,
-            SyntaxError, ValueError, Image.DecompressionBombError,
-            Image.DecompressionBombWarning) as exc:
+    except (RasterHeaderError, RasterLimitError, UnidentifiedImageError,
+            Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
         raise InvalidRasterInput("raster decoder rejected the image") from exc
 
 
