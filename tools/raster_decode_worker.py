@@ -105,35 +105,39 @@ def _decode_one(asset_id, extension, data, metadata):
         raise InvalidRasterInput("raster header validation failed") from exc
 
     Image.MAX_IMAGE_PIXELS = metadata["max_image_pixels"]
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(BytesIO(data), formats=(expected_format,)) as image:
-                if image.format != expected_format:
-                    raise RasterHeaderError("decoded format does not match extension")
-                if image.size != (width, height):
-                    raise RasterHeaderError("decoded dimensions disagree with header")
-                if getattr(image, "n_frames", 1) != 1:
-                    raise RasterHeaderError("animated raster is not supported by this decoder")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        try:
+            opened = Image.open(BytesIO(data), formats=(expected_format,))
+        except (UnidentifiedImageError, OSError, SyntaxError,
+                Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+            raise InvalidRasterInput("raster decoder rejected the image") from exc
+
+        with opened as image:
+            if image.format != expected_format:
+                raise InvalidRasterInput("decoded format does not match extension")
+            if image.size != (width, height):
+                raise InvalidRasterInput("decoded dimensions disagree with header")
+            if getattr(image, "n_frames", 1) != 1:
+                raise InvalidRasterInput("animated raster is not supported by this decoder")
+            try:
                 image.load()
-                frame = ImageOps.exif_transpose(image).convert("RGBA")
-                frame_width, frame_height = frame.size
-                pixels = frame_width * frame_height
-                if (frame_width < 1 or frame_height < 1
-                        or frame_width > metadata["max_dimension"]
-                        or frame_height > metadata["max_dimension"]
-                        or pixels > metadata["max_image_pixels"]
-                        or pixels > metadata["max_decoded_pixels"]):
-                    raise RasterLimitError("decoded raster exceeds limits")
-                rgba = frame.tobytes("raw", "RGBA")
-                if len(rgba) != pixels * 4:
-                    raise RasterHeaderError("decoded RGBA length is inconsistent")
-                return asset_id, FORMAT_CODES[expected_format], width, height, frame_width, frame_height, rgba
-    except InvalidRasterInput:
-        raise
-    except (RasterHeaderError, RasterLimitError, UnidentifiedImageError,
-            Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
-        raise InvalidRasterInput("raster decoder rejected the image") from exc
+            except (OSError, SyntaxError, ValueError,
+                    Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+                raise InvalidRasterInput("raster decoder rejected the image") from exc
+            frame = ImageOps.exif_transpose(image).convert("RGBA")
+            frame_width, frame_height = frame.size
+            pixels = frame_width * frame_height
+            if (frame_width < 1 or frame_height < 1
+                    or frame_width > metadata["max_dimension"]
+                    or frame_height > metadata["max_dimension"]
+                    or pixels > metadata["max_image_pixels"]
+                    or pixels > metadata["max_decoded_pixels"]):
+                raise InvalidRasterInput("decoded raster exceeds limits")
+            rgba = frame.tobytes("raw", "RGBA")
+            if len(rgba) != pixels * 4:
+                raise RuntimeError("decoded RGBA length is inconsistent")
+            return asset_id, FORMAT_CODES[expected_format], width, height, frame_width, frame_height, rgba
 
 
 def _write_response(output, entries, metadata):
