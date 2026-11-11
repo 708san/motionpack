@@ -4,9 +4,9 @@
 <path d="M0 394 C145 365 235 414 366 391 C515 365 613 409 758 382 C820 371 875 375 910 384 L910 550 L0 550 Z" fill="#b4d9d1" opacity=".72"/>
 <path d="M0 440 C150 415 267 453 397 431 C536 407 700 453 910 420 L910 550 L0 550 Z" fill="#91c6c0" opacity=".5"/>
 <ellipse cx="455" cy="449" rx="158" ry="22" fill="#587f80" opacity=".2"/>
-<path d="M479 507 C516 473 586 451 637 439 C689 426 711 410 726 384 L693 371 C672 404 639 405 605 416 C544 436 488 456 454 485 Z" fill="#f4f0e5" stroke="#426365" stroke-width="5"/>
-<path d="M24 156 C27 91 81 43 158 30 C232 17 308 54 342 112 C363 148 348 190 319 204 C298 214 274 206 254 193 C228 221 182 232 133 220 C98 212 74 195 57 180 C42 184 25 176 24 156 Z" transform="translate(270 228)" fill="url(#coat)" stroke="#426365" stroke-width="5"/>
-<path d="M58 176 C83 190 109 196 140 194 C180 191 213 180 243 158 C253 176 256 188 254 193 C228 221 182 232 133 220 C98 212 74 195 57 180 Z" transform="translate(270 228)" fill="#bfd5cf" opacity=".72"/>
+<path d="M396 429 C378 449 375 467 389 470 C407 468 421 449 433 434 Z" fill="#dce8e0" stroke="#426365" stroke-width="4"/><path d="M507 422 C519 444 538 456 550 445 C552 432 537 415 521 406 Z" fill="#dce8e0" stroke="#426365" stroke-width="4"/>
+<path d="M294 384 C297 319 351 271 428 258 C502 245 578 282 612 340 C633 376 618 418 589 432 C568 442 544 434 524 421 C498 449 452 460 403 448 C368 440 344 423 327 408 C312 412 295 404 294 384 Z" fill="url(#coat)" stroke="#426365" stroke-width="5"/>
+<path d="M328 404 C353 418 379 424 410 422 C450 419 483 408 513 386 C523 404 526 416 524 421 C498 449 452 460 403 448 C368 440 344 423 327 408 Z" fill="#bfd5cf" opacity=".72"/>
 <ellipse cx="455" cy="362" rx="46" ry="29" fill="#f8f2e5" stroke="#aec4bd" stroke-width="2"/><ellipse cx="539" cy="362" rx="46" ry="29" fill="#f8f2e5" stroke="#aec4bd" stroke-width="2"/>
 <ellipse cx="454" cy="330" rx="7" ry="10" fill="#29484c"/><ellipse cx="541" cy="330" rx="7" ry="10" fill="#29484c"/>
 <circle cx="456" cy="327" r="2.5" fill="#fff"/><circle cx="543" cy="327" r="2.5" fill="#fff"/>
