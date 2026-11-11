@@ -752,6 +752,39 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError, "nested archive"):
                 read_package(disguised)
 
+    def test_rejects_sfx_zip_with_eocd_signature_in_comment(self):
+        fake_eocd = b"PK\x05\x06" + b"\x00" * 4 + b"\x01\x00\x01\x00" + b"\x00" * 10
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w", compression=zipfile.ZIP_STORED) as nested:
+            nested.writestr("payload.txt", b"nested archive payload")
+            nested.comment = fake_eocd
+        self_extracting = b"S" * 512 + inner.getvalue()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/commented.bin", self_extracting))
+            package = self._zip(pathlib.Path(tmp) / "commented-sfx.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(package)
+
+    def test_rejects_nested_zip_over_entry_count_limit_without_expanding_it(self):
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w", compression=zipfile.ZIP_STORED) as nested:
+            for index in range(ReaderLimits().max_entries + 1):
+                nested.writestr(f"f{index}.txt", b"x")
+        self_extracting = b"S" * 512 + inner.getvalue()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/many.bin", self_extracting))
+            package = self._zip(pathlib.Path(tmp) / "over-limit-inner.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(package)
+
     def test_accepts_non_archive_with_archive_signature_after_prefix(self):
         # Includes an EOCD signature, but claims one central-directory entry
         # without providing a central directory, so it is not a valid ZIP.
