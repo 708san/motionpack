@@ -16,6 +16,7 @@ _SECRET_MARKERS = (
     ("private-key header", re.compile(rb"-----BEGIN (?:(?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY|ENCRYPTED PRIVATE KEY|PGP PRIVATE KEY BLOCK)-----")),
     ("GitHub token-like value", re.compile(rb"(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})")),
     ("OpenAI key-like value", re.compile(rb"sk-(?:proj-)?[A-Za-z0-9_-]{20,}")),
+    ("Slack token-like value", re.compile(rb"(?:xox[a-z]|xapp|xwfp)-[A-Za-z0-9-]{20,}")),
     ("AWS access-key ID-like value", re.compile(rb"(?:AKIA|ASIA)[A-Z0-9]{16}")),
 )
 
