@@ -320,14 +320,17 @@ test('collect unbaselined interactive seal art and motion review frames', async 
     await testInfo.attach(`seal-${name}.png`, { path: imagePath, contentType: 'image/png' });
     const status = await page.locator('#status').textContent();
     const canvasSize = await page.locator('#stage').evaluate(canvas => ({
-      logicalWidth: canvas.width,
-      logicalHeight: canvas.height,
+      logicalWidth: window.__MOTIONPACK__.canvas.width,
+      logicalHeight: window.__MOTIONPACK__.canvas.height,
+      bitmapWidth: canvas.width,
+      bitmapHeight: canvas.height,
       cssWidth: canvas.getBoundingClientRect().width,
       cssHeight: canvas.getBoundingClientRect().height
     }));
     fs.appendFileSync(path.join(output, 'capture-metadata.txt'),
       `seal-${name}: ${status}; viewport=${page.viewportSize().width}x${page.viewportSize().height}; ` +
       `deviceScaleFactor=1; canvasLogical=${canvasSize.logicalWidth}x${canvasSize.logicalHeight}; ` +
+      `canvasBitmap=${canvasSize.bitmapWidth}x${canvasSize.bitmapHeight}; ` +
       `canvasCss=${canvasSize.cssWidth}x${canvasSize.cssHeight}; ` +
       `platform=${process.platform}-${process.arch}; ` +
       `playwright=${require('@playwright/test/package.json').version}; ` +
@@ -352,7 +355,7 @@ test('collect unbaselined interactive seal art and motion review frames', async 
   await page.mouse.click(sealPoint.x, sealPoint.y);
   expect(await page.evaluate(() => window.__sealActivations)).toBe(1);
   expect(await page.evaluate(() => window.__lastInteraction?.type)).toBe('click');
-  expect(await page.evaluate(() => window.__lastInteraction?.pointerType)).toBe('mouse');
+  expect(await page.evaluate(() => window.__lastInteraction?.input)).toBe('mouse');
   expect(await page.evaluate(() => window.__lastInteraction?.nodeId)).toBe('seal_hit');
 
   const motion = [];
@@ -380,7 +383,7 @@ test('collect unbaselined interactive seal art and motion review frames', async 
     }));
   }, sealPoint);
   expect(await page.evaluate(() => window.__lastInteraction?.type)).toBe('tap');
-  expect(await page.evaluate(() => window.__lastInteraction?.pointerType)).toBe('touch');
+  expect(await page.evaluate(() => window.__lastInteraction?.input)).toBe('touch');
   expect(await page.evaluate(() => window.__sealActivations)).toBe(2);
   await page.clock.runFor(780);
   await page.setViewportSize({ width: 390, height: 844 });
