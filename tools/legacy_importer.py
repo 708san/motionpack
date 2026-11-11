@@ -404,7 +404,7 @@ def _migration_findings(manifest, version):
                 source_version=version,
                 disposition="preserved_uninterpreted",
                 source_pointer=source_pointer,
-                source_field="ik",
+                source_field=source_pointer.rsplit("/", 1)[-1],
                 normalized_target=None,
                 scope="v1-semantics",
                 reason=(
