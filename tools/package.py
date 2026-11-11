@@ -7,10 +7,21 @@ import json
 import mimetypes
 import re
 import sys
+import struct
+import zlib
 import tempfile
 import unicodedata
 import zipfile
-from validate import validate
+try:
+    from .isolated_raster_decoder import (
+        DecodedRaster, RasterDecodeError, decode_raster_assets_isolated,
+    )
+    from .validate import validate
+except ImportError:  # Support direct execution from the tools directory.
+    from isolated_raster_decoder import (
+        DecodedRaster, RasterDecodeError, decode_raster_assets_isolated,
+    )
+    from validate import validate
 
 _SECRET_MARKERS = (
     ("private-key header", re.compile(rb"-----BEGIN (?:(?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY|ENCRYPTED PRIVATE KEY|PGP PRIVATE KEY BLOCK)-----")),
@@ -71,7 +82,39 @@ def canonicalize_manifest(manifest):
         canonical_manifest["assets"][aid] = canonical_path
     return canonical_manifest
 
-def build(folder, out, *, fail_on_secret_like=False):
+def _png_chunk(kind, payload):
+    return (
+        struct.pack(">I", len(payload)) + kind + payload
+        + struct.pack(">I", zlib.crc32(kind + payload) & 0xffffffff)
+    )
+
+
+def _encode_rgba_png(decoded):
+    width, height, rgba = decoded.width, decoded.height, decoded.rgba
+    if (type(width) is not int or type(height) is not int
+            or width < 1 or height < 1 or width > 8192 or height > 8192
+            or width * height > 16_000_000
+            or not isinstance(rgba, bytes) or len(rgba) != width * height * 4):
+        raise ValueError("isolated raster decoder returned invalid RGBA dimensions")
+    compressor = zlib.compressobj(level=6)
+    idat = []
+    stride = width * 4
+    for row in range(height):
+        start = row * stride
+        encoded = compressor.compress(b"\\0" + rgba[start:start + stride])
+        if encoded:
+            idat.append(_png_chunk(b"IDAT", encoded))
+    tail = compressor.flush()
+    if tail:
+        idat.append(_png_chunk(b"IDAT", tail))
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    return (
+        b"\\x89PNG\\r\\n\\x1a\\n" + _png_chunk(b"IHDR", ihdr)
+        + b"".join(idat) + _png_chunk(b"IEND", b"")
+    )
+
+
+def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=False):
     try:
         root = Path(folder).resolve()
     except RuntimeError as exc:
@@ -97,6 +140,22 @@ def build(folder, out, *, fail_on_secret_like=False):
     _check_secret_like_metadata(manifest_payload, fail_on_secret_like=fail_on_secret_like)
     _check_secret_like_assets(asset_data, fail_on_secret_like=fail_on_secret_like)
 
+    decoded_preview_assets = None
+    if isolated_raster_decode:
+        try:
+            decoder_assets = {
+                asset_id: asset_data[canonical_manifest["assets"][asset_id]]
+                for asset_id in canonical_manifest["assets"]
+            }
+            decoder_paths = dict(canonical_manifest["assets"])
+            decoded_preview_assets = decode_raster_assets_isolated(
+                decoder_assets, decoder_paths
+            )
+        except RasterDecodeError as exc:
+            raise ValueError("isolated raster preview decoding failed") from exc
+        if set(decoded_preview_assets) != set(canonical_manifest["assets"]):
+            raise ValueError("isolated raster decoder returned unexpected assets")
+
     with tempfile.TemporaryDirectory(prefix="motionpack-build-") as snapshot_name:
         snapshot_root = Path(snapshot_name)
         (snapshot_root / "manifest.json").write_text(manifest_payload, encoding="utf-8")
@@ -118,8 +177,12 @@ def build(folder, out, *, fail_on_secret_like=False):
                 archive.writestr(rel, data)
         embedded = json.loads(json.dumps(canonical_manifest))
         for key, rel in canonical_manifest["assets"].items():
-            data = asset_data[rel]
-            mime = mimetypes.guess_type(rel)[0] or "application/octet-stream"
+            if decoded_preview_assets is None:
+                data = asset_data[rel]
+                mime = mimetypes.guess_type(rel)[0] or "application/octet-stream"
+            else:
+                data = _encode_rgba_png(decoded_preview_assets[key])
+                mime = "image/png"
             embedded["assets"][key] = "data:" + mime + ";base64," + base64.b64encode(data).decode("ascii")
         runtime = Path(__file__).resolve().parent.parent / "runtime"
         rig = (runtime / "rig.js").read_text(encoding="utf-8")
@@ -153,13 +216,18 @@ if __name__ == "__main__":
     p.add_argument("project")
     p.add_argument("--out", default="dist")
     p.add_argument(
+        "--isolated-raster-decode",
+        action="store_true",
+        help="decode referenced static PNG/JPEG/WebP assets in the isolated worker and embed canonical PNGs in the preview",
+    )
+    p.add_argument(
         "--fail-on-secret-like",
         action="store_true",
         help="fail before writing outputs when package metadata or a referenced asset matches a known secret-like pattern",
     )
     args = p.parse_args()
     try:
-        a, b = build(args.project, args.out, fail_on_secret_like=args.fail_on_secret_like)
+        a, b = build(args.project, args.out, fail_on_secret_like=args.fail_on_secret_like, isolated_raster_decode=args.isolated_raster_decode)
         print("Built:", a, a.stat().st_size, "bytes")
         print("Built:", b, b.stat().st_size, "bytes")
     except (OSError, ValueError, TypeError) as e:
