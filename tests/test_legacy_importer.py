@@ -68,6 +68,23 @@ class LegacyImporterTests(unittest.TestCase):
                         snapshot.report.unrecognized_manifest_fields,
                         tuple(sorted(set(manifest) - known_fields)),
                     )
+                    findings = snapshot.report.migration_findings
+                    canvas_mapping = next(
+                        item for item in findings
+                        if item.source_pointer == "/canvas"
+                    )
+                    self.assertEqual(canvas_mapping.disposition, "confirmed_mapping")
+                    self.assertEqual(canvas_mapping.normalized_target, "canvas")
+                    self.assertEqual(
+                        canvas_mapping.scope, "experimental-normalized-view"
+                    )
+                    unsupported = next(
+                        item for item in findings
+                        if item.source_pointer == "/futureTopLevelField"
+                    )
+                    self.assertEqual(unsupported.disposition, "unsupported")
+                    self.assertIsNone(unsupported.normalized_target)
+                    self.assertIn("preserves this field", unsupported.reason)
                     self.assertEqual(
                         set(snapshot.assets),
                         set(snapshot.manifest["assets"]),
@@ -642,6 +659,10 @@ class LegacyImporterTests(unittest.TestCase):
                 )
                 facts = first.report.source_facts
                 self.assertEqual(facts, second.report.source_facts)
+                self.assertEqual(
+                    first.report.migration_findings,
+                    second.report.migration_findings,
+                )
                 version_fact = next(
                     fact for fact in facts
                     if fact.category == "source-format-version"
@@ -731,6 +752,14 @@ class LegacyImporterTests(unittest.TestCase):
             self.assertIn("/iks", source_fact.source_pointers)
             self.assertIn("v1 meaning is unresolved", source_fact.diagnostic)
             self.assertFalse(hasattr(source_fact, "target_capability"))
+            ambiguous = next(
+                item for item in snapshot.report.migration_findings
+                if item.source_pointer == "/iks"
+            )
+            self.assertEqual(ambiguous.disposition, "preserved_uninterpreted")
+            self.assertIsNone(ambiguous.normalized_target)
+            self.assertEqual(ambiguous.scope, "v1-semantics")
+            self.assertIn("no v1 semantic meaning", ambiguous.reason.lower())
 
 
 if __name__ == "__main__":
