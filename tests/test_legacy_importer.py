@@ -175,6 +175,99 @@ class LegacyImporterTests(unittest.TestCase):
                     with self.assertRaises(TypeError):
                         normalized.effective_defaults["/clips/injected/loop"] = None
 
+    def test_burst_count_default_is_version_gated_and_implementation_sourced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for version in ("0.1", "0.2", "0.3", "0.4"):
+                with self.subTest(version=version):
+                    source = self._fixture(version)
+                    target = pathlib.Path(tmp) / f"burst-count-{version}.motionpack"
+                    with zipfile.ZipFile(source, "r") as archive:
+                        members = {
+                            info.filename: archive.read(info)
+                            for info in archive.infolist()
+                            if not info.is_dir()
+                        }
+                    manifest = json.loads(members["manifest.json"].decode("utf-8"))
+                    clip_name = "burst_default_probe"
+                    base_clip = next(iter(manifest["clips"].values()))
+                    probe = json.loads(json.dumps(base_clip))
+                    duration = probe["duration_ms"]
+                    node_id = manifest["nodes"][0]["id"]
+                    probe["effects"] = [
+                        {
+                            "kind": "burst",
+                            "node": node_id,
+                            "start_ms": 0,
+                            "duration_ms": duration,
+                        },
+                        {
+                            "kind": "burst",
+                            "node": node_id,
+                            "start_ms": 0,
+                            "duration_ms": duration,
+                            "count": 0,
+                        },
+                        {
+                            "kind": "burst",
+                            "node": node_id,
+                            "start_ms": 0,
+                            "duration_ms": duration,
+                            "count": 9,
+                        },
+                    ]
+                    manifest["clips"][clip_name] = probe
+                    members["manifest.json"] = json.dumps(
+                        manifest, separators=(",", ":"), ensure_ascii=False
+                    ).encode("utf-8")
+                    with zipfile.ZipFile(
+                        target, "w", compression=zipfile.ZIP_DEFLATED
+                    ) as archive:
+                        for name, payload in members.items():
+                            archive.writestr(name, payload)
+
+                    before_digest = hashlib.sha256(target.read_bytes()).digest()
+                    snapshot = import_legacy_package(target, timeout=20)
+                    self.assertEqual(
+                        hashlib.sha256(target.read_bytes()).digest(), before_digest
+                    )
+                    self.assertEqual(snapshot.source_version, version)
+                    normalized_clip = snapshot.normalized.clips[clip_name]
+                    self.assertEqual(len(normalized_clip.effects), 3)
+
+                    omitted = normalized_clip.effects[0]
+                    omitted_pointer = _pointer(
+                        "clips", clip_name, "effects", 0, "count"
+                    )
+                    self.assertNotIn("count", omitted.present_fields)
+                    self.assertNotIn("count", omitted.values)
+                    effective = snapshot.normalized.effective_defaults[omitted_pointer]
+                    self.assertEqual(effective.value, 28)
+                    self.assertEqual(effective.source_version, version)
+                    self.assertEqual(effective.source_pointer, omitted_pointer)
+                    self.assertFalse(effective.field_present)
+                    self.assertEqual(
+                        effective.rule_id,
+                        "motionpack.v0.effect.burst.count.default-28",
+                    )
+                    self.assertEqual(effective.rule_origin, "implementation")
+                    with self.assertRaises(FrozenInstanceError):
+                        effective.value = 1
+
+                    for index, authored_count in ((1, 0), (2, 9)):
+                        effect = normalized_clip.effects[index]
+                        pointer = _pointer(
+                            "clips", clip_name, "effects", index, "count"
+                        )
+                        self.assertIn("count", effect.present_fields)
+                        self.assertEqual(effect.values["count"], authored_count)
+                        self.assertNotIn(
+                            pointer, snapshot.normalized.effective_defaults
+                        )
+                    with self.assertRaises(TypeError):
+                        snapshot.normalized.effective_defaults[
+                            "/clips/injected/effects/0/count"
+                        ] = None
+
     def test_ik_weight_default_is_version_gated_and_has_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:
             for version in ("0.1", "0.2", "0.3", "0.4"):
