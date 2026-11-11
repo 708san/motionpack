@@ -1071,6 +1071,78 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError, "unable to inspect archive entry"):
                 read_package(path)
 
+    def test_validation_staging_uses_generated_paths_for_host_special_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original = self._package(
+                ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build"
+            )
+            with zipfile.ZipFile(original, "r") as source:
+                source_members = {
+                    info.filename: source.read(info)
+                    for info in source.infolist()
+                    if not info.is_dir()
+                }
+
+            original_manifest = json.loads(
+                source_members["manifest.json"].decode("utf-8")
+            )
+            asset_id, original_path = next(iter(original_manifest["assets"].items()))
+            asset_data = source_members[original_path]
+            real_validate = archive_reader.validate
+
+            for host_special_path in (
+                "assets/CON.svg",
+                "assets/texture:private.svg",
+            ):
+                with self.subTest(path=host_special_path):
+                    manifest = json.loads(json.dumps(original_manifest))
+                    manifest["assets"][asset_id] = host_special_path
+                    members = dict(source_members)
+                    members.pop(original_path)
+                    members[host_special_path] = asset_data
+                    members["manifest.json"] = json.dumps(
+                        manifest, separators=(",", ":"), ensure_ascii=False
+                    ).encode("utf-8")
+                    target = pathlib.Path(tmp) / (
+                        "special-" + str(len(host_special_path)) + ".motionpack"
+                    )
+                    with zipfile.ZipFile(
+                        target, "w", compression=zipfile.ZIP_DEFLATED
+                    ) as output:
+                        for name, payload in members.items():
+                            output.writestr(name, payload)
+
+                    observed = {}
+
+                    def inspect_validation_tree(root, *args, **kwargs):
+                        root = pathlib.Path(root)
+                        validation_manifest = json.loads(
+                            (root / "manifest.json").read_text(encoding="utf-8")
+                        )
+                        observed["assets"] = validation_manifest["assets"]
+                        observed["files"] = {
+                            item.relative_to(root).as_posix()
+                            for item in root.rglob("*")
+                            if item.is_file() and item.name != "manifest.json"
+                        }
+                        return real_validate(root, *args, **kwargs)
+
+                    with mock.patch.object(
+                        archive_reader, "validate", side_effect=inspect_validation_tree
+                    ):
+                        package = read_package(target)
+
+                    staged_paths = set(observed["assets"].values())
+                    self.assertEqual(staged_paths, observed["files"])
+                    self.assertNotIn(host_special_path, staged_paths)
+                    self.assertEqual(package.manifest["assets"][asset_id], host_special_path)
+                    self.assertEqual(package.assets[asset_id], asset_data)
+                    for staged_path in staged_paths:
+                        self.assertRegex(
+                            staged_path,
+                            r"^assets/asset-[0-9]+\.(svg|png|jpe?g|webp)$",
+                        )
+
     def test_deterministic_archive_mutations_reject_or_return_consistent_package(self):
         with tempfile.TemporaryDirectory() as tmp:
             valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
