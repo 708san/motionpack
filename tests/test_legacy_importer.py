@@ -236,15 +236,17 @@ class LegacyImporterTests(unittest.TestCase):
                                 ))
                             else:
                                 effective = normalized.effective_defaults[pointer]
-                            self.assertEqual(effective.value, 1)
-                            self.assertEqual(effective.source_version, version)
-                            self.assertEqual(effective.source_pointer, pointer)
-                            self.assertFalse(effective.field_present)
-                            self.assertEqual(
-                                effective.rule_id,
-                                "motionpack.v0.2.ik.weight.default-one",
-                            )
-                            self.assertEqual(effective.rule_origin, "format-spec")
+                                self.assertEqual(effective.value, 1)
+                                self.assertEqual(effective.source_version, version)
+                                self.assertEqual(effective.source_pointer, pointer)
+                                self.assertFalse(effective.field_present)
+                                self.assertEqual(
+                                    effective.rule_id,
+                                    "motionpack.v0.2.ik.weight.default-one",
+                                )
+                                self.assertEqual(
+                                    effective.rule_origin, "format-spec"
+                                )
 
     def test_normalized_view_projects_sparse_fields_and_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:
