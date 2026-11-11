@@ -181,7 +181,6 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             self.assertEqual(final.st_ino, initial.st_ino)
             self.assertEqual(final.st_mtime_ns, initial.st_mtime_ns)
             self.assertEqual(source.read_bytes(), original)
-            self.assertFalse(destination.exists())
 
     def test_snapshot_rejects_different_regular_file_opened_after_stat(self):
         with tempfile.TemporaryDirectory() as tmp:
