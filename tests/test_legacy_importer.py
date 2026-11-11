@@ -32,6 +32,7 @@ class LegacyImporterTests(unittest.TestCase):
                                 continue
                             expected[info.filename] = source.read(info)
                     manifest = json.loads(expected["manifest.json"].decode("utf-8"))
+                    manifest["nodes"][0]["futureNestedField"] = {"opaque": "nested"}
                     manifest["futureTopLevelField"] = {"opaque": [1, "two"]}
                     if version == "0.4":
                         manifest["nodes"][0]["interaction"] = {"hover": True}
@@ -78,6 +79,33 @@ class LegacyImporterTests(unittest.TestCase):
                     self.assertEqual(
                         canvas_mapping.scope, "experimental-normalized-view"
                     )
+                    root_targets = {
+                        "version": "source_version",
+                        "id": "identifier",
+                        "canvas": "canvas",
+                        "assets": "assets",
+                        "nodes": "nodes",
+                        "clips": "clips",
+                        "variants": "variants",
+                        "defaults": "defaults",
+                        "iks": "ik_chains",
+                    }
+                    expected_mappings = {
+                        _pointer(field): target
+                        for field, target in root_targets.items()
+                        if field in manifest
+                        and not (
+                            field == "iks"
+                            and version == "0.1"
+                            and manifest["iks"]
+                        )
+                    }
+                    actual_mappings = {
+                        item.source_pointer: item.normalized_target
+                        for item in findings
+                        if item.disposition == "confirmed_mapping"
+                    }
+                    self.assertEqual(actual_mappings, expected_mappings)
                     unsupported = next(
                         item for item in findings
                         if item.source_pointer == "/futureTopLevelField"
@@ -89,6 +117,15 @@ class LegacyImporterTests(unittest.TestCase):
                         snapshot.manifest["futureTopLevelField"]["opaque"],
                         (1, "two"),
                     )
+                    nested_node = snapshot.normalized.nodes[0]
+                    self.assertEqual(
+                        nested_node.fields["futureNestedField"]["opaque"], "nested"
+                    )
+                    self.assertFalse(any(
+                        item.source_pointer
+                        == _pointer("nodes", 0, "futureNestedField")
+                        for item in findings
+                    ))
                     with self.assertRaises(FrozenInstanceError):
                         canvas_mapping.disposition = "unsupported"
                     self.assertEqual(
