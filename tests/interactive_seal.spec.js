@@ -137,7 +137,12 @@ test('mouse click activates the opted-in seal node', async ({ page }) => {
     }, { once: true });
   });
   const rect = await canvas.boundingBox();
-  await page.mouse.click(rect.x + rect.width * 0.5, rect.y + rect.height * 0.64);
+  const clickX = rect.x + rect.width * 0.5;
+  const clickY = rect.y + rect.height * 0.64;
+  await page.mouse.move(clickX, clickY);
+  await expect.poll(() => page.evaluate(() => window.__lastInteraction))
+    .toMatchObject({ type: 'hoverenter', nodeId: 'seal_hit', input: 'mouse' });
+  await page.mouse.click(clickX, clickY);
   const nativeClick = await page.evaluate(() => window.__nativeSealClick);
   const interaction = await page.evaluate(() => window.__lastInteraction);
   expect(nativeClick, 'capture the browser-generated mouse click event').toMatchObject({
