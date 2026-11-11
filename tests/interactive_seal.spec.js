@@ -13,11 +13,23 @@ test.beforeAll(() => {
   fs.mkdirSync(output, { recursive: true });
   fs.mkdirSync(candidates, { recursive: true });
   execFileSync('python3', [
+    'tools/validate.py', 'examples/interactive_seal_demo'
+  ], { cwd: root, stdio: 'inherit' });
+  execFileSync('python3', [
+    'tools/package.py', 'examples/interactive_seal_demo', '--out', output
+  ], { cwd: root, stdio: 'inherit' });
+  execFileSync('python3', [
     'examples/interactive_seal_demo/build_preview.py', '--out', output
+  ], { cwd: root, stdio: 'inherit' });
+  const packagePath = path.join(output, 'interactive_seal_demo.motionpack');
+  execFileSync('python3', [
+    '-c',
+    'import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); m=json.loads(z.read("manifest.json")); expected={"manifest.json"}|set(m["assets"].values()); actual=set(z.namelist()); assert actual==expected, (actual, expected); assert not any(name.startswith("source/") for name in actual); assert "assets/static_fallback.svg" not in actual',
+    packagePath
   ], { cwd: root, stdio: 'inherit' });
 });
 
-async function openDemo(page) {
+async function openDemo(page, target = preview) {
   const externalRequests = [];
   const pageErrors = [];
   page.on('request', request => {
@@ -28,7 +40,7 @@ async function openDemo(page) {
     if (message.type() === 'error') pageErrors.push(message.text());
   });
   await page.route(/^https?:\/\//i, route => route.abort());
-  await page.goto(pathToFileURL(preview).href);
+  await page.goto(pathToFileURL(target).href);
   await page.locator('#stage').waitFor({ state: 'visible' });
   await page.waitForFunction(() => !!window.MotionPackPlayer);
   await page.waitForFunction(() =>
@@ -133,6 +145,30 @@ test('mouse click and host keyboard activation use the same opt-in node', async 
   expect(pageErrors).toEqual([]);
 });
 
+
+test('static fallback remains visible when an embedded asset fails to decode', async ({ browser }) => {
+  const html = fs.readFileSync(preview, 'utf8');
+  const manifestOffset = html.indexOf('window.__MOTIONPACK__=');
+  const prefix = 'data:image/svg+xml;base64,';
+  const assetOffset = html.indexOf(prefix, manifestOffset);
+  const valueStart = assetOffset + prefix.length;
+  const valueEnd = html.indexOf('"', valueStart);
+  expect(manifestOffset).toBeGreaterThanOrEqual(0);
+  expect(assetOffset).toBeGreaterThan(manifestOffset);
+  expect(valueEnd).toBeGreaterThan(valueStart);
+  const broken = html.slice(0, valueStart) + Buffer.from('<svg><broken').toString('base64') + html.slice(valueEnd);
+  const malformedPreview = path.join(output, 'malformed-asset.html');
+  fs.writeFileSync(malformedPreview, broken);
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(pathToFileURL(malformedPreview).href);
+  await page.locator('#stage').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => !!window.MotionPackPlayer);
+  await page.waitForTimeout(300);
+  await expect(page.locator('#static-fallback')).toBeVisible();
+  await expect(page.locator('#asset-error')).toBeVisible();
+  await context.close();
+});
 test('static illustration remains available without JavaScript', async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
