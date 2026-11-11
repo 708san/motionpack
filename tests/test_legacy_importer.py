@@ -86,8 +86,8 @@ class LegacyImporterTests(unittest.TestCase):
                     self.assertIsNone(unsupported.normalized_target)
                     self.assertIn("preserves this field", unsupported.reason)
                     self.assertEqual(
-                        snapshot.manifest["futureTopLevelField"],
-                        {"opaque": [1, "two"]},
+                        snapshot.manifest["futureTopLevelField"]["opaque"],
+                        (1, "two"),
                     )
                     with self.assertRaises(FrozenInstanceError):
                         canvas_mapping.disposition = "unsupported"
