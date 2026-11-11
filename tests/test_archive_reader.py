@@ -1158,6 +1158,32 @@ class ArchiveReaderTests(unittest.TestCase):
                 with self.assertRaisesRegex(ArchiveError, "regular file"):
                     read_package(fifo)
 
+    def test_rejects_different_regular_file_opened_after_stat(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            checked = self._package(ROOT / "examples" / "robot_demo", root / "checked")
+            opened = self._package(ROOT / "examples" / "robot_ik_demo", root / "opened")
+            original_stat = type(opened).stat
+
+            def report_checked_identity(path, *args, **kwargs):
+                return original_stat(checked if path == opened else path, *args, **kwargs)
+
+            with mock.patch.object(
+                type(opened), "stat", autospec=True, side_effect=report_checked_identity
+            ):
+                with self.assertRaisesRegex(ArchiveError, "archive input changed between stat and open"):
+                    read_package(opened)
+
+    def test_rejects_archive_when_file_identity_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            package = self._package(ROOT / "examples" / "robot_demo", pathlib.Path(tmp) / "build")
+            with mock.patch.object(archive_reader, "_file_identity", return_value=None):
+                with mock.patch.object(
+                    archive_reader.os, "open", side_effect=AssertionError("must fail before open")
+                ):
+                    with self.assertRaisesRegex(ArchiveError, "identity cannot be verified"):
+                        read_package(package)
+
     def test_regular_file_symlink_input_remains_supported(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)

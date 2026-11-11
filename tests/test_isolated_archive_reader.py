@@ -123,6 +123,53 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     self.assertEqual(retained.entries, isolated_retained.entries)
                     self.assertEqual(retained.source_entries, isolated_retained.source_entries)
 
+    def test_snapshot_rejects_different_regular_file_opened_after_stat(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            checked = self._valid_fixture(tmp, "0.1")
+            opened = self._valid_fixture(tmp, "0.2")
+            opened = opened.with_name("opened.motionpack")
+            source = self._valid_fixture(tmp, "0.2")
+            shutil.copyfile(source, opened)
+            destination = pathlib.Path(tmp) / "snapshot.motionpack"
+            original_stat = type(opened).stat
+
+            def report_checked_identity(path, *args, **kwargs):
+                return original_stat(checked if path == opened else path, *args, **kwargs)
+
+            with mock.patch.object(
+                type(opened), "stat", autospec=True, side_effect=report_checked_identity
+            ):
+                with self.assertRaisesRegex(ArchiveError, "archive input changed between stat and open"):
+                    _snapshot_archive(opened, destination, ReaderLimits())
+            self.assertFalse(destination.exists())
+
+    def test_regular_file_symlink_input_remains_supported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            package = self._valid_fixture(tmp, "0.1")
+            alias = pathlib.Path(tmp) / "regular-file-link.motionpack"
+            try:
+                alias.symlink_to(package)
+            except (NotImplementedError, OSError) as exc:
+                self.skipTest(f"regular-file symlinks are unavailable: {exc}")
+
+            self.assertEqual(read_package_isolated(alias, timeout=20).manifest["version"], "0.1")
+            snapshot = pathlib.Path(tmp) / "snapshot.motionpack"
+            _snapshot_archive(alias, snapshot, ReaderLimits())
+            self.assertEqual(read_package(snapshot).manifest["version"], "0.1")
+
+    def test_snapshot_rejects_unavailable_file_identity_before_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = self._valid_fixture(tmp, "0.1")
+            destination = pathlib.Path(tmp) / "snapshot.motionpack"
+            with mock.patch("isolated_archive_reader._file_identity", return_value=None):
+                with mock.patch(
+                    "isolated_archive_reader.os.open",
+                    side_effect=AssertionError("must fail before open"),
+                ):
+                    with self.assertRaisesRegex(ArchiveError, "identity cannot be verified"):
+                        _snapshot_archive(source, destination, ReaderLimits())
+            self.assertFalse(destination.exists())
+
     def test_rejects_malformed_archive_with_archive_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             archive = pathlib.Path(tmp) / "bad.motionpack"
@@ -145,6 +192,24 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     read_package_isolated(self._input_file(tmp), timeout=2)
             for pid in map(int, pid_file.read_text().split()):
                 self._assert_pid_exited(pid)
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "requires POSIX FIFO support")
+    def test_snapshot_rejects_fifo_and_fifo_symlink_before_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fifo = pathlib.Path(tmp) / "input.motionpack"
+            os.mkfifo(fifo)
+            alias = pathlib.Path(tmp) / "input-link.motionpack"
+            alias.symlink_to(fifo)
+            destination = pathlib.Path(tmp) / "snapshot.motionpack"
+            with mock.patch(
+                "isolated_archive_reader.os.open",
+                side_effect=AssertionError("must reject special file before open"),
+            ):
+                for candidate in (fifo, alias):
+                    with self.subTest(candidate=candidate):
+                        with self.assertRaisesRegex(ArchiveError, "regular file"):
+                            _snapshot_archive(candidate, destination, ReaderLimits())
+            self.assertFalse(destination.exists())
 
     @unittest.skipUnless(hasattr(os, "mkfifo"), "requires POSIX FIFO support")
     def test_deadline_interrupts_a_worker_blocked_opening_input(self):

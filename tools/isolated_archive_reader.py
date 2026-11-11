@@ -18,9 +18,9 @@ import time
 import unicodedata
 
 try:
-    from .archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts, check_json_nesting)
+    from .archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _file_identity, _is_source_path, _json_object, _member_parts, check_json_nesting)
 except ImportError:  # Support direct import when tools/ is on sys.path.
-    from archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _is_source_path, _json_object, _member_parts, check_json_nesting)
+    from archive_reader import (ArchiveError, MotionPackArchive, ReaderLimits, _canonical_asset_path, _file_identity, _is_source_path, _json_object, _member_parts, check_json_nesting)
 
 
 try:
@@ -64,19 +64,25 @@ class UnsupportedMemoryLimit(IsolatedReadError):
 def _snapshot_archive(source, destination, limits):
     source = pathlib.Path(source)
     try:
-        if not stat.S_ISREG(source.stat().st_mode):
+        before = source.stat()
+        if not stat.S_ISREG(before.st_mode):
             raise ArchiveError("archive input must be a regular file")
+        expected_identity = _file_identity(before)
+        if expected_identity is None:
+            raise ArchiveError("archive input identity cannot be verified")
         flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0)
         descriptor = os.open(source, flags)
     except ArchiveError:
         raise
-    except OSError as exc:
+    except (OSError, RuntimeError) as exc:
         raise ArchiveError("unable to snapshot MotionPack archive") from exc
 
     try:
         initial = os.fstat(descriptor)
         if not stat.S_ISREG(initial.st_mode):
             raise ArchiveError("archive input must be a regular file")
+        if _file_identity(initial) != expected_identity:
+            raise ArchiveError("archive input changed between stat and open")
         ceiling = min(limits.max_archive_bytes, MAX_SNAPSHOT_BYTES)
         if initial.st_size > ceiling:
             raise ArchiveError("archive file size exceeds isolated reader limit")
