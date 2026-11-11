@@ -86,6 +86,12 @@ class LegacyImporterTests(unittest.TestCase):
                     self.assertIsNone(unsupported.normalized_target)
                     self.assertIn("preserves this field", unsupported.reason)
                     self.assertEqual(
+                        snapshot.manifest["futureTopLevelField"],
+                        {"opaque": [1, "two"]},
+                    )
+                    with self.assertRaises(FrozenInstanceError):
+                        canvas_mapping.disposition = "unsupported"
+                    self.assertEqual(
                         set(snapshot.assets),
                         set(snapshot.manifest["assets"]),
                     )
@@ -760,6 +766,12 @@ class LegacyImporterTests(unittest.TestCase):
             self.assertIsNone(ambiguous.normalized_target)
             self.assertEqual(ambiguous.scope, "v1-semantics")
             self.assertIn("no v1 semantic meaning", ambiguous.reason.lower())
+            self.assertEqual(ambiguous.source_field, "iks")
+            self.assertFalse(any(
+                item.source_pointer == "/iks"
+                and item.disposition == "confirmed_mapping"
+                for item in snapshot.report.migration_findings
+            ))
 
 
 if __name__ == "__main__":
