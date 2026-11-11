@@ -53,7 +53,7 @@ Stabilize programmatic import, non-destructive source retention, masks/layer edi
 
 ## Phase F — optional AI authoring
 
-After authoring APIs and quality evaluation are stable, prototype a model-independent workflow for planning, segmentation, motion generation, validation and iterative correction. Preserve originals and edit history; require explicit consent for network transfer. Keep AI optional and outside the v1.0 core unless a later scope decision demonstrates it is necessary.
+After authoring APIs and quality evaluation are stable, prototype a model-independent workflow for planning, segmentation, motion generation, validation and iterative correction. Preserve originals and edit history; require explicit consent for network transfer. Keep AI optional and outside the v1.0 core unless a later scope decision demonstrates it is necessary. If v1.0 launch materials claim AI-assisted creation, require a reviewed end-to-end example that produces an editable package, retains original assets and provenance, supports human correction, and clearly identifies network use and a non-AI workflow. Do not imply AI authoring is available until that evidence exists.
 
 ## Phase G — v1.0 release decision
 
@@ -63,7 +63,7 @@ Release only when maintainers approve all of the following:
 - Independent file, runtime and authoring-tool version policies and public API/deprecation rules.
 - Frozen compatibility fixtures, read/write preservation checks, state comparisons and reviewed visual references.
 - Security review of the reader, SVG/raster handling, process boundaries, dependency inventory and vulnerability contact/response process; documented residual risks.
-- Supported-browser/device matrix backed by actual runs; performance budgets with repeatable thresholds; human visual and motion review.
+- Supported-browser/device matrix backed by actual runs; performance budgets with repeatable thresholds; human visual and motion review of representative layered artwork and motion (composition, silhouette, legibility at target sizes, layer editability, timing and interaction feedback). Screenshot matching is regression evidence, not an art-quality verdict.
 - Offline runtime, examples, docs, checksums/distribution artifacts and a maintainer-approved software license.
 
 Do not require every exploratory capability (GUI, AI, mesh deformation, native engine adapters) for v1.0. Prefer a small stable core with explicit capability reporting over silent feature loss.
