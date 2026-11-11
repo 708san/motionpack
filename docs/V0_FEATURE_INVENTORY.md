@@ -37,6 +37,19 @@ These checks are shared tooling behavior, not version deltas unless stated above
 - **Reader resource limits:** defaults include 40 MiB archive size, 1,024 entries, 40 MiB aggregate uncompressed data, 100:1 compression ratio, 1 MiB manifest, 12 MiB per asset and 32 MiB aggregate referenced assets. These are reader/validator operating limits, not a format-wide compatibility promise.
 - **Source/provenance:** the package format permits optional opaque `source/` originals, but the packager does not automatically include them. The normal readers do not return them. The explicit v1 read-only legacy import snapshot and normalized model retain regular-file payloads including `source/` as opaque bytes; they do not decode, scan, execute or restore ZIP container metadata. No formal source-provenance manifest schema is defined.
 
+## Read-only migration source evidence (PR #99)
+
+The experimental read-only importer records a source-side evidence ledger in `ImportReport.source_facts`. It describes observations and validation profiles only; it does not assign v1 semantics, infer required/optional target capabilities, or claim runtime support. These facts are separate from capability facts, effective defaults, and diagnostics.
+
+| Fact | Emission condition and source pointer | Evidence |
+|---|---|---|
+| `source-format-version` / `motionpack.format` | Every accepted source package; `/version`. | `tests/test_legacy_importer.py::test_report_source_facts_are_deterministic_and_source_only` across v0.1–v0.4 fixtures. |
+| `observed-construct` / `org.motionpack.ik.two-bone` | Non-empty root `iks` (`/iks`) or clip `ik_tracks` (clip JSON Pointer). | v0.2 fixture and importer coverage; synthetic v0.1 IK case in `test_v01_ik_is_normalized_with_spec_mismatch_diagnostic`. v0.1 remains preserved and warned, with no inferred v1 meaning. |
+| `observed-declaration` / `org.motionpack.interaction` | Each node that explicitly contains `interaction`; pointer identifies that node declaration. | v0.4 fixture and source-fact test. Omitted flags are represented separately in the experimental effective-default view. |
+| `validation-profile` / `org.motionpack.validation.svg-dimensions-v0.3` | v0.3 and v0.4 packages; `/version`. | v0.3/v0.4 fixture coverage in `test_report_source_facts_are_deterministic_and_source_only`. This records a validator profile, not a playback capability. |
+
+The ledger preserves source version, category, identifier, evidence pointers, and an optional diagnostic. It is deterministic and immutable. It does not record ZIP container metadata, audit external packages, classify every nested unknown field, or decide which observed constructs map into v1.0. See [LEGACY_IMPORT_SNAPSHOT.md](LEGACY_IMPORT_SNAPSHOT.md) and [V1_SOURCE_EVIDENCE_PLAN.md](V1_SOURCE_EVIDENCE_PLAN.md) for the experimental API boundary.
+
 ## Fixture and test map
 
 | Version | Regression artifact | Direct/isolated import evidence |
