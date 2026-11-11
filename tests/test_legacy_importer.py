@@ -777,7 +777,7 @@ class LegacyImporterTests(unittest.TestCase):
                 for clip_name, clip in manifest["clips"].items()
                 if clip.get("ik_tracks")
             }
-            self.assertTrue(expected_ik_track_pointers)
+            self.assertGreaterEqual(len(expected_ik_track_pointers), 2)
             ik_track_findings = [
                 item for item in snapshot.report.migration_findings
                 if item.source_field == "ik_tracks"
