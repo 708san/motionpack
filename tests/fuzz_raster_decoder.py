@@ -151,8 +151,12 @@ def main():
             if result is None or result.image_format != image_format:
                 raise AssertionError("reviewed valid raster seed was rejected")
         for name in STATIC_REJECTION_SEEDS:
-            if validate_input((corpus / name).read_bytes()) is not None:
-                raise AssertionError("reviewed invalid raster seed was accepted")
+            try:
+                result = validate_input((corpus / name).read_bytes())
+            except AssertionError as error:
+                raise AssertionError("reviewed raster rejection seed failed: " + name) from error
+            if result is not None:
+                raise AssertionError("reviewed invalid raster seed was accepted: " + name)
 
         sys.argv[1] = str(corpus)
         atheris.Setup(sys.argv, make_test_one_input())
