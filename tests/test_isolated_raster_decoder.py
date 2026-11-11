@@ -133,21 +133,28 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
             with mock.patch.object(decoder, "WORKER_SCRIPT", script):
                 with self.assertRaises(decoder.RasterDecodeError) as raised:
                     self.decode(self.image_bytes("PNG"), ".png")
-            self.assertNotIsInstance(raised.exception, decoder.RasterDecodeWorkerFailure)
+            self.assertIs(type(raised.exception), decoder.RasterDecodeError)
 
     def test_pillow_load_value_error_is_worker_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             script = pathlib.Path(directory) / "load_value_error_worker.py"
             tools_path = pathlib.Path(decoder.__file__).resolve().parent
             lines = [
-                "import sys",
+                "import io, sys",
                 "sys.path.insert(0, " + repr(str(tools_path)) + ")",
                 "from PIL import Image",
                 "def fail(self):",
                 "    raise ValueError('injected load failure')",
                 "Image.Image.load = fail",
                 "import raster_decode_worker as worker",
-                "raise SystemExit(worker.main())",
+                "real_stdout = sys.stdout",
+                "class Capture:",
+                "    buffer = io.BytesIO()",
+                "worker.sys.stdout = Capture()",
+                "worker.main()",
+                "response = worker.sys.stdout.buffer.getvalue()",
+                "assert response == worker.RESPONSE_MAGIC + b'\\x03', response",
+                "real_stdout.buffer.write(response)",
             ]
             script.write_text("\n".join(lines) + "\n", encoding="utf-8")
             with mock.patch.object(decoder, "WORKER_SCRIPT", script):
