@@ -785,6 +785,38 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError, "nested archive"):
                 read_package(package)
 
+    def test_does_not_classify_incomplete_zip64_directory_as_nested_zip(self):
+        classic = io.BytesIO()
+        with zipfile.ZipFile(classic, "w", compression=zipfile.ZIP_STORED) as nested:
+            nested.writestr("one.txt", b"x")
+        classic_bytes = classic.getvalue()
+        with zipfile.ZipFile(io.BytesIO(classic_bytes)) as nested:
+            central_directory = classic_bytes[nested.start_dir:classic_bytes.rfind(b"PK\x05\x06")]
+
+        claimed_entries = 2
+        directory = central_directory + b"\x00" * 46
+        zip64_end = struct.pack(
+            "<4sQ2H2L4Q", b"PK\x06\x06", 44, 45, 45, 0, 0,
+            claimed_entries, claimed_entries, len(directory), 0,
+        )
+        zip64_locator = struct.pack(
+            "<4sLQL", b"PK\x06\x07", 0, len(directory), 1,
+        )
+        classic_end = struct.pack(
+            "<4s4H2LH", b"PK\x05\x06", 0, 0, 0xFFFF, 0xFFFF,
+            0xFFFFFFFF, 0xFFFFFFFF, 0,
+        )
+        malformed_sfx = b"S" * 512 + directory + zip64_end + zip64_locator + classic_end
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/malformed-zip64.bin", malformed_sfx))
+            package = self._zip(pathlib.Path(tmp) / "malformed-zip64.motionpack", entries)
+            result = read_package(package)
+            self.assertIn("background", result.assets)
+
     def test_rejects_excessive_eocd_candidates_within_bounded_scan_window(self):
         signature = b"PK\x05\x06" + b"\x00" * 18
         payload = b"S" * 512 + signature * (ReaderLimits().max_entries + 1) + b"tail"
