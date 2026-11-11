@@ -7,7 +7,7 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from archive_reader import ArchiveError, ReaderLimits, read_package  # noqa: E402
+from archive_reader import ArchiveError, ReaderLimits, read_package_in_process  # noqa: E402
 from isolated_archive_reader import _snapshot_archive  # noqa: E402
 
 MAGIC = b"MPIR\x02"
@@ -85,7 +85,7 @@ def main():
             response = MAGIC + b"\x04"
         else:
             try:
-                package = read_package(snapshot, limits=limits, include_entries=include_entries)
+                package = read_package_in_process(snapshot, limits=limits, include_entries=include_entries)
                 try:
                     response = _encode_success(package, MAX_RESPONSE_BYTES)
                 except ValueError:

@@ -72,16 +72,20 @@ Atheris coverage-guided targets exercise the ZIP reader, SVG validator, and
 raster header parsers, each with a 15-second pull-request run and a 300-second
 weekly/manual campaign.
 Inputs are capped at 64 KiB, each case has a 2-second timeout, and the shared
-job has a 20-minute limit. This remains bounded fuzzing, not continuous fuzzing. The default
-`read_package()` path remains in-process; the opt-in wrapper below uses
-platform-specific process and memory controls and is not a sandbox. Keep
-packages and their assets untrusted.
+job has a 20-minute limit. This remains bounded fuzzing, not continuous fuzzing.
+The default `read_package()` path uses the isolated wrapper's platform-specific
+process and memory controls; it is defense in depth, not a sandbox. The explicit
+`read_package_in_process()` path parses in the caller process and should be used
+only when that behavior is intentional. Keep packages and their assets untrusted.
 
-## Opt-in isolated reader
+## Default isolated archive reader
 
-`tools/isolated_archive_reader.py` provides `read_package_isolated()` as a
-separate, opt-in API; the existing synchronous `read_package()` behavior is
-unchanged. The wrapper creates a private temporary directory and starts a fresh
+`tools/isolated_archive_reader.py` provides `read_package_isolated()`, which
+backs the default `read_package()` API. Callers may also invoke it directly to
+customize timeout or memory settings. The previous direct parser remains
+available as `read_package_in_process()`; it runs in the caller process without
+a worker deadline or process-level memory cap. The isolated wrapper creates a
+private temporary directory and starts a fresh
 Python worker without a shell. The worker snapshots at most 40 MiB of a regular
 input file there while hashing the copied bytes, then makes a second bounded
 read of the same open file and requires the byte count and SHA-256 digest to

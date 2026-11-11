@@ -233,7 +233,8 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
     512 MiB committed-memory Job Object limit on Windows. macOS has no supported
     whole-process hard memory limit here; explicitly requesting one there fails.
     Set ``memory_limit_bytes=0`` to disable an OS memory limit. This is not a
-    complete sandbox and does not change the synchronous ``read_package`` API.
+    complete sandbox. The default ``read_package`` API delegates here; use
+    ``read_package_in_process`` only when in-process parsing is intentional.
     Set ``include_entries=True`` to retain all regular-file payloads (including
     opaque source entries); the complete framed response remains capped at 40 MiB.
     """

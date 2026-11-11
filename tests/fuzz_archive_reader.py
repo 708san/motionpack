@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
 with atheris.instrument_imports():
-    from archive_reader import ArchiveError, read_package
+    from archive_reader import ArchiveError, read_package_in_process as read_package
 
 
 MAX_INPUT_BYTES = 64 * 1024
