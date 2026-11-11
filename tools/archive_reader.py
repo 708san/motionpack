@@ -533,7 +533,7 @@ def _canonical_asset_path(raw_path):
     return canonical
 
 
-def read_package(path, *, limits=None, include_entries=False):
+def read_package_in_process(path, *, limits=None, include_entries=False):
     """Read and validate a .motionpack without extracting ZIP members.
 
     By default, only the manifest and referenced assets are decompressed. Set
@@ -677,3 +677,23 @@ def read_package(path, *, limits=None, include_entries=False):
         raise
     except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile, RuntimeError, EOFError, UnicodeDecodeError, OverflowError, zlib.error, struct.error) as exc:
         _error("unable to read MotionPack archive", exc)
+
+def read_package(path, *, limits=None, timeout=30.0, memory_limit_bytes=None, include_entries=False):
+    """Read a package through the bounded isolated worker by default.
+
+    Use read_package_in_process only for trusted local inputs or callers
+    that deliberately accept parsing in the current process. The worker adds
+    startup overhead and platform-specific memory limits; it is not a sandbox.
+    """
+    try:
+        from .isolated_archive_reader import read_package_isolated
+    except ImportError:  # Support direct import when tools/ is on sys.path.
+        from isolated_archive_reader import read_package_isolated
+    return read_package_isolated(
+        path,
+        limits=limits,
+        timeout=timeout,
+        memory_limit_bytes=memory_limit_bytes,
+        include_entries=include_entries,
+    )
+
