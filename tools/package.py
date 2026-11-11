@@ -19,7 +19,7 @@ try:
     from .validate import validate
 except ImportError:  # Support direct execution from the tools directory.
     from isolated_raster_decoder import (
-        DecodedRaster, RasterDecodeError, decode_raster_assets_isolated,
+        RasterDecodeError, RasterDecodeLimits, decode_raster_assets_isolated,
     )
     from validate import validate
 
