@@ -109,7 +109,7 @@ def _decode_one(asset_id, extension, data, metadata):
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         try:
             opened = Image.open(BytesIO(data), formats=(expected_format,))
-        except (UnidentifiedImageError, OSError, SyntaxError,
+        except (UnidentifiedImageError, OSError, SyntaxError, ValueError,
                 Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
             raise InvalidRasterInput("raster decoder rejected the image") from exc
 
