@@ -353,7 +353,7 @@ def _is_zip_archive_entry(archive, info):
 
     # ZipFile accepts some inconsistent empty directories. Cross-check the
     # classic EOCD entry count when it is available; 0xffff denotes ZIP64.
-    eocd_offset = payload.rfind(b"PK\\x05\\x06", max(0, len(payload) - 22 - 0xFFFF))
+    eocd_offset = payload.rfind(b"PK\x05\x06", max(0, len(payload) - 22 - 0xFFFF))
     if eocd_offset < 0 or eocd_offset + 22 > len(payload):
         return False
     try:
