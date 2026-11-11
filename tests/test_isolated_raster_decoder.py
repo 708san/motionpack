@@ -129,7 +129,7 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
                 "import raster_decode_worker as worker",
                 "raise SystemExit(worker.main())",
             ]
-            script.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+            script.write_text("\n".join(lines) + "\n", encoding="utf-8")
             with mock.patch.object(decoder, "WORKER_SCRIPT", script):
                 with self.assertRaises(decoder.RasterDecodeError) as raised:
                     self.decode(self.image_bytes("PNG"), ".png")
@@ -149,7 +149,7 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
                 "import raster_decode_worker as worker",
                 "raise SystemExit(worker.main())",
             ]
-            script.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+            script.write_text("\n".join(lines) + "\n", encoding="utf-8")
             with mock.patch.object(decoder, "WORKER_SCRIPT", script):
                 with self.assertRaises(decoder.RasterDecodeWorkerFailure):
                     self.decode(self.image_bytes("PNG"), ".png")
