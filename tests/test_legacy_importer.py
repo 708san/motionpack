@@ -172,15 +172,16 @@ class LegacyImporterTests(unittest.TestCase):
 
     def test_ik_weight_default_is_version_gated_and_has_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:
-            source = self._fixture("0.2")
-            with zipfile.ZipFile(source, "r") as archive:
-                source_members = {
-                    info.filename: archive.read(info)
-                    for info in archive.infolist()
-                    if not info.is_dir()
-                }
-
             for version in ("0.1", "0.2", "0.3", "0.4"):
+                source_version = "0.2" if version == "0.1" else version
+                source = self._fixture(source_version)
+                with zipfile.ZipFile(source, "r") as archive:
+                    source_members = {
+                        info.filename: archive.read(info)
+                        for info in archive.infolist()
+                        if not info.is_dir()
+                    }
+
                 for authored_weight in (None, 0.25):
                     with self.subTest(version=version, authored_weight=authored_weight):
                         target = pathlib.Path(tmp) / (
@@ -189,6 +190,25 @@ class LegacyImporterTests(unittest.TestCase):
                         members = dict(source_members)
                         manifest = json.loads(members["manifest.json"].decode("utf-8"))
                         manifest["version"] = version
+                        if version in ("0.3", "0.4"):
+                            manifest["nodes"].extend([
+                                {"id": "ik_upper_test", "x": 0, "y": 0, "z": 10},
+                                {
+                                    "id": "ik_lower_test",
+                                    "parent": "ik_upper_test",
+                                    "x": 10,
+                                    "y": 0,
+                                    "z": 11,
+                                },
+                            ])
+                            manifest["iks"] = [{
+                                "id": "ik_weight_test",
+                                "upper": "ik_upper_test",
+                                "lower": "ik_lower_test",
+                                "lengths": [10, 10],
+                                "target": [15, 0],
+                                "bend": -1,
+                            }]
                         chain = manifest["iks"][0]
                         if authored_weight is None:
                             chain.pop("weight", None)
