@@ -785,6 +785,24 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError, "nested archive"):
                 read_package(package)
 
+    def test_rejects_excessive_zip64_candidates_with_bounded_scan(self):
+        marker = b"PK\x06\x06" + b"\x00" * 52
+        locator = struct.pack("<4sLQL", b"PK\x06\x07", 0, 0, 1)
+        end_record = struct.pack(
+            "<4s4H2LH", b"PK\x05\x06", 0, 0, 0xFFFF, 0xFFFF,
+            0xFFFFFFFF, 0xFFFFFFFF, 0,
+        )
+        payload = b"S" * 512 + marker * (ReaderLimits().max_entries + 1) + locator + end_record
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/zip64-signature-storm.bin", payload))
+            package = self._zip(pathlib.Path(tmp) / "zip64-signature-storm.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(package)
+
     def test_does_not_classify_incomplete_zip64_directory_as_nested_zip(self):
         classic = io.BytesIO()
         with zipfile.ZipFile(classic, "w", compression=zipfile.ZIP_STORED) as nested:
