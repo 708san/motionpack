@@ -14,7 +14,7 @@ import unicodedata
 import zipfile
 try:
     from .isolated_raster_decoder import (
-        DecodedRaster, RasterDecodeError, decode_raster_assets_isolated,
+        RasterDecodeError, RasterDecodeLimits, decode_raster_assets_isolated,
     )
     from .validate import validate
 except ImportError:  # Support direct execution from the tools directory.
@@ -140,25 +140,33 @@ def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=Fals
     _check_secret_like_metadata(manifest_payload, fail_on_secret_like=fail_on_secret_like)
     _check_secret_like_assets(asset_data, fail_on_secret_like=fail_on_secret_like)
 
-    decoded_preview_assets = None
+    preview_png_by_path = None
     if isolated_raster_decode:
-        try:
-            decoder_assets = {
-                asset_id: asset_data[canonical_manifest["assets"][asset_id]]
-                for asset_id in canonical_manifest["assets"]
-            }
-            decoder_paths = dict(canonical_manifest["assets"])
-            decoded_preview_assets = decode_raster_assets_isolated(
-                decoder_assets, decoder_paths
-            )
-        except RasterDecodeError as exc:
-            raise ValueError("isolated raster preview decoding failed") from exc
-        if set(decoded_preview_assets) != set(canonical_manifest["assets"]):
-            raise ValueError("isolated raster decoder returned unexpected assets")
-        preview_png_by_asset = {
-            asset_id: _encode_rgba_png(decoded_preview_assets[asset_id])
-            for asset_id in canonical_manifest["assets"]
-        }
+        preview_png_by_path = {}
+        remaining_pixels = RasterDecodeLimits().max_input_pixels
+        total_preview_png_bytes = 0
+        for rel, source_bytes in asset_data.items():
+            if remaining_pixels < 1:
+                raise ValueError("isolated raster preview exceeds aggregate pixel limit")
+            try:
+                decoded = decode_raster_assets_isolated(
+                    {"asset": source_bytes}, {"asset": rel},
+                    limits=RasterDecodeLimits(
+                        max_input_pixels=remaining_pixels,
+                        max_decoded_pixels=remaining_pixels,
+                    ),
+                )
+            except RasterDecodeError as exc:
+                raise ValueError("isolated raster preview decoding failed") from exc
+            if set(decoded) != {"asset"}:
+                raise ValueError("isolated raster decoder returned unexpected assets")
+            raster = decoded["asset"]
+            preview_png = _encode_rgba_png(raster)
+            total_preview_png_bytes += len(preview_png)
+            if total_preview_png_bytes > 64 * 1024 * 1024:
+                raise ValueError("isolated raster preview exceeds its 64 MiB encoded output limit")
+            preview_png_by_path[rel] = preview_png
+            remaining_pixels -= raster.width * raster.height
 
     with tempfile.TemporaryDirectory(prefix="motionpack-build-") as snapshot_name:
         snapshot_root = Path(snapshot_name)
@@ -181,11 +189,11 @@ def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=Fals
                 archive.writestr(rel, data)
         embedded = json.loads(json.dumps(canonical_manifest))
         for key, rel in canonical_manifest["assets"].items():
-            if decoded_preview_assets is None:
+            if preview_png_by_path is None:
                 data = asset_data[rel]
                 mime = mimetypes.guess_type(rel)[0] or "application/octet-stream"
             else:
-                data = preview_png_by_asset[key]
+                data = preview_png_by_path[rel]
                 mime = "image/png"
             embedded["assets"][key] = "data:" + mime + ";base64," + base64.b64encode(data).decode("ascii")
         runtime = Path(__file__).resolve().parent.parent / "runtime"
