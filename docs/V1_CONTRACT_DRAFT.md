@@ -82,9 +82,9 @@ The writer should have a no-output preflight stage and a separate commit-to-disk
 1. Read a bounded source and produce an immutable migration plan.
 2. Produce a deterministic field-level loss report, including JSON pointers and payload hashes where applicable.
 3. Bind confirmation to the source digest and the exact migration-plan/loss-report digest.
-4. If the report contains no losses or semantic reinterpretations, no loss confirmation is required. Otherwise reject missing, stale, or incomplete confirmation before creating or replacing the destination.
-5. Validate the v1 model in memory.
-6. After confirmation when required, write a temporary package beside the destination. Re-read the temporary package with the v1 reader and compare canonical manifest values, opaque extensions, and asset hashes.
+4. Validate the proposed v1 model in memory without creating files.
+5. If the report contains no losses or semantic reinterpretations, no loss confirmation is required. Otherwise reject missing, stale, or incomplete confirmation before creating or replacing the destination.
+6. Write a temporary package beside the destination only after any required confirmation. Re-read it with the v1 reader and compare canonical manifest values, opaque extensions, and asset hashes.
 7. Atomically publish the verified temporary package to a new destination by default; do not replace the source package in place. Failure before publication leaves the source and any existing destination unchanged.
 
 Any source or plan change invalidates prior confirmation. A loss report must never claim that retaining opaque bytes means the field is supported.
