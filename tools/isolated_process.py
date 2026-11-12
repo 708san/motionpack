@@ -170,23 +170,39 @@ def kill_worker(process, windows_job=None):
                 process.kill()
             except OSError:
                 pass
-    else:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        except OSError:
-            if process.poll() is None:
-                try:
-                    process.kill()
-                except OSError:
-                    pass
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired as error:
+                raise TimeoutError(
+                    "Windows worker process did not exit after termination"
+                ) from error
+        return
+
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except OSError:
+        if process.poll() is None:
+            try:
+                process.kill()
+            except OSError:
+                pass
     if process.poll() is None:
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
+            try:
+                process.kill()
+            except OSError:
+                pass
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired as error:
+                raise TimeoutError(
+                    "worker process did not exit after termination"
+                ) from error
+
 
 
 def read_bounded_output(stream, output, overflow, process, max_bytes):
