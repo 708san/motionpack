@@ -140,4 +140,67 @@ independentPose.nodes.get('mech').x = -999;
 assert.notStrictEqual(player.getPose().nodes.get('mech').x, -999,
   'callers receive independent sampled poses');
 player.dispose();
+const unloaded = create();
+assert.deepStrictEqual(unloaded.getState(), {
+  state: 'unloaded', clip: null, variant: null, timeMs: 0, durationMs: 0, loop: false
+});
+assert.throws(() => create({}), /manifest/);
+for (const operation of [
+  () => unloaded.getPose(), () => unloaded.play(), () => unloaded.pause(),
+  () => unloaded.resume(), () => unloaded.stop(), () => unloaded.seek(0),
+  () => unloaded.advance(0), () => unloaded.setVariant('form_a'),
+  () => unloaded.setIKTarget('aim_right', [1, 2])
+]) assert.throws(operation, /not loaded/);
+
+assert.throws(() => unloaded.load({ manifest, rig, clip: 'missing' }), /unknown clip/);
+assert.strictEqual(unloaded.getState().state, 'unloaded',
+  'a failed first load leaves the controller unloaded');
+const loadedPose = unloaded.load({ manifest, rig });
+assert.deepStrictEqual(unloaded.getState(), {
+  state: 'stopped', clip: manifest.defaults.clip, variant: manifest.defaults.variant,
+  timeMs: 0, durationMs: manifest.clips[manifest.defaults.clip].duration_ms,
+  loop: Boolean(manifest.clips[manifest.defaults.clip].loop)
+});
+assert.deepStrictEqual(loadedPose, unloaded.getPose(), 'load returns the initial sampled pose');
+unloaded.play('idle');
+unloaded.advance(500);
+const priorState = unloaded.getState();
+const priorPose = unloaded.getPose();
+assert.throws(() => unloaded.load({ manifest: otherManifest, rig, variant: 'missing' }),
+  /unknown variant/);
+assert.deepStrictEqual(unloaded.getState(), priorState,
+  'a failed replacement load preserves the prior controller state');
+assert.deepStrictEqual(unloaded.getPose(), priorPose,
+  'a failed replacement load preserves the prior pose');
+const replacement = unloaded.load({ manifest: otherManifest, rig });
+assert.deepStrictEqual(unloaded.getState(), {
+  state: 'stopped', clip: 'fire', variant: otherManifest.defaults.variant,
+  timeMs: 0, durationMs: otherManifest.clips.fire.duration_ms,
+  loop: Boolean(otherManifest.clips.fire.loop)
+});
+assert.deepStrictEqual(replacement, unloaded.getPose());
+assert.strictEqual(unloaded.unload(), true);
+assert.strictEqual(unloaded.unload(), false, 'unload is idempotent');
+assert.deepStrictEqual(unloaded.getState(), {
+  state: 'unloaded', clip: null, variant: null, timeMs: 0, durationMs: 0, loop: false
+});
+assert.throws(() => unloaded.getPose(), /not loaded/);
+assert.deepStrictEqual(unloaded.load({ manifest, rig }), loadedPose,
+  'an unloaded controller can load again');
+unloaded.unload();
+unloaded.dispose();
+assert.strictEqual(unloaded.getState().state, 'disposed');
+assert.doesNotThrow(() => unloaded.dispose());
+assert.throws(() => unloaded.load({ manifest, rig }), /disposed/);
+
+const replaceIK = create();
+replaceIK.load({ manifest: manifestWithoutIKTracks, rig });
+replaceIK.setIKTarget('aim_right', [900, 250]);
+const beforeReplacement = replaceIK.getPose();
+replaceIK.load({ manifest: otherManifest, rig });
+assert.deepStrictEqual(replaceIK.getPose(), create({ manifest: otherManifest, rig }).getPose(),
+  'successful replacement clears IK targets from the previous manifest');
+assert.notDeepStrictEqual(replaceIK.getPose(), beforeReplacement);
+replaceIK.dispose();
+
 console.log('OK: host-driven playback lifecycle, boundaries, isolation and disposal');
