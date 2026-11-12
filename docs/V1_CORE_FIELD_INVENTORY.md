@@ -23,6 +23,8 @@ The read-only importer retains exact manifest and accepted regular-file payload 
 
 Paths use JSON Pointer patterns. Braced segments are dynamic keys or array indices, not literal schema field names. “Shape seen” reports source evidence; it is not a closed v1 grammar. Unless a row says otherwise, v0.x validators may accept extra nested fields. Such fields stay unclassified and preserved; lack of a normalized mapping does not make them invalid.
 
+**Approved numeric direction:** v1 numeric values are finite decimals with explicit per-property domains, except fields explicitly selected as integers, including clip duration and effect timing. Exact domains, number representation/precision, and invalid-value behavior remain open.
+
 | Path / object | Shape and source-version evidence | Current behavior and migration evidence | v1 planning direction | Unresolved contract work |
 |---|---|---|---|---|
 | `/format`, `/version` | **Documented rule:** `format` is `motionpack`; supported experimental versions are `0.1`–`0.4`. | Validator selects versioned profiles. Importer records source version and retains original manifest bytes. | Reuse the v0.4-shaped core; v1 versioning and migration source are distinct. | Exact v1 discriminator types, unsupported-version errors, and version parsing. |
