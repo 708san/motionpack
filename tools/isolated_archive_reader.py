@@ -54,8 +54,21 @@ class _PreservableTemporaryDirectory:
         return str(self.path)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if not self._preserve:
-            shutil.rmtree(self.path)
+        if self._preserve:
+            return
+        deadline = time.monotonic() + 5.0
+        while True:
+            try:
+                shutil.rmtree(self.path)
+                return
+            except OSError as error:
+                if (
+                    os.name != "nt"
+                    or getattr(error, "winerror", None) not in (5, 32)
+                    or time.monotonic() >= deadline
+                ):
+                    raise
+                time.sleep(0.05)
 
     def preserve_after_failed_reap(self, error):
         self._preserve = True
