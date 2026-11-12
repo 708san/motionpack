@@ -17,7 +17,7 @@ A read-only review of the Issue #4 controls and negative-test definitions found 
 
 - The default `read_package()` API uses the isolated worker and its deadline, response cap, and platform-specific memory controls. `read_package_in_process()` remains available for explicit in-process use and has no process-level deadline or memory cap. Isolation is defense in depth only: the worker retains caller permissions, macOS has no hard whole-process memory limit, and process creation/OS setup cannot be interrupted by the deadline.
 - The secret-like scanner previously covered referenced asset bytes but omitted the serialized manifest and asset paths, and validator errors could echo token-like values in invalid paths. This update extends scanning to those package metadata strings and redacts recognized patterns in packager errors while preserving warning-only default behavior and strict opt-in rejection. The heuristic remains incomplete.
-- A possible mismatch between the Windows memory-limit test and worker error mapping was raised by static inspection. The Windows `isolated-reader-windows-2025` job passed in PR #27; the macOS job was canceled before setup and provides no test evidence.
+- PR #132 adds an explicit Windows `JOB_OBJECT_LIMIT_JOB_MEMORY` cap alongside the existing per-process cap. A Windows regression test queries the Job Object and checks the configured aggregate committed-memory limit; the test-only PR head reproduced the missing job-wide flag before the fix. This does not remove Linux/macOS memory-limit differences or make the worker a sandbox.
 
 The review was static and did not execute tests or fuzzing. See the repository CI evidence and test files for execution results; the review itself is not a formal certification.
 
