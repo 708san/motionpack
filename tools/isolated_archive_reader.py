@@ -327,16 +327,18 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
                 raise IsolatedWorkerFailure("isolated reader worker exited unexpectedly")
             return _decode_result(output, limits, include_entries=include_entries)
         except BaseException:
-            _kill_worker(process, job)
-            job = None
-            worker_cleaned = True
+            cleanup_job, job = job, None
+            try:
+                _kill_worker(process, cleanup_job)
+            finally:
+                worker_cleaned = True
             raise
         finally:
             if not worker_cleaned and (
                 job is not None or process.poll() is None or os.name != "nt"
             ):
-                _kill_worker(process, job)
-                job = None
+                cleanup_job, job = job, None
+                _kill_worker(process, cleanup_job)
                 worker_cleaned = True
             if job is not None:
                 handle, close_handle = job
