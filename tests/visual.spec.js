@@ -406,7 +406,7 @@ test('collect unbaselined interactive seal art and motion review frames', async 
     'screenshot=390x844; platform=' + process.platform + '-' + process.arch +
     '; playwright=' + require('@playwright/test/package.json').version +
     '; chromium=' + page.context().browser().version() +
-    '; unbaselined-human-review-required\\n');
+    '; unbaselined-human-review-required\n');
   expect(externalRequests, 'preview must not make runtime network requests').toEqual([]);
   expect(pageErrors, 'preview must not raise uncaught browser errors').toEqual([]);
   expect(idle).toContain('idle |');
