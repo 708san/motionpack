@@ -162,7 +162,7 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
         kernel32.CancelSynchronousIo.return_value = 1
         kernel32.CloseHandle.return_value = 1
         reader = mock.Mock(native_id=456)
-        reader.is_alive.side_effect = [True, False]
+        reader.is_alive.side_effect = [True, False, False]
         stop_event = threading.Event()
         with mock.patch("isolated_process.os.name", "nt"):
             with mock.patch(
