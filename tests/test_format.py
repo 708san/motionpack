@@ -157,7 +157,7 @@ class FormatTests(unittest.TestCase):
     def test_package_excludes_unreferenced_private_project_files(self):
         sentinels={
             '.env':b'MOTIONPACK_PRIVATE_ENV_SENTINEL',
-            'id_rsa':b'-----BEGIN RSA PRIVATE KEY-----\\nMOTIONPACK_DUMMY_PRIVATE_KEY\\n-----END RSA PRIVATE KEY-----',
+            'id_rsa':b'MOTIONPACK_DUMMY_PRIVATE_KEY_SENTINEL',
             'private/notes.txt':b'MOTIONPACK_PRIVATE_FILE_SENTINEL',
             'prompt.txt':b'MOTIONPACK_PRIVATE_PROMPT_SENTINEL',
             'assets/unreferenced.txt':b'MOTIONPACK_UNREFERENCED_ASSET_SENTINEL',
