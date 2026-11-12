@@ -10,6 +10,7 @@ import math
 import os
 import pathlib
 import stat
+import shutil
 import struct
 import subprocess
 import sys
@@ -27,12 +28,14 @@ except ImportError:  # Support direct import when tools/ is on sys.path.
 try:
     from .isolated_process import (
         DEFAULT_MEMORY_LIMIT_BYTES, kill_worker as _kill_worker,
-        read_bounded_output as _read_output, windows_job as _windows_job,
+        read_bounded_output as _read_output, stop_output_reader as _stop_output_reader,
+        windows_job as _windows_job,
     )
 except ImportError:  # Support direct execution/import from the tools directory.
     from isolated_process import (
         DEFAULT_MEMORY_LIMIT_BYTES, kill_worker as _kill_worker,
-        read_bounded_output as _read_output, windows_job as _windows_job,
+        read_bounded_output as _read_output, stop_output_reader as _stop_output_reader,
+        windows_job as _windows_job,
     )
 MAX_SNAPSHOT_BYTES = 40 * 1024 * 1024
 MAX_RESULT_BYTES = 40 * 1024 * 1024
@@ -40,6 +43,40 @@ MAX_REQUEST_BYTES = 128 * 1024
 MAX_TIMEOUT_SECONDS = 300.0
 PROTOCOL_MAGIC = b"MPIR\x02"
 WORKER_SCRIPT = pathlib.Path(__file__).with_name("archive_reader_worker.py")
+
+
+class _PreservableTemporaryDirectory:
+    """Temporary workspace retained if worker termination cannot be confirmed."""
+
+    def __init__(self, prefix):
+        self.path = pathlib.Path(tempfile.mkdtemp(prefix=prefix))
+        self._preserve = False
+
+    def __enter__(self):
+        return str(self.path)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self._preserve:
+            return
+        deadline = time.monotonic() + 5.0
+        while True:
+            try:
+                shutil.rmtree(self.path)
+                return
+            except OSError as error:
+                if (
+                    os.name != "nt"
+                    or getattr(error, "winerror", None) not in (5, 32)
+                    or time.monotonic() >= deadline
+                ):
+                    raise
+                time.sleep(0.05)
+
+    def preserve_after_failed_reap(self, error):
+        self._preserve = True
+        error.add_note(
+            f"worker termination could not be confirmed; temporary data retained at {self.path}"
+        )
 
 
 class IsolatedReadError(RuntimeError):
@@ -237,6 +274,9 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
     ``read_package_in_process`` only when in-process parsing is intentional.
     Set ``include_entries=True`` to retain all regular-file payloads (including
     opaque source entries); the complete framed response remains capped at 40 MiB.
+    On Windows, cleanup uses separate five-second budgets for job reaping and
+    transient directory sharing errors; synchronous OS calls are not interruptible
+    by these budgets. If the job cannot be confirmed empty, the temporary snapshot is retained.
     """
     limits = limits or ReaderLimits()
     if not isinstance(limits, ReaderLimits):
@@ -268,7 +308,8 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
 
     started = time.monotonic()
     source_path = pathlib.Path(path).expanduser().absolute()
-    with tempfile.TemporaryDirectory(prefix="motionpack-isolated-") as temp_dir:
+    temporary_directory = _PreservableTemporaryDirectory(prefix="motionpack-isolated-")
+    with temporary_directory as temp_dir:
         snapshot = pathlib.Path(temp_dir) / "input.motionpack"
         request = json.dumps(
             {"path": str(source_path), "snapshot_path": str(snapshot),
@@ -297,8 +338,11 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
         worker_cleaned = False
         output = bytearray()
         overflow = threading.Event()
+        reader_stop = threading.Event()
         reader = threading.Thread(
-            target=_read_output, args=(process.stdout, output, overflow, process, max_result), daemon=True
+            target=_read_output,
+            args=(process.stdout, output, overflow, process, max_result, reader_stop),
+            daemon=True,
         )
         reader.start()
         try:
@@ -306,8 +350,9 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
                 try:
                     job = _windows_job(process, memory_limit)
                 except OSError as exc:
-                    _kill_worker(process)
-                    raise IsolatedResourceLimit("unable to configure Windows worker job limits") from exc
+                    raise IsolatedResourceLimit(
+                        "unable to configure Windows worker job limits"
+                    ) from exc
             remaining = timeout - (time.monotonic() - started)
             if remaining <= 0:
                 raise IsolatedReadTimeout("isolated archive read timed out")
@@ -327,25 +372,45 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
                 raise IsolatedWorkerFailure("isolated reader worker exited unexpectedly")
             return _decode_result(output, limits, include_entries=include_entries)
         except BaseException:
-            _kill_worker(process, job)
-            job = None
+            # Interrupt any synchronous pipe call before spending time reaping.
+            _stop_output_reader(reader, reader_stop, timeout=0.1)
+            cleanup_job, job = job, None
+            try:
+                _kill_worker(process, cleanup_job)
+            except BaseException as cleanup_error:
+                temporary_directory.preserve_after_failed_reap(cleanup_error)
+                worker_cleaned = True
+                raise
             worker_cleaned = True
             raise
         finally:
-            if not worker_cleaned and (process.poll() is None or os.name != "nt"):
-                _kill_worker(process, job)
-                job = None
+            if not worker_cleaned and (
+                job is not None or process.poll() is None or os.name != "nt"
+            ):
+                cleanup_job, job = job, None
+                try:
+                    _kill_worker(process, cleanup_job)
+                except BaseException as cleanup_error:
+                    temporary_directory.preserve_after_failed_reap(cleanup_error)
+                    raise
                 worker_cleaned = True
             if job is not None:
                 handle, close_handle = job
                 close_handle(handle)
-            if reader.is_alive():
-                try:
-                    process.stdout.close()
-                except OSError:
-                    pass
-                reader.join(1)
+            reader_stopped = _stop_output_reader(reader, reader_stop) if reader.is_alive() else True
+            if not reader_stopped:
+                cleanup_error = TimeoutError("isolated reader output thread did not stop")
+                temporary_directory.preserve_after_failed_reap(cleanup_error)
+                active_exception = sys.exc_info()[1]
+                if active_exception is not None:
+                    active_exception.add_note(cleanup_error.__notes__[0])
+                else:
+                    raise cleanup_error
             for stream in (process.stdin, process.stdout):
-                if stream is not None and not stream.closed:
+                if (
+                    stream is not None
+                    and not stream.closed
+                    and (stream is not process.stdout or reader_stopped)
+                ):
                     stream.close()
 

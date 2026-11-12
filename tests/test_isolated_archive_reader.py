@@ -7,6 +7,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -17,6 +18,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import archive_reader
 from archive_reader import ArchiveError, ReaderLimits, read_package as read_package_in_process
+from isolated_process import kill_worker, read_bounded_output, stop_output_reader
 from isolated_archive_reader import _snapshot_archive
 from isolated_archive_reader import (
     IsolatedReadTimeout,
@@ -24,6 +26,7 @@ from isolated_archive_reader import (
     UnsupportedMemoryLimit,
     read_package_isolated,
 )
+from isolated_archive_reader import _PreservableTemporaryDirectory
 
 
 class IsolatedArchiveReaderTests(unittest.TestCase):
@@ -57,6 +60,35 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             encoding="utf-8",
         )
         return worker
+
+    def _assert_pid_alive(self, pid):
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            kernel32.WaitForSingleObject.restype = wintypes.DWORD
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = kernel32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+            if not handle:
+                self.fail(f"worker process {pid} is not alive")
+            state = kernel32.WaitForSingleObject(handle, 0)
+            kernel32.CloseHandle(handle)
+            self.assertEqual(state, 258, "worker process should still be running")
+            return
+        try:
+            os.kill(pid, 0)
+        except OSError as error:
+            if error.errno == errno.ESRCH:
+                self.fail(f"worker process {pid} is not alive")
+            raise
+        state = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            capture_output=True, text=True, timeout=1, check=False,
+        ).stdout.strip()
+        self.assertTrue(state and not state.startswith("Z"), "worker process should still be running")
 
     def _assert_pid_exited(self, pid):
         deadline = time.monotonic() + 3
@@ -100,6 +132,149 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     pass
             time.sleep(0.05)
         self.fail("isolated worker remains alive after wrapper returned")
+
+    def test_windows_worker_cleanup_without_job_has_a_finite_wait(self):
+        class StuckProcess:
+            pid = 123
+
+            def __init__(self):
+                self.wait_timeout = None
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                raise OSError("simulated process termination failure")
+
+            def wait(self, timeout=None):
+                self.wait_timeout = timeout
+                raise subprocess.TimeoutExpired("worker", timeout)
+
+        process = StuckProcess()
+        with mock.patch("isolated_process.os.name", "nt"):
+            with self.assertRaisesRegex(TimeoutError, "did not exit"):
+                kill_worker(process)
+        self.assertEqual(process.wait_timeout, 5)
+
+    def test_windows_output_reader_cancellation_interrupts_sync_io(self):
+        kernel32 = mock.Mock()
+        kernel32.OpenThread.return_value = 123
+        kernel32.CancelSynchronousIo.return_value = 1
+        kernel32.CloseHandle.return_value = 1
+        reader = mock.Mock(native_id=456)
+        reader.is_alive.side_effect = [True, False, False]
+        stop_event = threading.Event()
+        with mock.patch("isolated_process.os.name", "nt"):
+            with mock.patch(
+                "isolated_process.ctypes.WinDLL", create=True, return_value=kernel32
+            ):
+                self.assertTrue(stop_output_reader(reader, stop_event, timeout=0.1))
+        self.assertTrue(stop_event.is_set())
+        kernel32.OpenThread.assert_called_once_with(0x0001, False, 456)
+        kernel32.CancelSynchronousIo.assert_called_once_with(123)
+        kernel32.CloseHandle.assert_called_once_with(123)
+
+    def test_output_drainer_stops_without_waiting_for_pipe_eof(self):
+        read_fd, write_fd = os.pipe()
+        stream = os.fdopen(read_fd, "rb", buffering=0)
+        stop_event = threading.Event()
+        polling_event = threading.Event()
+        overflow = threading.Event()
+        output = bytearray()
+        reader = threading.Thread(
+            target=read_bounded_output,
+            args=(
+                stream, output, overflow, mock.Mock(poll=lambda: None),
+                1024, stop_event, polling_event,
+            ),
+            daemon=True,
+        )
+        try:
+            reader.start()
+            self.assertTrue(
+                polling_event.wait(1),
+                "pipe drainer did not reach its cancellable wait",
+            )
+            stop_event.set()
+            reader.join(1)
+            self.assertFalse(reader.is_alive(), "pipe drainer ignored cancellation")
+        finally:
+            stop_event.set()
+            stream.close()
+            os.close(write_fd)
+            if reader.is_alive():
+                reader.join(1)
+
+    def test_reader_preserves_temp_when_worker_reaping_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pid_file = pathlib.Path(tmp) / "worker.pid"
+            gate_file = pathlib.Path(tmp) / "allow-worker-exit"
+            temp_path_file = pathlib.Path(tmp) / "isolated-temp-path.txt"
+            worker = self._fake_worker(
+                tmp,
+                "import os, pathlib, time\n"
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()))\n"
+                f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\n"
+                f"gate = pathlib.Path({str(gate_file)!r})\n"
+                "while not gate.exists(): time.sleep(0.01)\n",
+            )
+            outcomes = []
+
+            def read_with_failed_cleanup():
+                try:
+                    read_package_isolated(self._input_file(tmp), timeout=5)
+                except BaseException as error:
+                    outcomes.append(error)
+
+            temp_path = None
+            pid = None
+            worker_thread = threading.Thread(target=read_with_failed_cleanup)
+            try:
+                with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
+                    with mock.patch("isolated_archive_reader._windows_job", return_value=None):
+                        with mock.patch(
+                            "isolated_archive_reader._kill_worker",
+                            side_effect=TimeoutError("simulated worker reaping failure"),
+                        ):
+                            worker_thread.start()
+                            deadline = time.monotonic() + 8
+                            while time.monotonic() < deadline:
+                                if pid_file.exists() and temp_path_file.exists():
+                                    break
+                                time.sleep(0.01)
+                            self.assertTrue(pid_file.exists(), "worker did not start")
+                            self.assertTrue(
+                                temp_path_file.exists(),
+                                "worker did not record its temp path",
+                            )
+                            pid = int(pid_file.read_text())
+                            temp_path = pathlib.Path(temp_path_file.read_text())
+                            worker_thread.join(8)
+                self.assertFalse(worker_thread.is_alive(), "reader thread did not finish")
+                self.assertEqual(len(outcomes), 1)
+                self.assertIsInstance(outcomes[0], TimeoutError)
+                self.assertIn(str(temp_path), outcomes[0].__notes__[0])
+                self.assertTrue(temp_path.exists())
+                self._assert_pid_alive(pid)
+            finally:
+                gate_file.touch()
+                if pid is not None:
+                    self._assert_pid_exited(pid)
+                if temp_path is not None and temp_path.exists():
+                    shutil.rmtree(temp_path)
+
+    def test_unconfirmed_worker_cleanup_preserves_temporary_data(self):
+        temporary_directory = _PreservableTemporaryDirectory(
+            prefix="motionpack-isolated-test-"
+        )
+        with temporary_directory as temp_dir:
+            retained_file = pathlib.Path(temp_dir) / "snapshot.motionpack"
+            retained_file.write_bytes(b"untrusted package snapshot")
+            temporary_directory.preserve_after_failed_reap(
+                RuntimeError("job process count could not be queried")
+            )
+        self.assertEqual(retained_file.read_bytes(), b"untrusted package snapshot")
+        shutil.rmtree(temp_dir)
 
     def test_public_read_package_delegates_to_isolated_reader(self):
         archive = pathlib.Path("unopened.motionpack")
@@ -270,19 +445,45 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             with self.assertRaises(ArchiveError):
                 read_package_isolated(archive)
 
+    def test_successful_worker_reaps_descendant_before_temp_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pid_file = pathlib.Path(tmp) / "worker-pids.txt"
+            temp_path_file = pathlib.Path(tmp) / "isolated-temp-path.txt"
+            worker = self._fake_worker(
+                tmp,
+                "import os, pathlib, subprocess, sys, struct\n"
+                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'], stdout=subprocess.DEVNULL)\n"
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()) + ' ' + str(child.pid))\n"
+                f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\n"
+                "manifest = b'{\"version\":\"0.1\",\"assets\":{}}'\n"
+                "name = b'manifest.json'\n"
+                "response = b'MPIR\\x02\\x00' + struct.pack('!I', 1) + struct.pack('!IQ', len(name), len(manifest)) + name + manifest\n"
+                "sys.stdout.buffer.write(response)\n"
+                "sys.stdout.buffer.flush()\n",
+            )
+            with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
+                result = read_package_isolated(self._input_file(tmp), timeout=5)
+            self.assertEqual(result.manifest["version"], "0.1")
+            self.assertFalse(pathlib.Path(temp_path_file.read_text()).exists())
+            for pid in map(int, pid_file.read_text().split()):
+                self._assert_pid_exited(pid)
+
     def test_timeout_kills_and_reaps_worker(self):
         with tempfile.TemporaryDirectory() as tmp:
             pid_file = pathlib.Path(tmp) / "worker-pids.txt"
+            temp_path_file = pathlib.Path(tmp) / "isolated-temp-path.txt"
             worker = self._fake_worker(
                 tmp,
                 "import os, pathlib, subprocess, sys, time\n"
                 "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
                 f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()) + ' ' + str(child.pid))\n"
+                f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\n"
                 "time.sleep(30)\n",
             )
             with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
                 with self.assertRaises(IsolatedReadTimeout):
                     read_package_isolated(self._input_file(tmp), timeout=2)
+            self.assertFalse(pathlib.Path(temp_path_file.read_text()).exists())
             for pid in map(int, pid_file.read_text().split()):
                 self._assert_pid_exited(pid)
 
