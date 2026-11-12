@@ -73,6 +73,27 @@ The maintainer also approved these directions for Issue #120. They guide the pro
 
 These choices guide contract work but are not normative rules; none changes v0.x behavior.
 
+### Candidate v1 PNG structural profile — non-normative
+
+This candidate elaborates the maintainer-selected direction in Issue #154: validate bounded PNG chunk framing and CRCs, require `IDAT` and `IEND`, and leave pixel decoding to the host decoder. It is a review proposal only. It does not change v0.x validation, and it is not yet a normative v1 rule.
+
+**Candidate structural acceptance rules:**
+
+- Require the PNG signature and scan the entire asset as a sequence of complete chunks through `IEND`. A chunk length must not exceed the PNG maximum of 2³¹−1 bytes and must fit within the already-bounded asset before its CRC is read or computed. Do not allocate from an unchecked declared length.
+- Require a legal four-letter ASCII chunk type; require its reserved third letter to be uppercase. Verify every chunk CRC over the type and data bytes, including ancillary chunks and `IEND`.
+- Require exactly one 13-byte `IHDR` as the first chunk, at least one `IDAT`, and exactly one zero-length `IEND`. `IDAT` chunks must be consecutive. A `PLTE`, when present, may occur at most once and before the first `IDAT`.
+- Reject unknown critical chunk types. Permit unknown ancillary chunks when their framing, type and CRC pass. For recognized standard ancillary chunks, the proposal is to enforce their specified multiplicity and ordering constraints, while leaving payload semantics and pixel-data decoding to the host decoder.
+- Reject any byte or chunk after `IEND`. Do not treat unused bytes within an `IDAT` payload as file-level trailing data; their compressed-stream meaning belongs to the host decoder.
+- Complete the structural scan before host pixel decoding. A structurally valid file may still be rejected by that decoder. This is not a claim of full PNG conformance, complete image-data validation, decoder isolation, or identical rendering across hosts.
+
+**APNG remains a maintainer decision.** APNG uses `acTL`, `fcTL`, and `fdAT` ancillary chunks. The Architect recommends rejecting these in v1 to keep the selected static-asset profile consistent across hosts; the Functional QA proposal would accept structurally valid chunks and defer whether the static default image is displayed to the host decoder. Rejecting APNG gives a consistent static-only contract but rejects files that ordinary PNG decoders can display as a static image. Allowing it preserves more files but leaves host differences about animation and default-image behavior. No option is selected here pending maintainer direction.
+
+**Candidate conformance cases:** valid single and split consecutive `IDAT`; missing, repeated, misplaced or malformed required chunks; every truncated length/data/CRC boundary; incorrect CRC in each chunk class; invalid type bytes; nonconsecutive `IDAT`; unknown critical versus unknown ancillary; `IEND` payload and file bytes after `IEND`; PLTE placement/count; APNG acceptance or rejection per the maintainer decision; and unchanged v0.x acceptance of the existing IHDR-only fixture. ZIP entry CRC checks are separate from PNG chunk CRC checks.
+
+**Bounds and compatibility:** the PNG-defined per-chunk length ceiling is a format constraint. Encoded-asset byte, chunk-count, aggregate-raster, decoded-memory and decode-time ceilings are host resource policy unless a numeric v1 format limit is separately approved. Current tool defaults must not silently become v1 format-validity limits. The stricter completeness rule applies only to v1; v0.x retains signature/IHDR-only preflight and its existing fixtures.
+
+Primary references: [W3C PNG Third Edition, chunk layout and CRC](https://www.w3.org/TR/png-3/#chunk-layout), [chunk ordering](https://www.w3.org/TR/png-3/#chunk-ordering), [APNG structure](https://www.w3.org/TR/png-3/#apng-structure).
+
 ## S3 approved node evaluation directions (planning record)
 
 The maintainer approved these v1 directions, reusing current preview behavior where stated. They are planning decisions and require normative rules, fixtures, and Architect review before they become part of `FORMAT_SPEC.md`:
