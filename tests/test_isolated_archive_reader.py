@@ -187,7 +187,11 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                             "isolated_archive_reader._kill_worker",
                             side_effect=TimeoutError("simulated worker reaping failure"),
                         ):
-                            worker_thread.start()
+                            with mock.patch(
+                                "isolated_archive_reader._read_output",
+                                side_effect=lambda *args, **kwargs: None,
+                            ):
+                                worker_thread.start()
                             deadline = time.monotonic() + 8
                             while time.monotonic() < deadline:
                                 if pid_file.exists() and temp_path_file.exists():
