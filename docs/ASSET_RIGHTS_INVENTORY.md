@@ -2,7 +2,7 @@
 
 **Status: incomplete; no artwork in this inventory is cleared for redistribution by this document.** This is a repository-side inventory of the current example candidates. It is not a license grant, rights warranty, or approval of the eventual v1.0 distribution set.
 
-Audited against GitHub `main` at `e9418bd4d86f5ae5740c897b0cb6382b8f744480` on 2026-11-12. This inventory records the tracked visual and package-like files found in that tree; it does not select which files will ship. Recheck the final release tree and generated artifacts before distribution.
+Audited against GitHub `main` at `8ba125adf809c66ab69f4b0c9c3408249ade8f5d` on 2026-11-12. The tracked visual/test asset paths were compared with the preceding tree at `e9418bd4d86f5ae5740c897b0cb6382b8f744480`; the intervening main commit changed only this inventory document. This inventory records the tracked visual and package-like files found in that tree; it does not select which files will ship. Recheck the final release tree and generated artifacts before distribution.
 
 ## Manifest-referenced example assets
 
