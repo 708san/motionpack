@@ -168,28 +168,47 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                 f"gate = pathlib.Path({str(gate_file)!r})\n"
                 "while not gate.exists(): time.sleep(0.01)\n",
             )
-            with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
-                with mock.patch("isolated_archive_reader._windows_job", return_value=None):
-                    with mock.patch(
-                        "isolated_archive_reader._kill_worker",
-                        side_effect=TimeoutError("simulated worker reaping failure"),
-                    ):
-                        with self.assertRaisesRegex(
-                            TimeoutError, "simulated worker reaping failure"
-                        ) as raised:
-                            read_package_isolated(
-                                self._input_file(tmp), timeout=0.5
-                            )
-            temp_path = pathlib.Path(temp_path_file.read_text())
-            self.assertIn(str(temp_path), raised.exception.__notes__[0])
-            self.assertTrue(temp_path.exists())
-            pid = int(pid_file.read_text())
+            outcomes = []
+
+            def read_with_failed_cleanup():
+                try:
+                    read_package_isolated(self._input_file(tmp), timeout=5)
+                except BaseException as error:
+                    outcomes.append(error)
+
+            temp_path = None
+            pid = None
+            worker_thread = threading.Thread(target=read_with_failed_cleanup)
             try:
+                with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
+                    with mock.patch("isolated_archive_reader._windows_job", return_value=None):
+                        with mock.patch(
+                            "isolated_archive_reader._kill_worker",
+                            side_effect=TimeoutError("simulated worker reaping failure"),
+                        ):
+                            worker_thread.start()
+                            deadline = time.monotonic() + 8
+                            while time.monotonic() < deadline:
+                                if pid_file.exists() and temp_path_file.exists():
+                                    break
+                                time.sleep(0.01)
+                            self.assertTrue(pid_file.exists(), "worker did not start")
+                            self.assertTrue(temp_path_file.exists(), "worker did not record its temp path")
+                            pid = int(pid_file.read_text())
+                            temp_path = pathlib.Path(temp_path_file.read_text())
+                            worker_thread.join(8)
+                self.assertFalse(worker_thread.is_alive(), "reader thread did not finish")
+                self.assertEqual(len(outcomes), 1)
+                self.assertIsInstance(outcomes[0], TimeoutError)
+                self.assertIn(str(temp_path), outcomes[0].__notes__[0])
+                self.assertTrue(temp_path.exists())
                 self._assert_pid_alive(pid)
             finally:
                 gate_file.touch()
-            self._assert_pid_exited(pid)
-            shutil.rmtree(temp_path)
+                if pid is not None:
+                    self._assert_pid_exited(pid)
+                if temp_path is not None and temp_path.exists():
+                    shutil.rmtree(temp_path)
 
     def test_unconfirmed_worker_cleanup_preserves_temporary_data(self):
         temporary_directory = _PreservableTemporaryDirectory(
