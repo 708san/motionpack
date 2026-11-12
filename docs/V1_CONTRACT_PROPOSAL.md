@@ -101,7 +101,7 @@ The maintainer approved these limited v1 directions. They do not change v0.x beh
 - Effects use integer `start_ms >= 0` and positive integer `duration_ms`, constrained so `start_ms + duration_ms <= clip.duration_ms`. An effect is active on the inclusive interval `[start_ms, start_ms + duration_ms]` when tested at the effective clip-local sample time after S4 time normalization. Thus a looping request at exactly clip duration is evaluated at time 0, while a non-looping request is evaluated at clip duration; the inclusive-end rule does not override the S4 wrap rule. This matches the current evaluator's order.
 - Effect `offset` is node-local and transformed through the node's world transform. Beam `target` and ring/burst `radius` use canvas logical coordinates and are not scaled by the source node transform, matching the current preview's coordinate split.
 
-Still open: interaction with IK or other evaluation stages; effect field grammar, units, parameter ranges/defaults, cross-feature effect/IK sampling interactions beyond S4 time normalization, renderer appearance; and cross-renderer conformance. These directions do not promise pixel-identical output.
+Still open: interaction with IK or other evaluation stages; effect field grammar, units, parameter ranges/defaults; cross-feature effect/IK sampling interactions beyond S4 time normalization; and conformance cases for the format-level geometric, timing, and coordinate meanings. Pixel-level realization—including color interpolation, line width, and particle placement—is renderer-profile-specific; v1 does not promise pixel-identical output.
 
 ## Remaining normative contract blockers
 
