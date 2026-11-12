@@ -17,7 +17,7 @@ These directions were agreed before this draft:
 - Keep the read-only importer for v0.1–v0.4 and preserve original manifest bytes, opaque source data, sparse field presence, and provenance.
 - Keep authored sparse values distinct from effective values; every effective default carries its source and rule provenance.
 - Preserve ambiguous data, including v0.1 IK, with a warning and without assigning it new meaning.
-- A write that may lose information must report the loss before output. Confirmation is tied to the exact source and conversion plan; a changed source or plan invalidates it.
+- A write that may lose information must report the loss before output. Per the maintainer decision recorded during v1 migration planning (2026-11-10), confirmation is tied to the exact source and conversion plan; a changed source or plan invalidates it.
 - Proposed capability declaration uses `capabilities.required[]` and `capabilities.optional[]`; extension keys use reverse-domain names. Unknown required capabilities and unknown core fields fail safely. Unknown optional capabilities may be ignored only under an explicit safe-ignore rule. Opaque extension data is retained.
 - v1.0 core does not include a GUI or AI authoring service.
 
@@ -51,7 +51,7 @@ If dimensions are required, choose whether v1 adopts the existing v0.3 ceilings 
 
 **Option B — guarantee deterministic ZIP bytes too.** In addition to canonical manifest bytes, define entry ordering, timestamps, permissions, compression method and parameters, comments, extra fields, directory entries, and all container metadata. Every conforming writer must reproduce these details; fixtures must pin byte-level output. This gives package-level stable hashes but constrains implementations and compression choices.
 
-For either option, specify which files belong in the runtime package, how optional `source/` originals are handled, and whether unknown regular-file entries are rejected, retained opaquely, or reported as loss. The current importer preserves regular-file payload bytes, including opaque `source/`, but not ZIP metadata, directory-only entries, or container layout.
+For either option, specify which files belong in the runtime package, how optional `source/` originals are handled, and whether unknown regular-file entries are rejected, retained opaquely, or reported as loss. The current importer preserves accepted regular-file payload bytes, including opaque `source/`, but not ZIP metadata, directory-only entries, or container layout.
 
 ## Evidence-based legacy migration inventory
 
