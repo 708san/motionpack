@@ -277,7 +277,7 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             worker = self._fake_worker(
                 tmp,
                 "import os, pathlib, subprocess, sys, struct\n"
-                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'], stdout=subprocess.DEVNULL)\n"
                 f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()) + ' ' + str(child.pid))\n"
                 f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\n"
                 "manifest = b'{\"version\":\"0.1\",\"assets\":{}}'\n"
