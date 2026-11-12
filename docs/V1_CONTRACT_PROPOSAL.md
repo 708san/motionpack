@@ -62,6 +62,18 @@ The maintainer also approved these directions for Issue #120. They guide the pro
 - **Reader/writer failures:** use staged validation, stable error categories, and produce no output on failure. The stage order and exact public category identifiers remain open.
 - **Compatibility lifecycle:** support stable v1 and keep the v0.x importer read-only, with no time-based support-duration promise. This does not promise legacy write-back or define platform/API support windows.
 
+
+## S3 approved node evaluation directions (planning record)
+
+The maintainer approved these v1 directions, reusing current preview behavior where stated. They are planning decisions and require normative rules, fixtures, and Architect review before they become part of `FORMAT_SPEC.md`:
+
+- Apply each node's transform in its parent-local coordinate system and compose parent transforms from the root toward the node.
+- Preserve sparse authored fields while exposing effective defaults with provenance. Effective defaults: `x=0`, `y=0`, `rotation=0` degrees, `scale=1`, `opacity=1`, and normalized `anchor=[0.5,0.5]`. If drawable-node `width` or `height` is omitted, use the referenced image's intrinsic dimension for that axis.
+- Draw all drawable nodes in ascending global `z`; omitted `z` is effective `0`. For equal `z`, preserve manifest declaration order, so later-declared nodes draw in front.
+- A drawable node's opacity applies to that node only; parent opacity is not inherited by descendants.
+
+Still open: numeric domains and invalid-value behavior for transforms, opacity and `z`; whether negative scale is supported; reference/graph boundary rules beyond the existing acyclic-parent checks; and cross-renderer pixel equivalence. Existing runtime behavior is evidence, not a promise of identical pixels.
+
 ## Remaining normative contract blockers
 
 The additional semantic decisions below still block freezing the v1 contract and starting conformant reader/writer implementation. See [Issue #120](https://github.com/708san/motionpack/issues/120) for the authoritative acceptance criteria, including loss reporting, no output on unconfirmed loss, canonicalization, and v0.1–v0.4 regression coverage.
@@ -117,9 +129,10 @@ No v1 writer, integrated v1 reader, or v1 normative conformance suite is present
 The following details remain open even after the approved directions above:
 
 - Complete v1 core fields, types, ranges, reference integrity, collection ordering, and closed field sets.
-- Time units, keyframe ordering/boundaries/interpolation, clip looping, transform/anchor/Z behavior, variants, and declarative-effect parameters.
+- Time units, keyframe ordering/boundaries/interpolation, clip looping, variants, and declarative-effect parameters.
 - Exact interaction field meanings and whether v1 guarantees cross-renderer event/hit-test behavior. The full v0.4 feature surface is in scope, but current preview behavior is not automatically normative.
 - Capability identifier grammar, required/optional declaration rules, registry ownership, and exact safe-ignore rules.
+- S3 numeric domains and invalid-value behavior for transforms, opacity and z; negative-scale support; and any further graph/reference rules.
 - Canonical JSON rules for extensions, duplicate-key handling, numeric equivalence, Unicode, and extension validation.
 - Exact opaque package payload identity (entry name and payload bytes), paths/types admitted, per-entry and aggregate bounds, and deterministic writer treatment. Input ZIP metadata is not retained; output ZIP metadata still requires a fixed D3 profile.
 - Stable error identifiers, validation stages/order, failures before payload reads, and the distinction among invalid input, unsupported capability, and migration loss.
