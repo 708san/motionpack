@@ -249,6 +249,7 @@ class RasterDecoderInputValidationTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as parent:
             temp_dir = pathlib.Path(parent) / "raster-worker"
+            temp_dir.mkdir()
             with mock.patch.object(decoder.tempfile, "mkdtemp", return_value=str(temp_dir)):
                 with mock.patch.object(
                     decoder.tempfile, "TemporaryFile", side_effect=OSError("injected failure")
