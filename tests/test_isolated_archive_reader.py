@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import archive_reader
 from archive_reader import ArchiveError, ReaderLimits, read_package as read_package_in_process
+from isolated_process import kill_worker
 from isolated_archive_reader import _snapshot_archive
 from isolated_archive_reader import (
     IsolatedReadTimeout,
@@ -101,6 +102,29 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     pass
             time.sleep(0.05)
         self.fail("isolated worker remains alive after wrapper returned")
+
+    def test_windows_worker_cleanup_without_job_has_a_finite_wait(self):
+        class StuckProcess:
+            pid = 123
+
+            def __init__(self):
+                self.wait_timeout = None
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                raise OSError("simulated process termination failure")
+
+            def wait(self, timeout=None):
+                self.wait_timeout = timeout
+                raise subprocess.TimeoutExpired("worker", timeout)
+
+        process = StuckProcess()
+        with mock.patch("isolated_process.os.name", "nt"):
+            with self.assertRaisesRegex(TimeoutError, "did not exit"):
+                kill_worker(process)
+        self.assertEqual(process.wait_timeout, 5)
 
     def test_unconfirmed_worker_cleanup_preserves_temporary_data(self):
         temporary_directory = _PreservableTemporaryDirectory(
