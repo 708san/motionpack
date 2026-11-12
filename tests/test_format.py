@@ -154,6 +154,35 @@ class FormatTests(unittest.TestCase):
                 self.assertTrue(all(not p.startswith('/') and '..' not in pathlib.PurePosixPath(p).parts for p in z.namelist()))
                 asset_data=z.read(json.loads(z.read('manifest.json'))['assets']['background'])
             self.assertIn(base64.b64encode(asset_data).decode('ascii'),preview.read_text(encoding='utf8'))
+    def test_package_excludes_unreferenced_private_project_files(self):
+        sentinels={
+            '.env':b'MOTIONPACK_PRIVATE_ENV_SENTINEL',
+            'id_rsa':b'-----BEGIN RSA PRIVATE KEY-----\\nMOTIONPACK_DUMMY_PRIVATE_KEY\\n-----END RSA PRIVATE KEY-----',
+            'private/notes.txt':b'MOTIONPACK_PRIVATE_FILE_SENTINEL',
+            'prompt.txt':b'MOTIONPACK_PRIVATE_PROMPT_SENTINEL',
+            'assets/unreferenced.txt':b'MOTIONPACK_UNREFERENCED_ASSET_SENTINEL',
+            'source/original.bin':b'MOTIONPACK_OPAQUE_SOURCE_SENTINEL',
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            for relative,payload in sentinels.items():
+                target=project/relative
+                target.parent.mkdir(parents=True,exist_ok=True)
+                target.write_bytes(payload)
+            archive,preview=build(project,pathlib.Path(tmp)/'dist')
+            with zipfile.ZipFile(archive) as packaged:
+                entries=set(packaged.namelist())
+                manifest=json.loads(packaged.read('manifest.json'))
+            expected={'manifest.json'}|set(manifest['assets'].values())
+            self.assertEqual(entries,expected)
+            archive_bytes=archive.read_bytes()
+            preview_bytes=preview.read_bytes()
+            for relative,payload in sentinels.items():
+                with self.subTest(path=relative):
+                    self.assertNotIn(relative.encode(),archive_bytes)
+                    self.assertNotIn(payload,archive_bytes)
+                    self.assertNotIn(relative.encode(),preview_bytes)
+                    self.assertNotIn(payload,preview_bytes)
     def test_package_warns_on_secret_like_referenced_asset_without_rejecting_or_disclosing(self):
         examples=(
             ('GitHub token-like value','xghp_'+'A'*36),
