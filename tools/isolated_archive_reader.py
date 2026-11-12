@@ -345,8 +345,9 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
                 try:
                     job = _windows_job(process, memory_limit)
                 except OSError as exc:
-                    _kill_worker(process)
-                    raise IsolatedResourceLimit("unable to configure Windows worker job limits") from exc
+                    raise IsolatedResourceLimit(
+                        "unable to configure Windows worker job limits"
+                    ) from exc
             remaining = timeout - (time.monotonic() - started)
             if remaining <= 0:
                 raise IsolatedReadTimeout("isolated archive read timed out")
