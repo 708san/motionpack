@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import archive_reader
 from archive_reader import ArchiveError, ReaderLimits, read_package as read_package_in_process
-from isolated_process import kill_worker
+from isolated_process import kill_worker, read_bounded_output
 from isolated_archive_reader import _snapshot_archive
 from isolated_archive_reader import (
     IsolatedReadTimeout,
@@ -155,6 +155,30 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(TimeoutError, "did not exit"):
                 kill_worker(process)
         self.assertEqual(process.wait_timeout, 5)
+
+    def test_output_drainer_stops_without_waiting_for_pipe_eof(self):
+        read_fd, write_fd = os.pipe()
+        stream = os.fdopen(read_fd, "rb", buffering=0)
+        stop_event = threading.Event()
+        overflow = threading.Event()
+        output = bytearray()
+        reader = threading.Thread(
+            target=read_bounded_output,
+            args=(stream, output, overflow, mock.Mock(poll=lambda: None), 1024, stop_event),
+            daemon=True,
+        )
+        try:
+            reader.start()
+            time.sleep(0.1)
+            stop_event.set()
+            reader.join(1)
+            self.assertFalse(reader.is_alive(), "pipe drainer ignored cancellation")
+        finally:
+            stop_event.set()
+            stream.close()
+            os.close(write_fd)
+            if reader.is_alive():
+                reader.join(1)
 
     def test_reader_preserves_temp_when_worker_reaping_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
