@@ -187,24 +187,20 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                             "isolated_archive_reader._kill_worker",
                             side_effect=TimeoutError("simulated worker reaping failure"),
                         ):
-                            with mock.patch(
-                                "isolated_archive_reader._read_output",
-                                side_effect=lambda *args, **kwargs: None,
-                            ):
-                                worker_thread.start()
-                                deadline = time.monotonic() + 8
-                                while time.monotonic() < deadline:
-                                    if pid_file.exists() and temp_path_file.exists():
-                                        break
-                                    time.sleep(0.01)
-                                self.assertTrue(pid_file.exists(), "worker did not start")
-                                self.assertTrue(
-                                    temp_path_file.exists(),
-                                    "worker did not record its temp path",
-                                )
-                                pid = int(pid_file.read_text())
-                                temp_path = pathlib.Path(temp_path_file.read_text())
-                                worker_thread.join(8)
+                            worker_thread.start()
+                            deadline = time.monotonic() + 8
+                            while time.monotonic() < deadline:
+                                if pid_file.exists() and temp_path_file.exists():
+                                    break
+                                time.sleep(0.01)
+                            self.assertTrue(pid_file.exists(), "worker did not start")
+                            self.assertTrue(
+                                temp_path_file.exists(),
+                                "worker did not record its temp path",
+                            )
+                            pid = int(pid_file.read_text())
+                            temp_path = pathlib.Path(temp_path_file.read_text())
+                            worker_thread.join(8)
                 self.assertFalse(worker_thread.is_alive(), "reader thread did not finish")
                 self.assertEqual(len(outcomes), 1)
                 self.assertIsInstance(outcomes[0], TimeoutError)
