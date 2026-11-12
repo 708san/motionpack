@@ -18,7 +18,7 @@ These directions were agreed before this draft:
 - Keep authored sparse values distinct from effective values; every effective default carries its source and rule provenance.
 - Preserve ambiguous data, including v0.1 IK, with a warning and without assigning it new meaning.
 - A write that may lose information must report the loss before output. Per the maintainer decision recorded during v1 migration planning (2026-11-10), confirmation is tied to the exact source and conversion plan; a changed source or plan invalidates it.
-- Proposed capability declaration uses `capabilities.required[]` and `capabilities.optional[]`; extension keys use reverse-domain names. Unknown required capabilities and unknown core fields fail safely. Unknown optional capabilities may be ignored only under an explicit safe-ignore rule. Opaque extension data is retained.
+- Proposed capability declaration uses `capabilities.required[]` and `capabilities.optional[]`; extension keys use reverse-domain names. The maintainer selected the identifier strings `org.motionpack.ik.two-bone` and `org.motionpack.interaction` for the IK and interaction capability families. Unknown required capabilities and unknown core fields fail safely. Unknown optional capabilities may be ignored only under an explicit safe-ignore rule. Opaque extension data is retained. The selected names do not settle capability grammar, registry/ownership, declaration/derivation rules, or imply that the v1 runtime implements these features.
 - v1.0 core does not include a GUI or AI authoring service.
 
 These are constraints for contract work, not evidence that the final schema or writer already exists.
@@ -91,6 +91,15 @@ The maintainer approved these v1 sampling rules. They do not define host schedul
 
 Still open: maximum v1 clip duration, precision/representation limits for fractional-millisecond key times, property-specific numeric ranges and invalid-value behavior, and interaction with effect/IK sampling limits. These choices establish a sampling contract, not wall-clock scheduling or renderer pixel equivalence.
 
+## S5 approved variant and effect directions (planning record)
+
+The maintainer approved these limited v1 directions. They do not change v0.x behavior or define the full v1 schema:
+
+- If a selected variant and a clip track specify the same node property, the variant wins. The current evaluator applies the variant before tracks, so v1 must preserve the approved precedence without silently changing legacy behavior.
+- Effect `offset` is node-local and transformed through the node's world transform. Beam `target` and ring/burst `radius` use canvas logical coordinates and are not scaled by the source node transform, matching the current preview's coordinate split.
+
+Still open: the variant overlay field set, omitted-field/default behavior, merge rules, and precedence against IK or other evaluation stages; effect field grammar, units, parameter ranges/defaults, timing and renderer appearance; and cross-renderer conformance. These directions do not promise pixel-identical output.
+
 ## Remaining normative contract blockers
 
 The additional semantic decisions below still block freezing the v1 contract and starting conformant reader/writer implementation. See [Issue #120](https://github.com/708san/motionpack/issues/120) for the authoritative acceptance criteria, including loss reporting, no output on unconfirmed loss, canonicalization, and v0.1–v0.4 regression coverage.
@@ -134,7 +143,7 @@ These are future test targets, not currently passing v1 tests. D1–D3 are decid
 - Ignore an unknown optional capability only when the approved safe-ignore rule applies; otherwise reject it.
 - Preserve an opaque extension payload across read and write without assigning it meaning.
 - Verify canonical manifest bytes and byte-identical complete ZIP output, pinning UTF-8, JSON normalization, key ordering, number form, newline behavior, ZIP entry ordering, timestamps, permissions, compression method/parameters, comments, extra fields, directory entries, and all container metadata.
-- Exercise each v0.1–v0.4 fixture through the importer and v1 migration report, including unknown top-level and nested fields, opaque `source/` payloads, sparse defaults, dimensionless legacy SVGs, and the v0.1 IK mismatch.
+- Exercise each pinned v0.1–v0.4 fixture through the importer and v1 migration report for the data actually present in that fixture. Add separate synthetic probes for unknown top-level/nested fields, opaque `source/` payloads, sparse defaults, and dimensionless legacy SVGs. The v0.1 IK mismatch is a separately constructed probe that relabels a v0.2 fixture; it must not be reported as coverage of the pinned v0.1 fixture.
 - For each reported migration loss, verify source pointer/payload identity and conversion action; ensure an unconfirmed lossy write creates no output and leaves the source unchanged.
 - Verify that a confirmation becomes invalid after either the source bytes or conversion plan changes.
 - Read back every accepted writer output and compare preserved data, normalized values, and the agreed canonicalization evidence.
@@ -147,7 +156,7 @@ The following details remain open even after the approved directions above:
 
 - Complete v1 core fields, types, ranges, reference integrity, collection ordering, and closed field sets.
 - Maximum clip duration, fractional-millisecond precision/representation limits, property-specific numeric ranges, and remaining effect/IK timing interactions.
-- Variant semantics and declarative-effect parameters.
+- Remaining variant overlay fields/defaults/merge behavior and interaction with IK; only same-property variant-over-track precedence is approved. Remaining effect fields, units, parameter ranges/defaults, timing interactions, renderer appearance, and conformance; only the stated coordinate split is approved.
 - Exact interaction field meanings and whether v1 guarantees cross-renderer event/hit-test behavior. The full v0.4 feature surface is in scope, but current preview behavior is not automatically normative.
 - Capability identifier grammar, required/optional declaration rules, registry ownership, and exact safe-ignore rules.
 - S3 numeric domains and invalid-value behavior for transforms, opacity and z; negative-scale support; and any further graph/reference rules.
