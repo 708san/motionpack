@@ -737,15 +737,150 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ArchiveError, "nested archive"):
                 read_package(disguised)
 
-    def test_source_archive_entries_remain_opaque(self):
+    def test_rejects_self_extracting_nested_zip_with_512_byte_stub(self):
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w", compression=zipfile.ZIP_STORED) as nested:
+            nested.writestr("payload.txt", b"nested archive payload")
+        self_extracting = b"S" * 512 + inner.getvalue()
+
         with tempfile.TemporaryDirectory() as tmp:
             valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
             with zipfile.ZipFile(valid) as original:
                 entries = [(item.filename, original.read(item)) for item in original.infolist()]
-            entries.append(("source/original.zip", b"PK\x03\x04" + b"opaque source bytes"))
-            package = self._zip(pathlib.Path(tmp) / "source-opaque.motionpack", entries)
+            entries.append(("extras/data.bin", self_extracting))
+            disguised = self._zip(pathlib.Path(tmp) / "sfx.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(disguised)
+
+    def test_rejects_sfx_zip_with_eocd_signature_in_comment(self):
+        fake_eocd = b"PK\x05\x06" + b"\x00" * 4 + b"\x01\x00\x01\x00" + b"\x00" * 10
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w", compression=zipfile.ZIP_STORED) as nested:
+            nested.writestr("payload.txt", b"nested archive payload")
+            nested.comment = fake_eocd
+        self_extracting = b"S" * 512 + inner.getvalue()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/commented.bin", self_extracting))
+            package = self._zip(pathlib.Path(tmp) / "commented-sfx.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(package)
+
+    def test_rejects_nested_zip_over_entry_count_limit_without_expanding_it(self):
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w", compression=zipfile.ZIP_STORED) as nested:
+            for index in range(ReaderLimits().max_entries + 1):
+                nested.writestr(f"f{index}.txt", b"x")
+        self_extracting = b"S" * 512 + inner.getvalue()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/many.bin", self_extracting))
+            package = self._zip(pathlib.Path(tmp) / "over-limit-inner.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(package)
+
+    def test_rejects_excessive_zip64_candidates_with_bounded_scan(self):
+        marker = b"PK\x06\x06" + b"\x00" * 52
+        locator = struct.pack("<4sLQL", b"PK\x06\x07", 0, 0, 1)
+        end_record = struct.pack(
+            "<4s4H2LH", b"PK\x05\x06", 0, 0, 0xFFFF, 0xFFFF,
+            0xFFFFFFFF, 0xFFFFFFFF, 0,
+        )
+        payload = b"S" * 512 + marker * (ReaderLimits().max_entries + 1) + locator + end_record
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/zip64-signature-storm.bin", payload))
+            package = self._zip(pathlib.Path(tmp) / "zip64-signature-storm.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(package)
+
+    def test_does_not_classify_incomplete_zip64_directory_as_nested_zip(self):
+        classic = io.BytesIO()
+        with zipfile.ZipFile(classic, "w", compression=zipfile.ZIP_STORED) as nested:
+            nested.writestr("one.txt", b"x")
+        classic_bytes = classic.getvalue()
+        with zipfile.ZipFile(io.BytesIO(classic_bytes)) as nested:
+            central_directory = classic_bytes[nested.start_dir:classic_bytes.rfind(b"PK\x05\x06")]
+
+        claimed_entries = 2
+        directory = central_directory + b"\x00" * 46
+        zip64_end = struct.pack(
+            "<4sQ2H2L4Q", b"PK\x06\x06", 44, 45, 45, 0, 0,
+            claimed_entries, claimed_entries, len(directory), 0,
+        )
+        zip64_locator = struct.pack(
+            "<4sLQL", b"PK\x06\x07", 0, len(directory), 1,
+        )
+        classic_end = struct.pack(
+            "<4s4H2LH", b"PK\x05\x06", 0, 0, 0xFFFF, 0xFFFF,
+            0xFFFFFFFF, 0xFFFFFFFF, 0,
+        )
+        malformed_sfx = b"S" * 512 + directory + zip64_end + zip64_locator + classic_end
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/malformed-zip64.bin", malformed_sfx))
+            package = self._zip(pathlib.Path(tmp) / "malformed-zip64.motionpack", entries)
             result = read_package(package)
+            self.assertIn("background", result.assets)
+
+    def test_rejects_excessive_eocd_candidates_within_bounded_scan_window(self):
+        signature = b"PK\x05\x06" + b"\x00" * 18
+        payload = b"S" * 512 + signature * (ReaderLimits().max_entries + 1) + b"tail"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/signature-storm.bin", payload))
+            package = self._zip(pathlib.Path(tmp) / "signature-storm.motionpack", entries)
+            with self.assertRaisesRegex(ArchiveError, "nested archive"):
+                read_package(package)
+
+    def test_accepts_non_archive_with_archive_signature_after_prefix(self):
+        # Includes an EOCD signature, but claims one central-directory entry
+        # without providing a central directory, so it is not a valid ZIP.
+        invalid_eocd = b"PK\x05\x06" + b"\x00" * 4 + b"\x01\x00\x01\x00" + b"\x00" * 10
+        harmless = (
+            b"S" * 512 + b"PK\x03\x04" + b"not a valid ZIP local header"
+            + b"ordinary payload bytes" + invalid_eocd
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("extras/data.bin", harmless))
+            package = self._zip(pathlib.Path(tmp) / "prefixed-signature.motionpack", entries)
+            result = read_package(package)
+            self.assertIn("background", result.assets)
+
+    def test_source_archive_entries_remain_opaque(self):
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w", compression=zipfile.ZIP_STORED) as nested:
+            nested.writestr("payload.txt", b"opaque source payload")
+        source_zip = b"S" * 512 + inner.getvalue()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            valid = self._package(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "build")
+            with zipfile.ZipFile(valid) as original:
+                entries = [(item.filename, original.read(item)) for item in original.infolist()]
+            entries.append(("source/original.zip", source_zip))
+            package = self._zip(pathlib.Path(tmp) / "source-opaque.motionpack", entries)
+            result = read_package(package, include_entries=True)
             self.assertNotIn("source/original.zip", result.assets)
+            self.assertEqual(result.source_entries["source/original.zip"], source_zip)
 
     def test_root_entry_named_source_is_not_treated_as_source_directory(self):
         with tempfile.TemporaryDirectory() as tmp:

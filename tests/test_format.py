@@ -285,6 +285,26 @@ class FormatTests(unittest.TestCase):
             self.assertEqual(archive.read_bytes(), b"previous archive")
             self.assertEqual(preview.read_bytes(), b"previous preview")
 
+    @mock.patch.object(package_module, "decode_raster_assets_isolated")
+    def test_opt_in_preview_has_one_total_decode_deadline(self, decode):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self._copy(tmp)
+            manifest = json.loads((project / "manifest.json").read_text())
+            self.assertGreaterEqual(len(set(manifest["assets"].values())), 3)
+            decode.return_value = {
+                "asset": raster_decoder.DecodedRaster(
+                    "PNG", 1, 1, bytes((20, 40, 60, 255))
+                )
+            }
+            clock = iter((0.0, 0.0, 299.0, 301.0))
+            with mock.patch.object(package_module.time, "monotonic", side_effect=lambda: next(clock)):
+                with self.assertRaisesRegex(ValueError, "total decode deadline"):
+                    build(project, pathlib.Path(tmp) / "dist", isolated_raster_decode=True)
+
+            self.assertEqual(decode.call_count, 2)
+            self.assertEqual(decode.call_args_list[0].kwargs["timeout"], 30.0)
+            self.assertEqual(decode.call_args_list[1].kwargs["timeout"], 1.0)
+
     @mock.patch.object(package_module, "decode_raster_assets_isolated", create=True)
     def test_opt_in_decoder_failure_preserves_existing_outputs(self, decode):
         with tempfile.TemporaryDirectory() as tmp:
@@ -303,6 +323,46 @@ class FormatTests(unittest.TestCase):
             self.assertEqual(archive.read_bytes(), b"previous archive")
             self.assertEqual(preview.read_bytes(), b"previous preview")
 
+    def test_package_excludes_unreferenced_private_project_files(self):
+        sentinels={
+            '.env':b'MOTIONPACK_PRIVATE_ENV_SENTINEL',
+            'id_rsa':b'MOTIONPACK_DUMMY_PRIVATE_KEY_SENTINEL',
+            'private/notes.txt':b'MOTIONPACK_PRIVATE_FILE_SENTINEL',
+            'prompt.txt':b'MOTIONPACK_PRIVATE_PROMPT_SENTINEL',
+            'assets/unreferenced.txt':b'MOTIONPACK_UNREFERENCED_ASSET_SENTINEL',
+            'source/original.bin':b'MOTIONPACK_OPAQUE_SOURCE_SENTINEL',
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            for relative,payload in sentinels.items():
+                target=project/relative
+                target.parent.mkdir(parents=True,exist_ok=True)
+                target.write_bytes(payload)
+            source_manifest=json.loads((project/'manifest.json').read_text())
+            source_manifest['assets']['background_alias_probe']=source_manifest['assets']['background']
+            (project/'manifest.json').write_text(json.dumps(source_manifest))
+            source_assets=source_manifest['assets']
+            archive,preview=build(project,pathlib.Path(tmp)/'dist')
+            with zipfile.ZipFile(archive) as packaged:
+                infos=packaged.infolist()
+                names=[info.filename for info in infos]
+                manifest=json.loads(packaged.read('manifest.json'))
+                member_contents=[packaged.read(info) for info in infos]
+            self.assertEqual(manifest['assets'],source_assets)
+            expected={'manifest.json'}|set(source_assets.values())
+            self.assertEqual(set(names),expected)
+            self.assertEqual(len(names),len(expected))
+            self.assertEqual(names.count(source_assets['background']),1)
+            preview_bytes=preview.read_bytes()
+            for relative,payload in sentinels.items():
+                with self.subTest(path=relative):
+                    self.assertNotIn(relative, names)
+                    self.assertFalse(any(relative.encode() in content for content in member_contents))
+                    self.assertFalse(any(payload in content for content in member_contents))
+                    self.assertFalse(any(base64.b64encode(payload) in content for content in member_contents))
+                    self.assertNotIn(relative.encode(),preview_bytes)
+                    self.assertNotIn(payload,preview_bytes)
+                    self.assertNotIn(base64.b64encode(payload),preview_bytes)
     def test_package_warns_on_secret_like_referenced_asset_without_rejecting_or_disclosing(self):
         examples=(
             ('GitHub token-like value','xghp_'+'A'*36),

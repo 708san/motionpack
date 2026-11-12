@@ -10,6 +10,7 @@ import sys
 import struct
 import zlib
 import tempfile
+import time
 import unicodedata
 import zipfile
 try:
@@ -22,6 +23,9 @@ except ImportError:  # Support direct execution from the tools directory.
         RasterDecodeError, RasterDecodeLimits, decode_raster_assets_isolated,
     )
     from validate import validate
+
+RASTER_PREVIEW_TOTAL_TIMEOUT_SECONDS = 300.0
+RASTER_PREVIEW_PER_ASSET_TIMEOUT_SECONDS = 30.0
 
 _SECRET_MARKERS = (
     ("private-key header", re.compile(rb"-----BEGIN (?:(?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY|ENCRYPTED PRIVATE KEY|PGP PRIVATE KEY BLOCK)-----")),
@@ -155,9 +159,13 @@ def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=Fals
         preview_png_by_path = {}
         remaining_pixels = RasterDecodeLimits().max_input_pixels
         total_preview_png_bytes = 0
+        decode_deadline = time.monotonic() + RASTER_PREVIEW_TOTAL_TIMEOUT_SECONDS
         for rel, source_bytes in asset_data.items():
             if remaining_pixels < 1:
                 raise ValueError("isolated raster preview exceeds aggregate pixel limit")
+            remaining_time = decode_deadline - time.monotonic()
+            if remaining_time <= 0:
+                raise ValueError("isolated raster preview exceeded its total decode deadline")
             try:
                 decoded = decode_raster_assets_isolated(
                     {"asset": source_bytes}, {"asset": rel},
@@ -165,6 +173,7 @@ def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=Fals
                         max_input_pixels=remaining_pixels,
                         max_decoded_pixels=remaining_pixels,
                     ),
+                    timeout=min(RASTER_PREVIEW_PER_ASSET_TIMEOUT_SECONDS, remaining_time),
                 )
             except RasterDecodeError as exc:
                 raise ValueError("isolated raster preview decoding failed") from exc

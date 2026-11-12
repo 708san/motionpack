@@ -26,7 +26,7 @@ node tests/runtime_ik_smoke.js
 python3 -m unittest discover -s tests -v
 ```
 
-Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam firing, form switching and optional pointer aiming. The optional `--isolated-raster-decode` mode accepts only projects whose referenced runtime assets are static PNG/JPEG/WebP, decodes them in the resource-limited Pillow worker, and embeds canonical PNG data in the preview. The `.motionpack` archive keeps original asset bytes. Assets are decoded one at a time under the shared 64 MP pixel budget; total canonical PNG bytes embedded across asset-ID data URLs are capped at 64 MiB, including repeated references to one path. SVG, animated and unsupported assets fail closed. The default packaging path does not require Pillow and is unchanged.
+Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam firing, form switching and optional pointer aiming. The optional `--isolated-raster-decode` mode accepts only projects whose referenced runtime assets are static PNG/JPEG/WebP, decodes them in the resource-limited Pillow worker, and embeds canonical PNG data in the preview. The `.motionpack` archive keeps original asset bytes. Assets are decoded one at a time under the shared 64 MP pixel budget and a shared 300-second package-wide deadline; each worker call also has a 30-second deadline. Total canonical PNG bytes embedded across asset-ID data URLs are capped at 64 MiB, including repeated references to one path. SVG, animated and unsupported assets fail closed. The default packaging path does not require Pillow and is unchanged.
 
 ## Project layout
 

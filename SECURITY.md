@@ -3,6 +3,10 @@
 MotionPack is experimental pre-alpha software. Do not use its current tools to
 open untrusted packages in a production or high-privilege environment.
 
+## Dependency inventory
+
+The offline generated inventory at [docs/DEPENDENCY_INVENTORY.json](docs/DEPENDENCY_INVENTORY.json) covers hash-pinned Python requirements, npm lock entries, full-SHA GitHub Actions and digest-pinned workflow images. Regenerate and check it with 'python3 tools/dependency_inventory.py' and 'python3 tools/dependency_inventory.py --check'. It is a scoped provenance/drift record, not a complete software bill of materials (SBOM): bundled Action, OCI image, hosted runner and native wheel dependencies are not enumerated. The image license composition remains unassessed. License metadata is evidence for review, not a legal determination; MotionPack itself remains unlicensed.
+
 The bounded reader in `tools/archive_reader.py` supports experimental v0.1/v0.2/v0.3/v0.4
 packages. It checks ZIP member names and metadata, enforces configurable size
 and compression-ratio limits, and reads only the manifest and referenced image
@@ -113,8 +117,10 @@ The default memory policy is OS-specific:
 - Linux applies a 512 MiB `RLIMIT_AS` address-space ceiling in the worker before
   it opens the snapshot. This is a virtual-address limit, not a resident-memory
   or cgroup limit.
-- Windows applies a 512 MiB per-process committed-memory limit using a Job
-  Object before sending the worker its request.
+- Windows applies both a 512 MiB per-process committed-memory limit and a
+  512 MiB job-wide committed-memory limit using a Job Object before sending
+  the worker its request. The job-wide limit covers the worker and processes
+  assigned to that job.
 - macOS has no supported whole-process hard memory limit in this implementation.
   The wrapper still enforces its timeout and protocol bounds there. An explicit
   positive `memory_limit_bytes` request raises `UnsupportedMemoryLimit` on macOS.
@@ -146,7 +152,7 @@ host runtimes that already hold validated, manifest-referenced asset bytes. It
 starts a new Python worker and passes bounded bytes over standard input; the
 worker never opens package-controlled paths. Only static PNG, JPEG and WebP are
 accepted in this increment. Animated WebP, SVG and other formats are rejected.
-The default offline preview remains on the browser image-decoding path. The packager also offers the explicit `--isolated-raster-decode` option: every referenced runtime asset must be a static PNG, JPEG or WebP; SVG, animated WebP and unsupported formats are rejected. The existing worker decodes validated asset bytes one at a time under the shared 64-megapixel budget, and the packager embeds only canonical PNG bytes in the HTML preview. The aggregate 64 MiB encoded PNG budget counts every asset-ID data URL, including repeated references to the same path, to bound preview expansion. The `.motionpack` archive keeps the original asset bytes and manifest unchanged. Decode, timeout, worker and response-validation errors fail before the output directory or either output file is created or replaced. This is process isolation with resource controls, not an OS permission sandbox; macOS has no hard whole-process memory cap. The default packaging path does not import or require Pillow at runtime unless the option is used.
+The default offline preview remains on the browser image-decoding path. The packager also offers the explicit `--isolated-raster-decode` option: every referenced runtime asset must be a static PNG, JPEG or WebP; SVG, animated WebP and unsupported formats are rejected. The existing worker decodes validated asset bytes one at a time under the shared 64-megapixel budget, and the packager embeds only canonical PNG bytes in the HTML preview. The aggregate 64 MiB encoded PNG budget counts every asset-ID data URL, including repeated references to the same path, to bound preview expansion. The `.motionpack` archive keeps the original asset bytes and manifest unchanged. The preview conversion uses a shared 300-second deadline across all assets and a 30-second maximum deadline for each worker call. Decode, timeout, worker and response-validation errors fail before the output directory or either output file is created or replaced. This is process isolation with resource controls, not an OS permission sandbox; macOS has no hard whole-process memory cap. The default packaging path does not import or require Pillow at runtime unless the option is used.
 
 The adapter returns straight RGBA pixel buffers and applies the existing tool
 ceilings: 8,192 pixels per edge, 16 million pixels per asset, 64 million header

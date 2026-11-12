@@ -19,7 +19,8 @@ from typing import Mapping
 try:
     from .archive_reader import MAX_ASSETS, MAX_ASSET, MAX_TOTAL_ASSETS
     from .isolated_process import (
-        DEFAULT_MEMORY_LIMIT_BYTES, kill_worker, read_bounded_output, windows_job,
+        DEFAULT_MEMORY_LIMIT_BYTES, kill_worker, read_bounded_output,
+        stop_output_reader, windows_job,
     )
     from .validate import (
         MAX_PNG_DIMENSION, MAX_PNG_PIXELS, MAX_TOTAL_PNG_PIXELS,
@@ -28,13 +29,15 @@ try:
 except ImportError:  # Support direct imports from the tools directory.
     from archive_reader import MAX_ASSETS, MAX_ASSET, MAX_TOTAL_ASSETS
     from isolated_process import (
-        DEFAULT_MEMORY_LIMIT_BYTES, kill_worker, read_bounded_output, windows_job,
+        DEFAULT_MEMORY_LIMIT_BYTES, kill_worker, read_bounded_output,
+        stop_output_reader, windows_job,
     )
     from validate import (
         MAX_PNG_DIMENSION, MAX_PNG_PIXELS, MAX_TOTAL_PNG_PIXELS,
         RasterHeaderError, RasterLimitError, parse_raster_dimensions, parse_webp_raster,
     )
 
+_IS_WINDOWS = os.name == "nt"
 MAX_TIMEOUT_SECONDS = 300.0
 MAX_ASSET_ID_BYTES = 1024
 WORKER_SCRIPT = pathlib.Path(__file__).with_name("raster_decode_worker.py")
@@ -257,12 +260,12 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
     if memory_limit_bytes is not None and (type(memory_limit_bytes) is not int or memory_limit_bytes < 0):
         raise ValueError("memory_limit_bytes must be a non-negative integer or None")
     if memory_limit_bytes is None:
-        memory_limit = DEFAULT_MEMORY_LIMIT_BYTES if os.name == "nt" or sys.platform.startswith("linux") else 0
+        memory_limit = DEFAULT_MEMORY_LIMIT_BYTES if _IS_WINDOWS or sys.platform.startswith("linux") else 0
     else:
         memory_limit = memory_limit_bytes
     if memory_limit and sys.platform == "darwin":
         raise UnsupportedMemoryLimit("a hard whole-process memory limit is unsupported on macOS")
-    if memory_limit and os.name != "nt" and not sys.platform.startswith("linux"):
+    if memory_limit and not _IS_WINDOWS and not sys.platform.startswith("linux"):
         raise UnsupportedMemoryLimit("memory limits are supported only on Linux and Windows")
 
     unique, aliases, expected_dimensions = _safe_inputs(assets, asset_paths, limits)
@@ -270,35 +273,49 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
         return {}
     request = _make_request(unique, limits, memory_limit)
     started = time.monotonic()
-    temp_dir = tempfile.TemporaryDirectory(prefix="motionpack-raster-worker-")
+    temp_dir = pathlib.Path(tempfile.mkdtemp(prefix="motionpack-raster-worker-"))
     child_environment = {}
     for key in ("PATH", "SYSTEMROOT", "WINDIR", "LANG", "LC_ALL", "LC_CTYPE"):
         if key in os.environ:
             child_environment[key] = os.environ[key]
-    if os.name == "nt":
-        child_environment.update({"TEMP": temp_dir.name, "TMP": temp_dir.name})
+    if _IS_WINDOWS:
+        child_environment.update({"TEMP": str(temp_dir), "TMP": str(temp_dir)})
     else:
-        child_environment["TMPDIR"] = temp_dir.name
+        child_environment["TMPDIR"] = str(temp_dir)
     command = [sys.executable, "-I", str(pathlib.Path(WORKER_SCRIPT).resolve())]
     kwargs = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE,
-              "stderr": subprocess.DEVNULL, "cwd": temp_dir.name,
+              "stderr": subprocess.DEVNULL, "cwd": str(temp_dir),
               "close_fds": True, "env": child_environment}
-    if os.name == "nt":
+    if _IS_WINDOWS:
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     else:
         kwargs["start_new_session"] = True
     try:
+        output = tempfile.TemporaryFile(mode="w+b", dir=str(temp_dir))
+    except BaseException:
+        import shutil
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+    try:
         process = subprocess.Popen(command, **kwargs)
     except OSError as exc:
-        temp_dir.cleanup()
+        output.close()
+        import shutil
+        shutil.rmtree(temp_dir, ignore_errors=True)
         raise RasterDecodeWorkerFailure("unable to start raster decoder worker") from exc
     job = None
-    output = tempfile.TemporaryFile(mode="w+b", dir=temp_dir.name)
+    worker_cleaned = False
+    job_reap_failed = False
+    cleanup_error = None
     overflow = threading.Event()
+    reader_stop = threading.Event()
     writer = None
     reader = threading.Thread(
         target=read_bounded_output,
-        args=(process.stdout, output, overflow, process, limits.max_response_bytes),
+        args=(
+            process.stdout, output, overflow, process,
+            limits.max_response_bytes, reader_stop,
+        ),
         daemon=True,
     )
     def write_request():
@@ -314,7 +331,7 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
                 pass
 
     try:
-        if os.name == "nt":
+        if _IS_WINDOWS:
             try:
                 job = windows_job(process, memory_limit)
             except OSError as exc:
@@ -343,20 +360,50 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
         output.seek(0)
         return _decode_response(output, unique, aliases, expected_dimensions, limits)
     except BaseException:
-        kill_worker(process, job)
-        job = None
+        reader_stop.set()
+        cleanup_job, job = job, None
+        try:
+            kill_worker(process, cleanup_job)
+        except BaseException as error:
+            cleanup_error = error
+            job_reap_failed = cleanup_job is not None and _IS_WINDOWS
+        else:
+            worker_cleaned = True
         raise
     finally:
-        if job is not None or process.poll() is None or os.name != "nt":
-            kill_worker(process, job)
+        if not worker_cleaned and (
+            job is not None or process.poll() is None or not _IS_WINDOWS
+        ):
+            cleanup_job, job = job, None
+            try:
+                kill_worker(process, cleanup_job)
+            except BaseException as error:
+                if cleanup_error is None:
+                    cleanup_error = error
+                job_reap_failed = cleanup_job is not None and _IS_WINDOWS
+            else:
+                if cleanup_job is not None or not _IS_WINDOWS or not job_reap_failed:
+                    worker_cleaned = True
         if writer is not None:
             writer.join(1.0)
-        reader.join(1.0)
-        for stream in (process.stdin, process.stdout):
-            if stream is not None:
-                try:
-                    stream.close()
-                except OSError:
-                    pass
-        output.close()
-        temp_dir.cleanup()
+        reader_stopped = stop_output_reader(reader, reader_stop) if reader.is_alive() else True
+        if writer is None or not writer.is_alive():
+            if process.stdin is not None and not process.stdin.closed:
+                process.stdin.close()
+        if process.stdout is not None and not process.stdout.closed and reader_stopped:
+            process.stdout.close()
+        if reader_stopped and (writer is None or not writer.is_alive()):
+            output.close()
+        if worker_cleaned and reader_stopped and (writer is None or not writer.is_alive()):
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=False)
+        else:
+            active_exception = sys.exc_info()[1]
+            note = f"raster decoder cleanup unconfirmed; temporary data retained at {temp_dir}"
+            if active_exception is not None:
+                active_exception.add_note(note)
+            elif cleanup_error is not None:
+                cleanup_error.add_note(note)
+                raise cleanup_error
+            else:
+                raise RasterDecodeWorkerFailure(note)
