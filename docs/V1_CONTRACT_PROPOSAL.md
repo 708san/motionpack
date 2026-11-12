@@ -23,6 +23,10 @@ These directions were agreed before this draft:
 
 These are constraints for contract work, not evidence that the final schema or writer already exists.
 
+## Contract-freeze and implementation blockers
+
+The three maintainer choices below, together with the additional semantic decisions listed later, block freezing the v1 contract and starting conformant reader/writer implementation. They must be recorded as explicit decisions first. See [Issue #120](https://github.com/708san/motionpack/issues/120) for the authoritative acceptance criteria, including loss reporting, no output on unconfirmed loss, canonicalization, and v0.1–v0.4 regression coverage.
+
 ## Maintainer decisions still open
 
 ### 1. v1 core data shapes
