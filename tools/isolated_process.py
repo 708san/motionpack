@@ -206,6 +206,40 @@ def kill_worker(process, windows_job=None):
 
 
 
+def stop_output_reader(reader, stop_event, timeout=1.0):
+    """Request reader shutdown and interrupt a pending synchronous Windows I/O."""
+    stop_event.set()
+    deadline = time.monotonic() + timeout
+    while reader.is_alive():
+        if os.name == "nt" and reader.native_id is not None:
+            try:
+                from ctypes import wintypes
+
+                kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+                kernel32.OpenThread.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+                kernel32.OpenThread.restype = wintypes.HANDLE
+                kernel32.CancelSynchronousIo.argtypes = [wintypes.HANDLE]
+                kernel32.CancelSynchronousIo.restype = wintypes.BOOL
+                kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+                kernel32.CloseHandle.restype = wintypes.BOOL
+                handle = kernel32.OpenThread(0x0001, False, reader.native_id)
+                if handle:
+                    try:
+                        if not kernel32.CancelSynchronousIo(handle):
+                            error = ctypes.get_last_error()
+                            if error not in (87, 1168):  # thread exited / no I/O pending
+                                raise OSError(error, "CancelSynchronousIo failed")
+                    finally:
+                        kernel32.CloseHandle(handle)
+            except OSError:
+                pass
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        reader.join(min(0.05, remaining))
+    return not reader.is_alive()
+
+
 def read_bounded_output(stream, output, overflow, process, max_bytes, stop_event, polling_event=None):
     """Drain a pipe without blocking indefinitely between cleanup checks."""
     descriptor = stream.fileno()
