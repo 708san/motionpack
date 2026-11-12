@@ -389,6 +389,24 @@ test('collect unbaselined interactive seal art and motion review frames', async 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.runFor(16);
   await captureSealFrame('idle-390x844');
+  const mobileViewportPath = path.join(candidateDir, 'seal-viewport-390x844.png');
+  await page.screenshot({
+    path: mobileViewportPath, animations: 'disabled', fullPage: false
+  });
+  await testInfo.attach('seal-viewport-390x844.png', {
+    path: mobileViewportPath, contentType: 'image/png'
+  });
+  const mobileViewportBytes = fs.readFileSync(mobileViewportPath);
+  expect({
+    width: mobileViewportBytes.readUInt32BE(16),
+    height: mobileViewportBytes.readUInt32BE(20)
+  }).toEqual({ width: 390, height: 844 });
+  fs.appendFileSync(path.join(output, 'capture-metadata.txt'),
+    'seal-full-viewport-390x844: viewport=390x844; ' +
+    'screenshot=390x844; platform=' + process.platform + '-' + process.arch +
+    '; playwright=' + require('@playwright/test/package.json').version +
+    '; chromium=' + page.context().browser().version() +
+    '; unbaselined-human-review-required\\n');
   expect(externalRequests, 'preview must not make runtime network requests').toEqual([]);
   expect(pageErrors, 'preview must not raise uncaught browser errors').toEqual([]);
   expect(idle).toContain('idle |');
