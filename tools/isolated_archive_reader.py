@@ -28,7 +28,8 @@ except ImportError:  # Support direct import when tools/ is on sys.path.
 try:
     from .isolated_process import (
         DEFAULT_MEMORY_LIMIT_BYTES, kill_worker as _kill_worker,
-        read_bounded_output as _read_output, windows_job as _windows_job,
+        read_bounded_output as _read_output, stop_output_reader as _stop_output_reader,
+        windows_job as _windows_job,
     )
 except ImportError:  # Support direct execution/import from the tools directory.
     from isolated_process import (
@@ -370,9 +371,8 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
                 raise IsolatedWorkerFailure("isolated reader worker exited unexpectedly")
             return _decode_result(output, limits, include_entries=include_entries)
         except BaseException:
-            # The pipe drainer polls so a failed reap cannot strand a blocked
-            # reader thread or force cross-thread closure of a buffered stream.
-            reader_stop.set()
+            # Interrupt any synchronous pipe call before spending time reaping.
+            _stop_output_reader(reader, reader_stop, timeout=0.1)
             cleanup_job, job = job, None
             try:
                 _kill_worker(process, cleanup_job)
@@ -396,13 +396,20 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
             if job is not None:
                 handle, close_handle = job
                 close_handle(handle)
-            if reader.is_alive():
-                reader.join(1)
+            reader_stopped = _stop_output_reader(reader, reader_stop) if reader.is_alive() else True
+            if not reader_stopped:
+                cleanup_error = TimeoutError("isolated reader output thread did not stop")
+                temporary_directory.preserve_after_failed_reap(cleanup_error)
+                active_exception = sys.exc_info()[1]
+                if active_exception is not None:
+                    active_exception.add_note(cleanup_error.__notes__[0])
+                else:
+                    raise cleanup_error
             for stream in (process.stdin, process.stdout):
                 if (
                     stream is not None
                     and not stream.closed
-                    and (stream is not process.stdout or not reader.is_alive())
+                    and (stream is not process.stdout or reader_stopped)
                 ):
                     stream.close()
 
