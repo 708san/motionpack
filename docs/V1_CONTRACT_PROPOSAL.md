@@ -45,6 +45,16 @@ The chosen direction still needs a closed v1 core-field inventory, JSON types/ra
 
 The maintainer explicitly adopted the existing 8,192 px per-edge and 16 MP per-SVG ceilings as v1 format limits. Any lower host/tool resource limit remains a separate implementation profile and cannot relax the v1 validity rule.
 
+### 4. Decisions recorded in Issue #154 (planning directions)
+
+- **Loss reporting:** use itemized conceptual entries identifying source location, changed information, and proposed conversion action/reason. This does not settle public report fields/categories, API shape, digest algorithm, source/plan identity, write ordering, or destination transaction semantics.
+- **Package writing:** use `ZIP_STORED` for output entries. This fixes only the compression method; entry order, flags, names, timestamps, permissions, extra fields, comments, ZIP64, limits, and all other metadata still need a complete deterministic profile.
+- **Assets:** define static SVG, PNG, JPEG, and WebP content profiles and inspect content rather than extensions. Keep host decoder/time/memory ceilings separate from format validity and distinguish host-limit failures. Exact grammar, completeness checks, metadata/color policy, animation treatment, isolation guarantees, and format bounds remain open.
+- **Numeric values:** permit finite decimal values with explicit per-property domains. Durations and effect timing remain integers. Exact bounds, invalid-value behavior, numeric precision/canonicalization, graph/reference rules, and maximum clip duration remain open.
+- **Capabilities and interaction:** declare supported features through capabilities. Interaction declarations are data; any event or hit-test execution guarantee is scoped to a host/runtime profile. Preserve unknown optional feature data and ignore it only under an explicit safe-ignore rule. Capability declaration/derivation, identifier registry/ownership, and the exact safe-ignore proof remain open.
+
+These choices guide contract work but are not normative rules; none changes v0.x behavior.
+
 ### 3. Canonicalization and package reproducibility
 
 **Option A — guarantee canonical manifest bytes only.** Define UTF-8, JSON normalization, key ordering, number representation, and newline policy. ZIP files may differ in entry order, timestamps, permissions, compression implementation, comments, and extra fields. Whole-package hashes are not stable across writers.
