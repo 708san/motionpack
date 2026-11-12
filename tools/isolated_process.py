@@ -212,6 +212,7 @@ def read_bounded_output(stream, output, overflow, process, max_bytes, stop_event
     windows_kernel = None
     pipe_handle = None
     if os.name == "nt":
+        import msvcrt
         from ctypes import wintypes
 
         windows_kernel = ctypes.WinDLL("kernel32", use_last_error=True)
