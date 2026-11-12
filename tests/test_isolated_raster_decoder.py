@@ -204,7 +204,11 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
                                     side_effect=lambda _stream, _output, _overflow, _process, _limit, stop: stop.wait(),
                                 ):
                                     with self.assertRaises(decoder.RasterDecodeTimeout) as raised:
-                                        self.decode(self.image_bytes("PNG"), ".png", timeout=0.01)
+                                        decoder.decode_raster_assets_isolated(
+                                            {"asset": self.image_bytes("PNG")},
+                                            {"asset": "assets/asset.png"},
+                                            timeout=0.01, memory_limit_bytes=0,
+                                        )
             self.assertEqual(kill_calls, [job, None])
             self.assertTrue(temp_path.exists())
             self.assertIn(str(temp_path), raised.exception.__notes__[0])
