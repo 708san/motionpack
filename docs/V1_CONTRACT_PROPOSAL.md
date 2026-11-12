@@ -45,23 +45,13 @@ The chosen direction still needs a closed v1 core-field inventory, JSON types/ra
 
 The maintainer explicitly adopted the existing 8,192 px per-edge and 16 MP per-SVG ceilings as v1 format limits. Any lower host/tool resource limit remains a separate implementation profile and cannot relax the v1 validity rule.
 
-### 4. Decisions recorded in Issue #154 (planning directions)
-
-- **Loss reporting:** use itemized conceptual entries identifying source location, changed information, and proposed conversion action/reason. This does not settle public report fields/categories, API shape, digest algorithm, source/plan identity, write ordering, or destination transaction semantics.
-- **Package writing:** use `ZIP_STORED` for output entries. This fixes only the compression method; entry order, flags, names, timestamps, permissions, extra fields, comments, ZIP64, limits, and all other metadata still need a complete deterministic profile.
-- **Assets:** define static SVG, PNG, JPEG, and WebP content profiles and inspect content rather than extensions. Keep host decoder/time/memory ceilings separate from format validity and distinguish host-limit failures. Exact grammar, completeness checks, metadata/color policy, animation treatment, isolation guarantees, and format bounds remain open.
-- **Numeric values:** permit finite decimal values with explicit per-property domains. Durations and effect timing remain integers. Exact bounds, invalid-value behavior, numeric precision/canonicalization, graph/reference rules, and maximum clip duration remain open.
-- **Capabilities and interaction:** declare supported features through capabilities. Interaction declarations are data; any event or hit-test execution guarantee is scoped to a host/runtime profile. Preserve unknown optional feature data and ignore it only under an explicit safe-ignore rule. Capability declaration/derivation, identifier registry/ownership, and the exact safe-ignore proof remain open.
-
-These choices guide contract work but are not normative rules; none changes v0.x behavior.
-
 ### 3. Canonicalization and package reproducibility
 
 **Option A — guarantee canonical manifest bytes only.** Define UTF-8, JSON normalization, key ordering, number representation, and newline policy. ZIP files may differ in entry order, timestamps, permissions, compression implementation, comments, and extra fields. Whole-package hashes are not stable across writers.
 
 **Approved option B — guarantee canonical manifest bytes and deterministic complete ZIP bytes.** In addition to canonical manifest bytes, the normative profile must define entry ordering, timestamps, permissions, compression method and parameters, comments, extra fields, directory entries, and all container metadata. Every conforming writer must reproduce these details; fixtures must pin byte-level output. This gives package-level stable hashes and constrains implementations and compression choices.
 
-The maintainer selected package-envelope direction A: allow manifest-referenced runtime assets and preserve bounded opaque payload bytes under `source/` and for unknown regular-file entries. Input ZIP metadata is not part of the preservation promise. This is distinct from D3: a conforming writer must still emit deterministic ZIP metadata according to a yet-to-be-frozen profile. Exact per-entry and aggregate bounds, entry-name/path rules, and how preserved opaque entries interact with canonical output remain to be specified.
+The maintainer selected package-envelope direction A: allow manifest-referenced runtime assets and preserve bounded opaque payload bytes under `source/` and for unknown regular-file entries. Input ZIP metadata is not part of the preservation promise. This is distinct from D3: a conforming writer must still emit deterministic ZIP metadata according to a yet-to-be-frozen profile. Issue #154 later selected `ZIP_STORED` as the output compression method; this does not settle the remaining ZIP serialization fields. Exact per-entry and aggregate bounds, entry-name/path rules, and how preserved opaque entries interact with canonical output remain to be specified.
 
 
 The maintainer also approved these directions for Issue #120. They guide the proposal but are not yet normative contract text:
@@ -72,6 +62,16 @@ The maintainer also approved these directions for Issue #120. They guide the pro
 - **Reader/writer failures:** use staged validation, stable error categories, and produce no output on failure. The stage order and exact public category identifiers remain open.
 - **Compatibility lifecycle:** support stable v1 and keep the v0.x importer read-only, with no time-based support-duration promise. This does not promise legacy write-back or define platform/API support windows.
 
+
+### 4. Decisions recorded in Issue #154 (planning directions)
+
+- **Loss reporting:** use itemized conceptual entries identifying source location, changed information, and proposed conversion action/reason. This does not settle public report fields/categories, API shape, digest algorithm, source/plan identity, write ordering, or destination transaction semantics.
+- **Package writing:** use `ZIP_STORED` for output entries. This fixes only the compression method; entry order, flags, names, timestamps, permissions, extra fields, comments, ZIP64, limits, and all other metadata still need a complete deterministic profile.
+- **Assets:** define static SVG, PNG, JPEG, and WebP content profiles and inspect content rather than extensions. Keep host decoder/time/memory ceilings separate from format validity and distinguish host-limit failures. Exact grammar, completeness checks, metadata/color policy, animation treatment, isolation guarantees, and format bounds remain open.
+- **Numeric values:** permit finite decimal values with explicit per-property domains. Durations and effect timing remain integers. Exact bounds, invalid-value behavior, numeric precision/canonicalization, graph/reference rules, and maximum clip duration remain open.
+- **Capabilities and interaction:** declare supported features through capabilities. Interaction declarations are data; any event or hit-test execution guarantee is scoped to a host/runtime profile. Preserve unknown optional feature data and ignore it only under an explicit safe-ignore rule. Capability declaration/derivation, identifier registry/ownership, and the exact safe-ignore proof remain open.
+
+These choices guide contract work but are not normative rules; none changes v0.x behavior.
 
 ## S3 approved node evaluation directions (planning record)
 
@@ -170,7 +170,7 @@ The following details remain open even after the approved directions above:
 - Complete v1 core fields, types, ranges, reference integrity, collection ordering, and closed field sets.
 - Maximum clip duration, fractional-millisecond precision/representation limits, property-specific numeric ranges, and cross-feature effect/IK sampling interactions beyond S4 time normalization.
 - Variant overlay fields, sparse merge behavior, interaction replacement semantics, and same-property precedence are approved as described above; interaction with IK remains open. Effect field grammar, non-timing parameter units, ranges/defaults, cross-feature sampling interactions beyond S4 time normalization, renderer appearance, and conformance remain open; the inclusive active interval and stated coordinate split are approved.
-- Exact interaction field meanings and whether v1 guarantees cross-renderer event/hit-test behavior. The full v0.4 feature surface is in scope, but current preview behavior is not automatically normative.
+- Exact v1 interaction declaration fields and host/runtime profile behavior. The full v0.4 feature surface is in scope, but current preview behavior is not automatically normative and no cross-renderer event/hit-test guarantee is implied.
 - Capability identifier grammar, required/optional declaration rules, registry ownership, and exact safe-ignore rules.
 - S3 numeric domains and invalid-value behavior for transforms, opacity and z; negative-scale support; and any further graph/reference rules.
 - Canonical JSON rules for extensions, duplicate-key handling, numeric equivalence, Unicode, and extension validation.
