@@ -336,8 +336,11 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
         worker_cleaned = False
         output = bytearray()
         overflow = threading.Event()
+        reader_stop = threading.Event()
         reader = threading.Thread(
-            target=_read_output, args=(process.stdout, output, overflow, process, max_result), daemon=True
+            target=_read_output,
+            args=(process.stdout, output, overflow, process, max_result, reader_stop),
+            daemon=True,
         )
         reader.start()
         try:
@@ -367,6 +370,9 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
                 raise IsolatedWorkerFailure("isolated reader worker exited unexpectedly")
             return _decode_result(output, limits, include_entries=include_entries)
         except BaseException:
+            # The pipe drainer polls so a failed reap cannot strand a blocked
+            # reader thread or force cross-thread closure of a buffered stream.
+            reader_stop.set()
             cleanup_job, job = job, None
             try:
                 _kill_worker(process, cleanup_job)
