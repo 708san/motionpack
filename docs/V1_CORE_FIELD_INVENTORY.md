@@ -96,7 +96,7 @@ The grouped rows above share the same presence and migration treatment where sta
 | `/capabilities/required[]`, `/capabilities/optional[]` | v1 prototype arrays of identifier strings; not legacy fields. | Not applicable to v0.1–v0.4; never infer from observed constructs without rule. | `tools/v1_capability_preflight.py`; `tests/test_v1_capability_preflight.py`. | C16 |
 | `/extensions/{key}` | v1 JSON value under reverse-domain key direction; no closed legacy equivalent. | Not applicable as a v0 extension schema; unknown source fields remain unclassified. | `tools/legacy_importer.py`; `tests/test_legacy_importer.py`. | C16 |
 | `manifest.json` JSON encoding | UTF-8 JSON parsed by tools; duplicate-key and canonical rules remain contract work. | v0.1–v0.4 accepted fixtures; exact external-package coverage incomplete. | `tools/archive_reader.py`; `tools/v1_capability_preflight.py`. | C17, C18 |
-| ZIP member path/payload/metadata | Regular file bytes retained by importer; metadata/layout is not. | v0.1–v0.4 packages. | `tools/legacy_importer.py`; `tests/test_legacy_importer.py`; archive-reader tests. | C17, C18 |
+| ZIP member path/payload/metadata | Regular file bytes retained by importer; metadata/layout is not. | v0.1–v0.4 packages. | `tools/legacy_importer.py`; `tests/test_legacy_importer.py`; `tests/test_archive_reader.py` and `tests/test_isolated_archive_reader.py`. | C17, C18 |
 
 ## Field-by-field migration disposition by source version
 
@@ -133,7 +133,13 @@ This table makes the current source retention and target disposition explicit fo
 | `/clips/{name}/effects/{i}/duration_ms` | Retain; candidate mapping under approved positive-integer/end-bound direction, pending normative schema. | Same. | Same. | Same. | `tools/validate.py`; `tests/runtime_smoke.js`; S5. |
 | `/clips/{name}/effects/{i}/count` | Omitted: retain omission; effective 28 is implementation-derived. Authored zero: retain zero; v1 meaning unresolved. | Same. | Same. | Same. | `tests/test_legacy_importer.py`, `tests/runtime_smoke.js`; do not materialize 28. |
 | `/variants/{name}/nodes/{nodeId}/asset` | Retain sparse field; candidate mapping for approved overlay member. | Same. | Same. | Same. | `runtime/evaluator.js`; `tests/runtime_smoke.js`; S5. |
-| `/variants/{name}/nodes/{nodeId}/x`, `y`, `width`, `height`, `rotation`, `scale`, `opacity`, `z`, `anchor` | Retain each present sparse visual field; candidate mapping only for approved overlay members. | Same. | Same. | Same. | `runtime/evaluator.js`; `tests/runtime_smoke.js`; S5. |
+| `/variants/{name}/nodes/{nodeId}/x`, `/y` | Retain each present sparse field; candidate mapping for approved overlay members. | Same. | Same. | Same. | `runtime/evaluator.js`; `tests/runtime_smoke.js`; S5. |
+| `/variants/{name}/nodes/{nodeId}/width`, `/height` | Retain each present sparse field; candidate mapping for approved overlay members. | Same. | Same. | Same. | `runtime/evaluator.js`; `tests/runtime_smoke.js`; S5. |
+| `/variants/{name}/nodes/{nodeId}/rotation` | Retain sparse field; candidate mapping for approved overlay member. | Same. | Same. | Same. | `runtime/evaluator.js`; `tests/runtime_smoke.js`; S5. |
+| `/variants/{name}/nodes/{nodeId}/scale` | Retain sparse field; candidate mapping for approved overlay member. | Same. | Same. | Same. | `runtime/evaluator.js`; `tests/runtime_smoke.js`; S5. |
+| `/variants/{name}/nodes/{nodeId}/opacity` | Retain sparse field; candidate mapping for approved overlay member. | Same. | Same. | Same. | `runtime/evaluator.js`; `tests/runtime_smoke.js`; S5. |
+| `/variants/{name}/nodes/{nodeId}/z` | Retain sparse field; candidate mapping for approved overlay member. | Same. | Same. | Same. | `runtime/evaluator.js`; `tests/runtime_smoke.js`; S5. |
+| `/variants/{name}/nodes/{nodeId}/anchor` | Retain sparse field; candidate mapping for approved overlay member. | Same. | Same. | Same. | `runtime/evaluator.js`; `tests/runtime_smoke.js`; S5. |
 | `/variants/{name}/nodes/{nodeId}/interaction` | No declaration in v0.1–v0.3; v0.4 value retained, behavior mapping unresolved under S7. | No declaration. | No declaration. | Retain sparse interaction object; behavior mapping unresolved. | `tests/interaction_adapter_test.js`; `tests/interaction_preview_smoke.js`; S7. |
 | Unknown variant overlay fields | Retain bytes/sparse data; leave unclassified unless closed source rule says otherwise. | Same. | Same. | Same. | `tests/test_legacy_importer.py`; dropping any value in a future writer is reportable loss. |
 | `/defaults/clip` | Retain presence/value; target requiredness, type and reference behavior unresolved. | Same. | Same. | Same. | `tools/validate.py`; `tests/test_legacy_importer.py`. |
@@ -158,7 +164,7 @@ This table makes the current source retention and target disposition explicit fo
 | **v0.1–v0.4 omitted clip loop** | Preserve omission; separate effective false with documented-rule provenance. | Matches approved v1 default direction; do not materialize into source. | `tests/test_legacy_importer.py`, `tests/runtime_smoke.js`. |
 | **v0.1–v0.4 omitted burst count** | Preserve omission; current effective 28 is implementation-derived. | Do not write 28 into v1 until its default is approved. | `tests/test_legacy_importer.py`, `tests/runtime_smoke.js`. |
 | **v0.1–v0.4 authored `count: 0`** | Preserve authored zero; current preview draws zero. | v1 normative zero behavior remains unresolved. Any later conversion that changes/drops zero must report loss before output. | `tests/runtime_smoke.js`; Issue #120/S5. |
-| **v0.1–v0.4 opaque `source/` and unknown regular entries** | Accepted regular-file payload bytes retained; original ZIP metadata/layout is not. | Preserve bounded payloads in v1 output under S1; exact bounds and deterministic treatment open. No reconstruction promise for original archive bytes. | `tests/test_legacy_importer.py`, archive-reader tests, S1/D3. |
+| **v0.1–v0.4 opaque `source/` and unknown regular entries** | Accepted regular-file payload bytes retained; original ZIP metadata/layout is not. | Preserve bounded payloads in v1 output under S1; exact bounds and deterministic treatment open. No reconstruction promise for original archive bytes. | `tests/test_legacy_importer.py`, `tests/test_archive_reader.py` and `tests/test_isolated_archive_reader.py`, S1/D3. |
 
 ## Conditional conformance case index
 
@@ -183,8 +189,8 @@ These IDs make the open decisions traceable to field paths and source evidence. 
 | C15 | `/defaults/clip`, `/defaults/variant`; presence and references | validator and `tests/test_legacy_importer.py` | Missing/invalid target references and effective behavior once specified. |
 | C16 | capabilities/extensions; grammar, ownership, duplicate/overlap, safe-ignore and canonical JSON | `tests/test_v1_capability_preflight.py`; extension conformance tests pending | Unknown required/optional cases after safe-ignore conditions are decided; extension value preservation/canonicalization. |
 | C17 | unknown core/nested fields and migration report; preservation vs unsupported/loss | `tests/test_legacy_importer.py`; v0.1–v0.4 pinned fixtures | Unknown nested retention, source pointers, dispositions, loss report and confirmation invalidation. |
-| C18 | ZIP entries/canonical output; paths, counts, bounds and metadata profile | archive-reader tests; canonical ZIP fixtures pending | Deterministic full ZIP bytes and opaque payload retention under chosen S1/D3 limits. |
-| C19 | staged errors and output destination | current reader tests; writer tests pending | Stable category/stage, no output on failure, destination unchanged. |
+| C18 | ZIP entries/canonical output; paths, counts, bounds and metadata profile | `tests/test_archive_reader.py` and `tests/test_isolated_archive_reader.py`; canonical ZIP fixtures pending | Deterministic full ZIP bytes and opaque payload retention under chosen S1/D3 limits. |
+| C19 | staged errors and output destination | `tests/test_archive_reader.py` and `tests/test_isolated_archive_reader.py`; writer tests pending | Stable category/stage, no output on failure, destination unchanged. |
 | C20 | loss-aware writer and round trip | v0 importer fixtures; writer absent | Read/write/read preservation, deterministic bytes, plan-bound confirmation and explicit lossy conversion. |
 
 Each field row in the shape register cites one or more C IDs; these cases must be implemented only after the corresponding semantic decision is recorded.
