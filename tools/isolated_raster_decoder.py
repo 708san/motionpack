@@ -295,10 +295,14 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
     job = None
     output = tempfile.TemporaryFile(mode="w+b", dir=temp_dir.name)
     overflow = threading.Event()
+    reader_stop = threading.Event()
     writer = None
     reader = threading.Thread(
         target=read_bounded_output,
-        args=(process.stdout, output, overflow, process, limits.max_response_bytes),
+        args=(
+            process.stdout, output, overflow, process,
+            limits.max_response_bytes, reader_stop,
+        ),
         daemon=True,
     )
     def write_request():
@@ -343,6 +347,7 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
         output.seek(0)
         return _decode_response(output, unique, aliases, expected_dimensions, limits)
     except BaseException:
+        reader_stop.set()
         kill_worker(process, job)
         job = None
         raise
@@ -351,12 +356,13 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
             kill_worker(process, job)
         if writer is not None:
             writer.join(1.0)
-        reader.join(1.0)
+        if reader.is_alive():
+            reader_stop.set()
+            reader.join(1.0)
         for stream in (process.stdin, process.stdout):
-            if stream is not None:
-                try:
-                    stream.close()
-                except OSError:
-                    pass
+            if stream is not None and not stream.closed and (
+                stream is not process.stdout or not reader.is_alive()
+            ):
+                stream.close()
         output.close()
         temp_dir.cleanup()
