@@ -24,7 +24,7 @@ These directions do not prove that a frozen schema or implementation exists.
 
 ## Recorded choices and remaining contract blockers
 
-The maintainer selected D1 option A, D2 option A with the existing 8,192 px per-edge and 16 MP per-SVG ceilings, and D3 option B. Issue #154 additionally records itemized conceptual loss reports, `ZIP_STORED` output entries, content-inspected static SVG/PNG/JPEG/WebP profiles, finite decimals with per-property domains, and capability-declared feature support with interaction execution scoped to host/runtime profiles. These are approved planning directions only. Exact field/range choices, API shapes, asset grammars, capability rules, and ZIP serialization details remain open; no normative behavior is frozen.
+The maintainer selected D1 option A, D2 option A with the existing 8,192 px per-edge and 16 MP per-SVG ceilings, and D3 option B. Issue #154 additionally records itemized conceptual loss reports, `ZIP_STORED` output entries, content-inspected static SVG/PNG/JPEG/WebP profiles, finite decimals with per-property domains, and capability-declared feature support with interaction execution scoped to host/runtime profiles. These are approved planning directions only. Exact field/range choices, API shapes, asset grammars, and capability rules remain open. For ZIP, the selected path, collision, ordering, timestamp, creator/version, mode, flag, comment/extra-field, directory-entry, compression, and ZIP64-only-when-required directions are recorded above; exact numeric header values, canonical ZIP64 layout and input admission, package bounds, and additional Windows portability rules remain open. No normative behavior is frozen.
 
 | ID | Choice | Option A | Option B | Current status |
 |---|---|---|---|---|
