@@ -1,6 +1,7 @@
 """Shared low-level process containment helpers for optional worker APIs."""
 import ctypes
 import os
+import select
 import signal
 import subprocess
 import time
@@ -205,10 +206,42 @@ def kill_worker(process, windows_job=None):
 
 
 
-def read_bounded_output(stream, output, overflow, process, max_bytes):
+def read_bounded_output(stream, output, overflow, process, max_bytes, stop_event):
+    """Drain a pipe without blocking indefinitely between cleanup checks."""
+    descriptor = stream.fileno()
+    windows_kernel = None
+    pipe_handle = None
+    if os.name == "nt":
+        from ctypes import wintypes
+
+        windows_kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        windows_kernel.PeekNamedPipe.argtypes = [
+            wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.c_void_p,
+            ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p,
+        ]
+        windows_kernel.PeekNamedPipe.restype = wintypes.BOOL
+        pipe_handle = wintypes.HANDLE(msvcrt.get_osfhandle(descriptor))
     total = 0
-    while True:
-        chunk = stream.read1(64 * 1024)
+    while not stop_event.is_set():
+        if os.name == "nt":
+            available = wintypes.DWORD()
+            if not windows_kernel.PeekNamedPipe(
+                pipe_handle, None, 0, None, ctypes.byref(available), None
+            ):
+                error = ctypes.get_last_error()
+                if error == 109:  # ERROR_BROKEN_PIPE
+                    return
+                raise OSError(error, "PeekNamedPipe failed")
+            if available.value == 0:
+                stop_event.wait(0.05)
+                continue
+            chunk_size = min(64 * 1024, available.value)
+        else:
+            ready, _, _ = select.select([descriptor], [], [], 0.05)
+            if not ready:
+                continue
+            chunk_size = 64 * 1024
+        chunk = os.read(descriptor, chunk_size)
         if not chunk:
             return
         total += len(chunk)
