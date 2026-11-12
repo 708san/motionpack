@@ -42,6 +42,53 @@ Paths use JSON Pointer patterns. Braced segments are dynamic keys or array indic
 | `/extensions/{reverseDomainKey}` | No equivalent closed v0 schema. | v0 importer retains unknown manifest fields but does not classify all nested unknowns. | **Approved direction:** reverse-domain keys; JSON values retain semantic value and are canonicalized. | Key grammar/ownership, extension schema validation, JSON duplicate keys/numeric equivalence/Unicode, canonical encoding. |
 | ZIP entries and metadata | v0 package is a ZIP with root `manifest.json`, referenced assets, and optional opaque `source/` files. | Importer retains accepted regular-file payload bytes, not compression representation, ordering, timestamps, permissions, comments, extra fields, directories, or other container layout. | **Approved direction D3:** canonical manifest bytes and deterministic complete ZIP output; input ZIP metadata is not preserved. | Entry/path/type/count/size limits, ordering, timestamps, permissions, compression settings, comments, extra fields, directory entries, and deterministic treatment of opaque payloads. |
 
+## Field-level shape and evidence register
+
+The grouped rows above share the same presence and migration treatment where stated. This register splits nested members where their shapes/defaults or evidence differ. A blank/unknown v0 shape is deliberately not inferred. Case IDs link each field group to a conditional conformance case below; a case marked decision-pending does not assert an expected outcome.
+
+| Field path | Shape/presence evidence | Version applicability / default | Evidence | Conditional case |
+|---|---|---|---|---|
+| `/canvas/width`, `/canvas/height` | Integer in current validator; documented logical pixels. | v0.1–v0.4; current tool range 1–8192. | `docs/FORMAT_SPEC.md`; `tests/test_format.py`. | C02 |
+| `/canvas/background` | Optional; exact JSON shape and absent rendering default require evidence review. | v0.1–v0.4; no v1 default approved. | `docs/FORMAT_SPEC.md`; `tests/runtime_smoke.js`. | C02 |
+| `/assets/{id}` | Dynamic map key -> local path string in observed packages. | v0.1–v0.4; format restrictions and reader limits are distinct. | `tools/validate.py`; `tests/test_archive_reader.py`; `tests/test_isolated_archive_reader.py`. | C03 |
+| `/nodes/{i}/id` | String-like identity in observed records; uniqueness details open. | v0.1–v0.4. | `tools/validate.py`; `tests/test_format.py`; importer tests. | C04 |
+| `/nodes/{i}/asset` | Asset-ID reference in observed records. | v0.1–v0.4; drawable asset reference. | `tools/validate.py`; `tests/test_archive_reader.py`. | C04 |
+| `/nodes/{i}/parent` | Optional parent node-ID reference. | v0.1–v0.4; root representation and edge cases open. | `tools/validate.py`; `runtime/evaluator.js`. | C04 |
+| `/nodes/{i}/x`, `/nodes/{i}/y` | Optional numeric local position; exact finite/domain constraints open. | v0.1–v0.4; v1 effective default 0 is an approved direction. | `runtime/evaluator.js`; `tests/runtime_smoke.js`. | C05 |
+| `/nodes/{i}/rotation` | Optional numeric angle; unit/range contract not frozen. | v0.1–v0.4; v1 effective default 0 approved. | `runtime/evaluator.js`; `tests/runtime_smoke.js`. | C05 |
+| `/nodes/{i}/scale` | Optional uniform numeric scale; negative support open. | v0.1–v0.4; v1 effective default 1 approved. | `runtime/evaluator.js`; `tests/runtime_smoke.js`. | C05 |
+| `/nodes/{i}/opacity` | Optional numeric opacity; range/error rules open. | v0.1–v0.4; v1 effective default 1 and no parent inheritance approved. | `runtime/evaluator.js`; `tests/runtime_smoke.js`. | C05 |
+| `/nodes/{i}/width`, `/nodes/{i}/height` | Optional numeric drawable dimensions. | v0.1–v0.4; omitted axis uses asset intrinsic dimension in approved S3 direction. | `runtime/evaluator.js`; `tests/test_legacy_importer.py`. | C06 |
+| `/nodes/{i}/anchor` | Optional normalized pair in approved v1 direction; exact v0 member grammar/range must be traced. | v0.1–v0.4 high-level support; v1 effective default [0.5,0.5]. | `runtime/evaluator.js`; `tests/runtime_smoke.js`. | C06 |
+| `/nodes/{i}/z` | Optional ordering value; exact v0 numeric type/range open. | v0.1–v0.4 high-level support; v1 omitted value 0 and global ordering/tie rule approved. | `runtime/evaluator.js`; `tests/runtime_smoke.js`. | C06 |
+| `/nodes/{i}/interaction/hover`, `tap`, `click` | Optional JSON booleans in v0.4; closed key set. | v0.4 only; omitted flags disabled. | `docs/FORMAT_SPEC.md`; `tests/interaction_adapter_test.js`; `tests/interaction_preview_smoke.js`. | C07 |
+| `/clips/{name}/duration_ms` | Positive integer in validator; maximum is tool evidence. | v0.1–v0.4; v1 positive integer approved, maximum open. | `tools/validate.py`; runtime sampling tests. | C08 |
+| `/clips/{name}/loop` | Optional boolean; documented omitted default false. | v0.1–v0.4. | `docs/FORMAT_SPEC.md`; `tests/test_legacy_importer.py`. | C08 |
+| `/clips/{name}/tracks/{i}/node` | Node reference in observed node track. | v0.1–v0.4; exact field closure open. | `tools/validate.py`; runtime tests. | C09 |
+| `/clips/{name}/tracks/{i}/property` | String; current set x/y/rotation/opacity/scale. | v0.1–v0.4; v1 full type/unknown policy open. | `tools/validate.py`; `runtime/evaluator.js`. | C09 |
+| `/clips/{name}/tracks/{i}/keys` | Array; v1 requires at least one key by approved S4 direction. | v0.1–v0.4. | `tools/validate.py`; runtime sampling tests. | C09 |
+| `/clips/{name}/tracks/{i}/keys/{j}/time_ms` | Finite numeric time observed; v1 range/order direction approved. | v0.1–v0.4; fractional precision open. | `tools/validate.py`; runtime sampling tests. | C09 |
+| `/clips/{name}/tracks/{i}/keys/{j}/value` | Finite numeric value observed; property-specific ranges open. | v0.1–v0.4. | `runtime/evaluator.js`; runtime tests. | C09 |
+| `/iks/{i}/id`, `upper`, `lower` | Chain identity and limb references observed; exact types/closure need source/test verification. | Documented v0.2–v0.4; v0.1 acceptance is implementation/spec mismatch. | `tools/validate.py`; `tests/ik_test.js`; v0.2 fixture. | C10 |
+| `/iks/{i}/lengths`, `target` | Numeric lengths and target values in observed chain; ranges open. | Documented v0.2–v0.4. | `runtime/ik_solver.js`; `tests/runtime_ik_smoke.js`. | C10 |
+| `/iks/{i}/bend` | Optional numeric field; omitted 1 is implementation-derived. | Documented field v0.2–v0.4; omission rule not specified by FORMAT_SPEC. | `tools/legacy_importer.py`; `tests/test_legacy_importer.py`. | C10 |
+| `/iks/{i}/weight` | Optional finite numeric field; documented default 1, current runtime clamps to [0,1]. | v0.2–v0.4 documented; v0.1 meaning not inferred. | `docs/FORMAT_SPEC.md`; `runtime/ik_solver.js`; IK tests. | C10 |
+| `/clips/{name}/ik_tracks/{i}/ik`, `axis`, `keys` | Reference, axis, key array observed; exact child grammar/ranges open. | Documented v0.2–v0.4; v0.1 retained/uninterpreted if present. | `tools/validate.py`; `tests/ik_test.js`; `tests/runtime_ik_smoke.js`. | C11 |
+| `/clips/{name}/effects/{i}/node`, `type` | Node reference and one of beam/ring/burst observed/documented; exact field closure open. | v0.1–v0.4. | `docs/FORMAT_SPEC.md`; `tools/validate.py`; runtime smoke tests. | C12 |
+| `/clips/{name}/effects/{i}/start_ms`, `duration_ms` | Time fields; v1 integer/range direction approved. | v0.1–v0.4; legacy exact grammar needs evidence reconciliation. | `tools/validate.py`; runtime tests. | C12 |
+| `/clips/{name}/effects/{i}/offset` | Node-local vector in approved S5 direction; exact legacy type/unit evidence required. | v0.1–v0.4 when present. | `runtime/evaluator.js`; effect runtime tests. | C12 |
+| `/clips/{name}/effects/{i}/target`, `radius` | Beam target and ring/burst radius use canvas logical space in approved direction; member grammar/ranges open. | v0.1–v0.4 when applicable. | `runtime/evaluator.js`; effect runtime tests. | C12 |
+| `/clips/{name}/effects/{i}/count` | Burst count optional in observed implementation; omitted 28 is implementation default, authored 0 retained. | v0.1–v0.4 when burst. | `tools/legacy_importer.py`; `tests/test_legacy_importer.py`; `tests/runtime_smoke.js`. | C13 |
+| `/variants/{name}/nodes/{nodeId}/asset` | Optional sparse asset override. | v0.1–v0.4 inventory; v1 permitted overlay member. | `runtime/evaluator.js`; importer tests. | C14 |
+| `/variants/{name}/nodes/{nodeId}/x`, `y`, `width`, `height` | Optional sparse numeric/asset-dimension overrides; exact v0 ranges open. | v0.1–v0.4 inventory; v1 permitted overlay members. | `runtime/evaluator.js`; importer tests. | C14 |
+| `/variants/{name}/nodes/{nodeId}/rotation`, `scale`, `opacity`, `z`, `anchor` | Optional sparse visual overrides; member grammar/ranges open. | v0.1–v0.4 inventory; v1 permitted overlay members. | `runtime/evaluator.js`; importer tests. | C14 |
+| `/variants/{name}/nodes/{nodeId}/interaction` | Optional object override; v0.4 interaction field only. | v0.1–v0.3 absent; v0.4 retained; v1 presence replaces whole object under approved direction. | `tests/interaction_adapter_test.js`; variant/runtime tests. | C14 |
+| `/defaults/clip`, `/defaults/variant` | Optional selectors observed; exact type/absence rules need field-level source verification. | v0.1–v0.4. | `tools/validate.py`; importer tests. | C15 |
+| `/capabilities/required[]`, `/capabilities/optional[]` | v1 prototype arrays of identifier strings; not legacy fields. | Not applicable to v0.1–v0.4; never infer from observed constructs without rule. | `tools/v1_capability_preflight.py`; `tests/test_v1_capability_preflight.py`. | C16 |
+| `/extensions/{key}` | v1 JSON value under reverse-domain key direction; no closed legacy equivalent. | Not applicable as a v0 extension schema; unknown source fields remain unclassified. | `tools/legacy_importer.py`; importer tests. | C16 |
+| `manifest.json` JSON encoding | UTF-8 JSON parsed by tools; duplicate-key and canonical rules remain contract work. | v0.1–v0.4 accepted fixtures; exact external-package coverage incomplete. | `tools/archive_reader.py`; `tools/v1_capability_preflight.py`. | C17, C18 |
+| ZIP member path/payload/metadata | Regular file bytes retained by importer; metadata/layout is not. | v0.1–v0.4 packages. | `tools/legacy_importer.py`; `tests/test_legacy_importer.py`; archive-reader tests. | C17, C18 |
+
 ## Field-by-field migration disposition by source version
 
 This table makes the current source retention and target disposition explicit for each inventoried field. “Candidate mapping” uses the existing proposal’s terminology and remains provisional. “Same” carries the preceding cell’s meaning for that field. Where a cell says unresolved, no converter outcome is authorized. In particular, byte retention and semantic support are separate.
@@ -90,18 +137,34 @@ This table makes the current source retention and target disposition explicit fo
 | **v0.1–v0.4 authored `count: 0`** | Preserve authored zero; current preview draws zero. | v1 normative zero behavior remains unresolved. Any later conversion that changes/drops zero must report loss before output. | `tests/runtime_smoke.js`; Issue #120/S5. |
 | **v0.1–v0.4 opaque `source/` and unknown regular entries** | Accepted regular-file payload bytes retained; original ZIP metadata/layout is not. | Preserve bounded payloads in v1 output under S1; exact bounds and deterministic treatment open. No reconstruction promise for original archive bytes. | `tests/test_legacy_importer.py`, archive-reader tests, S1/D3. |
 
-## Conformance work to derive after semantics are decided
+## Conditional conformance case index
 
-These are test-planning prompts, not expected normative outcomes until the relevant rule is approved:
+These IDs make the open decisions traceable to field paths and source evidence. They are test-planning hooks, not assertions of normative outcomes. Until a rule is approved, the case outcome is **decision pending**; no test should encode guessed behavior.
 
-1. **Schema and references:** valid/invalid JSON types, requiredness, unknown core fields, duplicate JSON keys, IDs/references, parent cycles, and dynamic map keys.
-2. **Version migration:** one native fixture per v0.1–v0.4 version; sparse versus effective values with provenance; dimensionless legacy SVG; v0.1 IK mismatch; unknown nested field retention; explicit v0.4 interaction.
-3. **Evaluation:** parent transform composition, global Z tie order, parent opacity, omitted dimensions, track key boundaries, exact loop duration, non-loop duration, variant-track precedence, and variant/IK cases after those rules are decided.
-4. **Effects:** start/end inclusive boundaries, S4 wrap/clamp normalization, coordinate-space examples, unknown parameters, authored `count: 0`, omitted count, and renderer-profile-specific visual expectations.
-5. **Package/capability/errors:** unknown required and optional capabilities under chosen safe-ignore rules; opaque extension preservation; ZIP path/type/size bounds; deterministic full archive bytes; stable error stage/category; failed save leaves no output; loss confirmation bound to the exact source and conversion plan.
-6. **Round trip:** v1 write/read/write byte reproducibility and semantic preservation, plus explicit report and confirmation for any loss.
+| Case ID | Field paths / unresolved rule | Evidence baseline | Required conformance evidence after decision |
+|---|---|---|---|
+| C01 | `/format`, `/version`, `/id`; discriminator, source version, identifier grammar | `tests/test_format.py`; importer tests; v0.1–v0.4 fixtures | Accepted/rejected roots and migration provenance. |
+| C02 | `/canvas/width`, `/canvas/height`, `/canvas/background`; presence, limits, background grammar/default | `tests/test_format.py`; `tests/runtime_smoke.js` | Boundary/type cases and effective-default provenance. |
+| C03 | `/assets/{id}`; IDs, paths, asset profiles and resource bounds | `tests/test_archive_reader.py`; `tests/test_isolated_archive_reader.py` | Path traversal/type/size/profile fixtures under decided limits. |
+| C04 | `/nodes/{i}/id`, `asset`, `parent`; identity, references, graph and cycles | `tools/validate.py`; evaluator tests | Missing/duplicate IDs, bad references, graph boundary cases. |
+| C05 | node x/y/rotation/scale/opacity; finite domains, negative scale and parent opacity | `runtime/evaluator.js`; `tests/runtime_smoke.js` | Numeric boundaries, transform composition and inheritance cases. |
+| C06 | node width/height/anchor/z; intrinsic sizes, anchor grammar, Z order and tie break | evaluator/runtime tests | Omitted dimensions, invalid dimensions, anchor boundaries, equal-Z order. |
+| C07 | node interaction booleans; declaration-only vs event/hit-test guarantee, S7 | `tests/interaction_adapter_test.js`; `tests/interaction_preview_smoke.js` | Per supported profile: declaration preservation; if behavior is selected, input, hit region, occlusion and host-boundary cases. |
+| C08 | clip duration/loop; maximum duration, fractional precision, boundaries | importer and runtime sampling tests | Positive/maximum durations, exact duration wrap/clamp and invalid times. |
+| C09 | track references/properties/keys; closure, key count, time/value domains and interpolation | `tools/validate.py`; `runtime/evaluator.js`; runtime tests | Empty/unknown track, duplicate/ordered times, key endpoint and smoothstep cases. |
+| C10 | `/iks/{i}` fields; mapping, capability, weights/bend defaults, graph and numeric limits | `tests/ik_test.js`; `tests/runtime_ik_smoke.js`; importer tests | v0.2 defaults, implementation-derived bend, invalid references and approved v1 semantics. |
+| C11 | IK tracks; IK reference, axis grammar and cross-stage ordering | IK runtime tests | Valid/invalid axis and interaction with clip sampling after decision. |
+| C12 | effect node/type/timing/offset/target/radius; units, ranges, timing and coordinate spaces | effect runtime tests; `runtime/evaluator.js` | Inclusive endpoints, S4 wrap/clamp, coordinate transforms, malformed values. |
+| C13 | burst count and renderer parameters; omitted/default/zero behavior | `tests/test_legacy_importer.py`; `tests/runtime_smoke.js` | Omitted vs authored zero, parameter bounds, renderer-profile image checks only after semantics/profile decision. |
+| C14 | variant overlay member paths; shallow merge, whole interaction replacement, track precedence, IK interaction | `runtime/evaluator.js`; interaction and variant tests | Each allowed member, omitted retention, identity/parent rejection, interaction replacement, same-property track precedence, IK interaction when decided. |
+| C15 | `/defaults/clip`, `/defaults/variant`; presence and references | validator and importer tests | Missing/invalid target references and effective behavior once specified. |
+| C16 | capabilities/extensions; grammar, ownership, duplicate/overlap, safe-ignore and canonical JSON | `tests/test_v1_capability_preflight.py`; extension tests pending | Unknown required/optional cases under the approved safe-ignore rule; extension value preservation/canonicalization. |
+| C17 | unknown core/nested fields and migration report; preservation vs unsupported/loss | `tests/test_legacy_importer.py`; v0.1–v0.4 pinned fixtures | Unknown nested retention, source pointers, dispositions, loss report and confirmation invalidation. |
+| C18 | ZIP entries/canonical output; paths, counts, bounds and metadata profile | archive-reader tests; canonical ZIP fixtures pending | Deterministic full ZIP bytes and opaque payload retention under chosen S1/D3 limits. |
+| C19 | staged errors and output destination | current reader tests; writer tests pending | Stable category/stage, no output on failure, destination unchanged. |
+| C20 | loss-aware writer and round trip | v0 importer fixtures; writer absent | Read/write/read preservation, deterministic bytes, plan-bound confirmation and explicit lossy conversion. |
 
-Each case must cite a source requirement or remain marked **decision pending**. Do not turn an implementation observation into a normative expected value without a recorded decision.
+Each field row in the shape register cites one or more C IDs; these cases must be implemented only after the corresponding semantic decision is recorded.
 
 ## Evidence references and limitations
 
