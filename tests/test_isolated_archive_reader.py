@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import archive_reader
 from archive_reader import ArchiveError, ReaderLimits, read_package as read_package_in_process
-from isolated_process import kill_worker, read_bounded_output
+from isolated_process import kill_worker, read_bounded_output, stop_output_reader
 from isolated_archive_reader import _snapshot_archive
 from isolated_archive_reader import (
     IsolatedReadTimeout,
@@ -155,6 +155,24 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             with self.assertRaisesRegex(TimeoutError, "did not exit"):
                 kill_worker(process)
         self.assertEqual(process.wait_timeout, 5)
+
+    def test_windows_output_reader_cancellation_interrupts_sync_io(self):
+        kernel32 = mock.Mock()
+        kernel32.OpenThread.return_value = 123
+        kernel32.CancelSynchronousIo.return_value = 1
+        kernel32.CloseHandle.return_value = 1
+        reader = mock.Mock(native_id=456)
+        reader.is_alive.side_effect = [True, False]
+        stop_event = threading.Event()
+        with mock.patch("isolated_process.os.name", "nt"):
+            with mock.patch(
+                "isolated_process.ctypes.WinDLL", create=True, return_value=kernel32
+            ):
+                self.assertTrue(stop_output_reader(reader, stop_event, timeout=0.1))
+        self.assertTrue(stop_event.is_set())
+        kernel32.OpenThread.assert_called_once_with(0x0001, False, 456)
+        kernel32.CancelSynchronousIo.assert_called_once_with(123)
+        kernel32.CloseHandle.assert_called_once_with(123)
 
     def test_output_drainer_stops_without_waiting_for_pipe_eof(self):
         read_fd, write_fd = os.pipe()
