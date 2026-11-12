@@ -74,6 +74,19 @@ The maintainer approved these v1 directions, reusing current preview behavior wh
 
 Still open: numeric domains and invalid-value behavior for transforms, opacity and `z`; whether negative scale is supported; reference/graph boundary rules beyond the existing acyclic-parent checks; and cross-renderer pixel equivalence. Existing runtime behavior is evidence, not a promise of identical pixels.
 
+
+## S4 approved timeline and track directions (planning record)
+
+The maintainer approved these v1 sampling rules. They do not define host scheduling APIs or claim pixel-identical rendering:
+
+- Use milliseconds for clip duration and key times. Duration is a positive integer; key times are finite numbers in the inclusive range `[0, duration_ms]`, strictly increasing with no duplicates, and key values are finite numbers. Property-specific accepted ranges remain open.
+- Between adjacent keys at times `t0` and `t1` with values `v0` and `v1`, compute `u=(t-t0)/(t1-t0)`, then sample `v=v0+(v1-v0)*u*u*(3-2*u)`. Apply this smoothstep rule to every animated numeric property, including rotation as ordinary scalar interpolation. Do not add a per-track or per-segment interpolation selector in this v1 shape.
+- Before the first key and after the last key, hold the nearest endpoint value.
+- For a looping clip, sample time `duration_ms` as time zero. For a non-looping clip, sample and hold the final pose at `duration_ms`.
+- A host player owns `ended` notifications and decisions about what clip to play next; those are not package sampling semantics.
+
+Still open: empty-track behavior, normalization of requested sample times beyond clip duration, the v1 default when `loop` is omitted (the v0.x default `false` is not automatically inherited), maximum v1 clip duration, precision/representation limits for fractional-millisecond key times, property-specific numeric ranges and invalid-value behavior, and interaction with effect/IK sampling limits. These choices establish a sampling contract, not wall-clock scheduling or renderer pixel equivalence.
+
 ## Remaining normative contract blockers
 
 The additional semantic decisions below still block freezing the v1 contract and starting conformant reader/writer implementation. See [Issue #120](https://github.com/708san/motionpack/issues/120) for the authoritative acceptance criteria, including loss reporting, no output on unconfirmed loss, canonicalization, and v0.1–v0.4 regression coverage.
@@ -129,7 +142,8 @@ No v1 writer, integrated v1 reader, or v1 normative conformance suite is present
 The following details remain open even after the approved directions above:
 
 - Complete v1 core fields, types, ranges, reference integrity, collection ordering, and closed field sets.
-- Time units, keyframe ordering/boundaries/interpolation, clip looping, variants, and declarative-effect parameters.
+- Maximum clip duration, fractional-millisecond precision/representation limits, property-specific numeric ranges, and remaining effect/IK timing interactions.
+- Variant semantics and declarative-effect parameters.
 - Exact interaction field meanings and whether v1 guarantees cross-renderer event/hit-test behavior. The full v0.4 feature surface is in scope, but current preview behavior is not automatically normative.
 - Capability identifier grammar, required/optional declaration rules, registry ownership, and exact safe-ignore rules.
 - S3 numeric domains and invalid-value behavior for transforms, opacity and z; negative-scale support; and any further graph/reference rules.
