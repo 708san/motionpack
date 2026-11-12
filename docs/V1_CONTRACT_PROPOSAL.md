@@ -89,7 +89,7 @@ The maintainer approved these v1 sampling rules. They do not define host schedul
 - When `loop` is omitted, its effective v1 value is `false`; preserve the authored omission separately from the effective value.
 - A requested sample time must be finite and nonnegative. For looping clips, normalize it modulo `duration_ms` into `[0, duration_ms)`; for non-looping clips, clamp values above duration to `duration_ms`. Exact duration on a looping clip therefore samples time zero; negative values are invalid.
 
-Still open: maximum v1 clip duration, precision/representation limits for fractional-millisecond key times, property-specific numeric ranges and invalid-value behavior, and interaction with effect/IK sampling limits. These choices establish a sampling contract, not wall-clock scheduling or renderer pixel equivalence.
+Still open: maximum v1 clip duration, precision/representation limits for fractional-millisecond key times, property-specific numeric ranges and invalid-value behavior, and cross-feature interactions between effects/IK and S4 time sampling beyond the rules stated above. These choices establish a sampling contract, not wall-clock scheduling or renderer pixel equivalence.
 
 ## S5 approved variant and effect directions (planning record)
 
@@ -98,9 +98,10 @@ The maintainer approved these limited v1 directions. They do not change v0.x beh
 - Variant overlays may set `asset`, `x`, `y`, `width`, `height`, `rotation`, `scale`, `opacity`, `z`, `anchor`, and `interaction`. They cannot change node identity or parentage.
 - Apply a shallow per-node merge: an overlay field absent from the selected variant retains the base node value. If an overlay supplies `interaction`, it replaces the entire base interaction object; flags omitted from that replacement object are disabled.
 - If a selected variant and a clip track specify the same node property, the variant wins in v1. The current v0.x evaluator merges variant values and then applies clip tracks, so the track currently wins; v1 must reverse that conflict resolution without changing v0.x behavior.
+- Effects use integer `start_ms >= 0` and positive integer `duration_ms`, constrained so `start_ms + duration_ms <= clip.duration_ms`. An effect is active on the inclusive interval `[start_ms, start_ms + duration_ms]` when tested at the effective clip-local sample time after S4 time normalization. Thus a looping request at exactly clip duration is evaluated at time 0, while a non-looping request is evaluated at clip duration; the inclusive-end rule does not override the S4 wrap rule. This matches the current evaluator's order.
 - Effect `offset` is node-local and transformed through the node's world transform. Beam `target` and ring/burst `radius` use canvas logical coordinates and are not scaled by the source node transform, matching the current preview's coordinate split.
 
-Still open: interaction with IK or other evaluation stages; effect field grammar, units, parameter ranges/defaults, timing and renderer appearance; and cross-renderer conformance. These directions do not promise pixel-identical output.
+Still open: interaction with IK or other evaluation stages; effect field grammar, units, parameter ranges/defaults, cross-feature effect/IK sampling interactions beyond S4 time normalization, renderer appearance; and cross-renderer conformance. These directions do not promise pixel-identical output.
 
 ## Remaining normative contract blockers
 
@@ -157,8 +158,8 @@ No v1 writer, integrated v1 reader, or v1 normative conformance suite is present
 The following details remain open even after the approved directions above:
 
 - Complete v1 core fields, types, ranges, reference integrity, collection ordering, and closed field sets.
-- Maximum clip duration, fractional-millisecond precision/representation limits, property-specific numeric ranges, and remaining effect/IK timing interactions.
-- Variant overlay fields, sparse merge behavior, interaction replacement semantics, and same-property precedence are approved as described above; interaction with IK remains open. Effect fields, units, parameter ranges/defaults, timing interactions, renderer appearance, and conformance remain open; only the stated coordinate split is approved.
+- Maximum clip duration, fractional-millisecond precision/representation limits, property-specific numeric ranges, and cross-feature effect/IK sampling interactions beyond S4 time normalization.
+- Variant overlay fields, sparse merge behavior, interaction replacement semantics, and same-property precedence are approved as described above; interaction with IK remains open. Effect field grammar, units, parameter ranges/defaults, cross-feature sampling interactions beyond S4 time normalization, renderer appearance, and conformance remain open; the inclusive active interval and stated coordinate split are approved.
 - Exact interaction field meanings and whether v1 guarantees cross-renderer event/hit-test behavior. The full v0.4 feature surface is in scope, but current preview behavior is not automatically normative.
 - Capability identifier grammar, required/optional declaration rules, registry ownership, and exact safe-ignore rules.
 - S3 numeric domains and invalid-value behavior for transforms, opacity and z; negative-scale support; and any further graph/reference rules.
