@@ -129,7 +129,7 @@ No v1 writer, integrated v1 reader, or v1 normative conformance suite is present
 The following details remain open even after the approved directions above:
 
 - Complete v1 core fields, types, ranges, reference integrity, collection ordering, and closed field sets.
-- Time units, keyframe ordering/boundaries/interpolation, clip looping, transform/anchor/Z behavior, variants, and declarative-effect parameters.
+- Time units, keyframe ordering/boundaries/interpolation, clip looping, variants, and declarative-effect parameters.
 - Exact interaction field meanings and whether v1 guarantees cross-renderer event/hit-test behavior. The full v0.4 feature surface is in scope, but current preview behavior is not automatically normative.
 - Capability identifier grammar, required/optional declaration rules, registry ownership, and exact safe-ignore rules.
 - S3 numeric domains and invalid-value behavior for transforms, opacity and z; negative-scale support; and any further graph/reference rules.
