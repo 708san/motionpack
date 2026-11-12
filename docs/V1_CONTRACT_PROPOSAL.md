@@ -25,31 +25,31 @@ These are constraints for contract work, not evidence that the final schema or w
 
 ## Contract-freeze and implementation blockers
 
-The three maintainer choices below, together with the additional semantic decisions listed later, block freezing the v1 contract and starting conformant reader/writer implementation. They must be recorded as explicit decisions first. See [Issue #120](https://github.com/708san/motionpack/issues/120) for the authoritative acceptance criteria, including loss reporting, no output on unconfirmed loss, canonicalization, and v0.1–v0.4 regression coverage.
+The maintainer has recorded the three top-level choices below. The additional semantic decisions listed later still block freezing the v1 contract and starting conformant reader/writer implementation. See [Issue #120](https://github.com/708san/motionpack/issues/120) for the authoritative acceptance criteria, including loss reporting, no output on unconfirmed loss, canonicalization, and v0.1–v0.4 regression coverage.
 
-## Maintainer decisions still open
+## Maintainer decisions recorded
 
 ### 1. v1 core data shapes
 
-**Option A — retain v0.4-shaped core fields (recommended by the planning review).** Define v1 semantics precisely while reusing familiar concepts and field shapes. Migration can map only explicitly supported meanings; fields without a confirmed mapping remain preserved or are reported as unsupported/lossy. This reduces structural change but does not make every v0.x field automatically portable.
+**Approved option A — retain v0.4-shaped core fields.** Define v1 semantics precisely while reusing familiar concepts and field shapes. Migration can map only explicitly supported meanings; fields without a confirmed mapping remain preserved or are reported as unsupported/lossy. This reduces structural change but does not make every v0.x field automatically portable.
 
 **Option B — redesign the core schema.** This permits a cleaner model but requires explicit mappings from each v0.x field, fixture updates, and more potentially lossy conversions. Existing readers and tools cannot infer the new semantics from shape similarity.
 
-Either option needs a closed v1 core-field inventory, JSON types/ranges, reference rules, ordering, and unknown-field behavior.
+The chosen direction still needs a closed v1 core-field inventory, JSON types/ranges, reference rules, ordering, and unknown-field behavior.
 
 ### 2. SVG root dimensions
 
-**Option A — require positive numeric px `width` and `height` in v1 (recommended by the planning review).** This aligns with the v0.3/v0.4 validation profile and permits bounded intrinsic sizing. Existing v0.1/v0.2 packages can contain dimensionless SVGs, so migration must not silently infer dimensions; each such asset needs an explicit repair or a loss/unsupported disposition.
+**Approved option A — require positive numeric px `width` and `height`, with a maximum edge of 8,192 px and an area of 16 MP per SVG.** This adopts the v0.3/v0.4 dimension profile for v1 and permits bounded intrinsic sizing. Existing v0.1/v0.2 packages can contain dimensionless SVGs, so migration must not silently infer dimensions; each such asset needs an explicit repair or a loss/unsupported disposition.
 
 **Option B — allow omitted dimensions.** This is more permissive for older content, but the contract must specify how a renderer obtains intrinsic size and how resource limits apply when dimensions are absent. Renderer-dependent interpretation should not be mistaken for deterministic sizing.
 
-If dimensions are required, choose whether v1 adopts the existing v0.3 ceilings (8,192 px per edge and 16 MP) or a separately justified limit. Those ceilings currently describe a validation profile, not an engine-independent v1 guarantee.
+The maintainer explicitly adopted the existing 8,192 px per-edge and 16 MP per-SVG ceilings as v1 format limits. Any lower host/tool resource limit remains a separate implementation profile and cannot relax the v1 validity rule.
 
 ### 3. Canonicalization and package reproducibility
 
-**Option A — guarantee canonical manifest bytes only (recommended by the planning review).** Define UTF-8, JSON normalization, key ordering, number representation, and newline policy. ZIP files may differ in entry order, timestamps, permissions, compression implementation, comments, and extra fields. This is simpler to implement and test, but whole-package hashes are not stable across writers.
+**Option A — guarantee canonical manifest bytes only.** Define UTF-8, JSON normalization, key ordering, number representation, and newline policy. ZIP files may differ in entry order, timestamps, permissions, compression implementation, comments, and extra fields. Whole-package hashes are not stable across writers.
 
-**Option B — guarantee deterministic ZIP bytes too.** In addition to canonical manifest bytes, define entry ordering, timestamps, permissions, compression method and parameters, comments, extra fields, directory entries, and all container metadata. Every conforming writer must reproduce these details; fixtures must pin byte-level output. This gives package-level stable hashes but constrains implementations and compression choices.
+**Approved option B — guarantee canonical manifest bytes and deterministic complete ZIP bytes.** In addition to canonical manifest bytes, the normative profile must define entry ordering, timestamps, permissions, compression method and parameters, comments, extra fields, directory entries, and all container metadata. Every conforming writer must reproduce these details; fixtures must pin byte-level output. This gives package-level stable hashes and constrains implementations and compression choices.
 
 For either option, specify which files belong in the runtime package, how optional `source/` originals are handled, and whether unknown regular-file entries are rejected, retained opaquely, or reported as loss. The current importer preserves accepted regular-file payload bytes, including opaque `source/`, but not ZIP metadata, directory-only entries, or container layout.
 
@@ -59,9 +59,9 @@ This is a preliminary planning matrix, not a v1 mapping. “Confirmed view” me
 
 | Source | Confirmed source evidence | v1 disposition |
 |---|---|---|
-| v0.1 | Canvas, assets, nodes, clips, tracks, declarative effects, variants/defaults; SVG dimensions may be omitted. | Map only fields whose v1 semantics are approved. Preserve source bytes and sparse presence. Unknown nested fields are not fully classified. SVG dimensionless assets depend on the pending dimensions choice. |
+| v0.1 | Canvas, assets, nodes, clips, tracks, declarative effects, variants/defaults; SVG dimensions may be omitted. | Map only fields whose v1 semantics are approved. Preserve source bytes and sparse presence. Unknown nested fields are not fully classified. Dimensionless SVGs are preserved without inferred dimensions and reported unsupported or lossy until explicitly repaired. |
 | v0.2 | Adds two-bone IK; missing IK `weight` is specified as 1. Runtime also observes omitted `bend` as 1, but the format does not specify this. | IK mapping and default provenance need explicit v1 semantics. The observed bend default must not become normative by inference. |
-| v0.3 | Adds the SVG dimension validation profile: positive numeric px dimensions, edge up to 8,192 px, area up to 16 MP. | Apply only if the v1 dimensions decision adopts these rules; the existing tool ceiling is not yet a v1 guarantee. |
+| v0.3 | Adds the SVG dimension validation profile: positive numeric px dimensions, edge up to 8,192 px, area up to 16 MP. | The maintainer selected these positive-pixel dimensions and ceilings for v1; reader conformance must validate them separately from lower host resource limits. |
 | v0.4 | Adds per-node `hover`, `tap`, and `click` booleans; omitted flags are disabled; notifications are data-only. | Define whether v1 adopts the current preview’s detailed pointer, hit-test, occlusion, and event semantics or only stores declarations. Cross-renderer behavior is not established. |
 
 Across all versions, the importer currently keeps original manifest bytes and retained regular-file payloads, while its normalized projection only reports confirmed mappings. Unrecognized top-level fields are reported unsupported by that projection; nested unknown fields are generally preserved but unclassified. v0.1 IK is preserved and warned as a specification/implementation mismatch, not interpreted as a v1 capability. These importer behaviors do not decide the future writer’s output policy.
@@ -85,13 +85,13 @@ This inventory records what the current legacy importer and its tests demonstrat
 
 ### Candidate v1 conformance cases
 
-These are future test targets, not currently passing v1 tests. Expected outcomes remain conditional wherever the contract choices below are open.
+These are future test targets, not currently passing v1 tests. D1–D3 are decided; expected outcomes remain conditional wherever the remaining contract choices below are open.
 
 - Minimal valid v1 package and boundary-invalid manifest cases, after the v1 core field inventory and validation rules are approved.
 - Reject an unknown core field and an unknown required capability before reading referenced asset payloads.
 - Ignore an unknown optional capability only when the approved safe-ignore rule applies; otherwise reject it.
 - Preserve an opaque extension payload across read and write without assigning it meaning.
-- Verify the approved canonicalization level. If canonical manifest bytes are selected, pin UTF-8, JSON normalization, key ordering, number form, and newline behavior. If whole-ZIP reproducibility is selected, also pin every relevant ZIP entry and container attribute.
+- Verify canonical manifest bytes and byte-identical complete ZIP output, pinning UTF-8, JSON normalization, key ordering, number form, newline behavior, ZIP entry ordering, timestamps, permissions, compression method/parameters, comments, extra fields, directory entries, and all container metadata.
 - Exercise each v0.1–v0.4 fixture through the importer and v1 migration report, including unknown top-level and nested fields, opaque `source/` payloads, sparse defaults, dimensionless legacy SVGs, and the v0.1 IK mismatch.
 - For each reported migration loss, verify source pointer/payload identity and conversion action; ensure an unconfirmed lossy write creates no output and leaves the source unchanged.
 - Verify that a confirmation becomes invalid after either the source bytes or conversion plan changes.
@@ -116,7 +116,7 @@ Do not classify permissively accepted v0 nested fields as invalid merely because
 
 ## Proposed work sequence
 
-1. Record maintainer choices for the three decisions above and any additional semantic decisions.
+1. Record D1–D3 as approved above; resolve or explicitly defer the additional semantic decisions below with safe behavior.
 2. Have the Architect review the resulting normative schema and migration rules.
 3. Update `FORMAT_SPEC.md` and add normative fixtures/conformance cases for v1, including unknown required/core fields, explicitly safe optional capabilities, opaque extensions, canonicalization, loss confirmation, and round trips.
 4. Implement manifest-first v1 validation/reading and integrate the capability preflight before referenced asset reads.
@@ -125,7 +125,7 @@ Do not classify permissively accepted v0 nested fields as invalid merely because
 
 ### Acceptance criteria for this proposal milestone
 
-- This draft remains explicitly non-normative and keeps pending maintainer choices visible.
+- This draft remains explicitly non-normative, records approved D1–D3 accurately, and keeps remaining semantic choices visible.
 - The migration inventory distinguishes importer observations from v1 decisions.
 - No legacy package acceptance or interpretation changes.
 - Issue #120 remains open until its contract and implementation acceptance criteria are met.
