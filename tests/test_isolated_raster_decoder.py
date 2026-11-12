@@ -193,7 +193,7 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
                     raise TimeoutError("simulated Job Object reap failure")
                 process.returncode = -9
 
-            with mock.patch.object(decoder.os, "name", "nt"):
+            with mock.patch.object(decoder, "_IS_WINDOWS", True):
                 with mock.patch.object(decoder.tempfile, "mkdtemp", return_value=str(temp_path)):
                     with mock.patch.object(decoder.subprocess, "Popen", return_value=process):
                         with mock.patch.object(decoder, "windows_job", return_value=job):
@@ -229,6 +229,22 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
 
 
 class RasterDecoderInputValidationTests(unittest.TestCase):
+    def test_temp_output_creation_failure_removes_temp_dir_before_worker_start(self):
+        with tempfile.TemporaryDirectory() as parent:
+            temp_dir = pathlib.Path(parent) / "raster-worker"
+            with mock.patch.object(decoder.tempfile, "mkdtemp", return_value=str(temp_dir)):
+                with mock.patch.object(
+                    decoder.tempfile, "TemporaryFile", side_effect=OSError("injected failure")
+                ):
+                    with mock.patch.object(decoder.subprocess, "Popen") as popen:
+                        with self.assertRaisesRegex(OSError, "injected failure"):
+                            decoder.decode_raster_assets_isolated(
+                                {"asset": jpeg_with_dnl_defined_height()},
+                                {"asset": "assets/asset.jpg"},
+                            )
+            self.assertFalse(temp_dir.exists())
+            popen.assert_not_called()
+
     def test_rejects_dnl_defined_jpeg_height_before_starting_worker(self):
         with mock.patch.object(decoder.subprocess, 'Popen') as popen:
             with self.assertRaises(decoder.RasterDecodeError):
