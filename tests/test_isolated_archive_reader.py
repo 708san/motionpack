@@ -24,6 +24,7 @@ from isolated_archive_reader import (
     UnsupportedMemoryLimit,
     read_package_isolated,
 )
+from isolated_archive_reader import _PreservableTemporaryDirectory
 
 
 class IsolatedArchiveReaderTests(unittest.TestCase):
@@ -100,6 +101,19 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                     pass
             time.sleep(0.05)
         self.fail("isolated worker remains alive after wrapper returned")
+
+    def test_unconfirmed_worker_cleanup_preserves_temporary_data(self):
+        temporary_directory = _PreservableTemporaryDirectory(
+            prefix="motionpack-isolated-test-"
+        )
+        with temporary_directory as temp_dir:
+            retained_file = pathlib.Path(temp_dir) / "snapshot.motionpack"
+            retained_file.write_bytes(b"untrusted package snapshot")
+            temporary_directory.preserve_after_failed_reap(
+                RuntimeError("job process count could not be queried")
+            )
+        self.assertEqual(retained_file.read_bytes(), b"untrusted package snapshot")
+        shutil.rmtree(temp_dir)
 
     def test_public_read_package_delegates_to_isolated_reader(self):
         archive = pathlib.Path("unopened.motionpack")
