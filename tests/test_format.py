@@ -170,6 +170,8 @@ class FormatTests(unittest.TestCase):
                 target.parent.mkdir(parents=True,exist_ok=True)
                 target.write_bytes(payload)
             source_manifest=json.loads((project/'manifest.json').read_text())
+            source_manifest['assets']['background_alias_probe']=source_manifest['assets']['background']
+            (project/'manifest.json').write_text(json.dumps(source_manifest))
             source_assets=source_manifest['assets']
             archive,preview=build(project,pathlib.Path(tmp)/'dist')
             with zipfile.ZipFile(archive) as packaged:
@@ -181,13 +183,14 @@ class FormatTests(unittest.TestCase):
             expected={'manifest.json'}|set(source_assets.values())
             self.assertEqual(set(names),expected)
             self.assertEqual(len(names),len(expected))
+            self.assertEqual(names.count(source_assets['background']),1)
+            preview_bytes=preview.read_bytes()
             for relative,payload in sentinels.items():
                 with self.subTest(path=relative):
                     self.assertNotIn(relative, names)
                     self.assertFalse(any(relative.encode() in content for content in member_contents))
                     self.assertFalse(any(payload in content for content in member_contents))
                     self.assertFalse(any(base64.b64encode(payload) in content for content in member_contents))
-                    preview_bytes=preview.read_bytes()
                     self.assertNotIn(relative.encode(),preview_bytes)
                     self.assertNotIn(payload,preview_bytes)
                     self.assertNotIn(base64.b64encode(payload),preview_bytes)
