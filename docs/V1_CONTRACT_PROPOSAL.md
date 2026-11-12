@@ -96,7 +96,7 @@ Primary references: [W3C PNG Third Edition, chunk layout and CRC](https://www.w3
 
 ### Candidate JPEG and static WebP profiles — non-normative
 
-These details elaborate the maintainer-selected v1 directions recorded in Issue #154. They are review candidates, not frozen format rules. Pixel decoding remains the host runtime's responsibility.
+These details elaborate the maintainer-selected v1 directions recorded in Issue #154. Every rule below is only a proposed candidate: it does not extend the maintainer's selections and must not be treated as a v1 requirement until its exact grammar, compatibility impact, and conformance cases are separately decided and Architect-reviewed. Numeric byte/marker/chunk/metadata ceilings remain host-policy decisions, not format limits. Pixel decoding remains the host runtime's responsibility.
 
 **JPEG candidate:**
 
