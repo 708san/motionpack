@@ -25,6 +25,7 @@ A v1 package proposes these root fields:
 | capabilities | Required object containing exactly required and optional arrays of unique printable ASCII identifiers. | Carries forward approved capability shape; exact constraints must be normative |
 | id | Optional project identifier, preserving v0 packages that omit it. | Proposed; validation grammar is open |
 | canvas, assets, nodes, clips, variants, defaults | Core visual-animation model. Initially retain v0.4 object shapes for fields whose meanings are fully specified. | Proposed; per-field semantics remain open |
+| iks | Two-bone chains, represented only with the required capability org.motionpack.ik.two-bone when the v1 IK semantics are defined. | Proposed; field/default semantics remain open |
 | extensions | Optional object keyed by reverse-domain identifiers; values are opaque JSON retained without interpretation. | Proposed; key grammar and preservation rules need fixtures |
 
 Example shape (illustrative, not yet normative):
@@ -41,13 +42,16 @@ Example shape (illustrative, not yet normative):
   "assets": {},
   "nodes": [],
   "clips": {},
+  "iks": [],
   "variants": {},
   "defaults": {},
   "extensions": {}
 }
 ```
 
-Unknown core fields are rejected. A reader may ignore an unknown optional capability only when that reader has an explicit safe-ignore rule for it. Opaque extension values are preserved, but their meaning is not implied. Capability presence does not establish reader support for all unrelated core fields.
+Unknown core fields are rejected. A reader may ignore an unknown optional capability only when that reader has an explicit safe-ignore rule for it. The approved capability IDs are org.motionpack.ik.two-bone and org.motionpack.interaction. Opaque extension values are preserved, but their meaning is not implied. Capability presence does not establish reader support for all unrelated core fields.
+
+The declaration-to-content rule remains to be frozen: the contract must say whether each present optional feature is listed exactly once in required or optional, whether unused declarations are allowed, and how readers skip data for an unknown optional feature.
 
 ## Proposed migration model
 
@@ -55,8 +59,8 @@ A v1 migration report should classify each source item as one of:
 
 - **mapped** — represented by a v1 core field with a defined meaning;
 - **opaque-preserved** — retained without assigning semantics, in an approved extension/payload location;
-- **unsupported** — the writer cannot represent it under the selected output profile;
-- **lossy** — omitted or changed, with the exact affected source pointer, payload identity, and reason.
+- **unsupported** — the selected v1 profile cannot represent the item; by default this blocks output;
+- **lossy** — the caller elects to omit, change, or semantically reinterpret an item, with the exact affected source pointer, payload identity, and reason. A semantic change is lossy even when a field remains serialized.
 
 Do not call a conversion playback-equivalent unless state/render comparisons establish that separately.
 
@@ -68,7 +72,8 @@ Initial mapping constraints:
 - Preserve interaction flags as data-only opt-ins under the approved interaction capability. Do not introduce callbacks, scripts, URLs, or actions.
 - Preserve original asset bytes. Validation profiles such as v0.3 SVG dimensions are source provenance, not runtime features.
 - Preserve unknown legacy fields opaquely when a defined location exists; otherwise report them and require explicit loss confirmation before writing.
-- Preserve source/ bytes separately from runtime assets. The disposition of other unreferenced archive members and ZIP container metadata remains open.
+- A candidate opaque-field layout is a namespaced org.motionpack.legacy extension containing the source version and a JSON-pointer-to-value map. This is a proposal, not an approved extension definition; nested-field roundtrip fixtures must prove it preserves values without assigning semantics.
+- Preserve source/ bytes separately from runtime assets. A candidate provenance extension would retain source-version/profile facts and effective-default origins inside the package. The disposition of other unreferenced archive members, binary opaque payload association, and ZIP container metadata remains open.
 
 ## Proposed loss-aware writer lifecycle
 
@@ -77,14 +82,16 @@ The writer should have a no-output preflight stage and a separate commit-to-disk
 1. Read a bounded source and produce an immutable migration plan.
 2. Produce a deterministic field-level loss report, including JSON pointers and payload hashes where applicable.
 3. Bind confirmation to the source digest and the exact migration-plan/loss-report digest.
-4. Reject missing, stale, or incomplete confirmation before creating or replacing an output file.
+4. If the report contains no losses or semantic reinterpretations, no loss confirmation is required. Otherwise reject missing, stale, or incomplete confirmation before creating or replacing the destination.
 5. Validate the resulting v1 manifest and package before writing.
 6. Write to a new destination by default; do not replace the source package in place.
 7. Re-read the output with the v1 reader and compare canonical manifest values, opaque extensions, and asset hashes.
 
 Any source or plan change invalidates prior confirmation. A loss report must never claim that retaining opaque bytes means the field is supported.
 
-The exact Python API and whether confirmation selects individual losses or accepts the complete report remain open. A proposed API must make the confirmation step explicit and difficult to call accidentally.
+The exact Python API and whether confirmation selects individual losses or accepts the complete report remain open. Unsupported items block output unless the caller explicitly elects a listed lossy omission and confirms it. A proposed API must make the confirmation step explicit and difficult to call accidentally.
+
+The proposed staging model is to build and validate in memory, write a temporary package beside the destination, read it back with the v1 reader, and atomically publish it only after validation and confirmation. Failure must leave both source and destination unchanged; portability and filesystem guarantees for atomic replacement need to be specified.
 
 ## Manifest-first read order
 
@@ -122,8 +129,11 @@ Using ZIP_STORED is the strongest simple byte-reproducibility option across comp
 1. **Core shape:** inherit v0.4 shapes for v1 fields where semantics are already defined, or redesign the schema.
 2. **SVG dimensions:** require positive numeric-pixel width and height in v1 (recommended, following v0.3), or allow omission.
 3. **Reproducibility:** require deterministic ZIP bytes as well as canonical manifest output (recommended for release checksums), or guarantee canonical manifest only.
-4. **Additional normative rules:** specify identifier grammar; canvas/background and node dimension defaults; transform/anchor constraints; Z-order ties; keyframe interpolation; supported effect kinds and omitted burst count; IK omitted fields; supported asset media types; unknown archive-member handling; extension identifier grammar; and archive member metadata.
-5. **Confirmation surface:** choose whether a caller confirms all reported losses or explicitly selects loss identifiers. In either case, confirmation binds to source and plan digests.
+4. **Opaque preservation:** choose a per-object extension map or a root extension keyed by source JSON pointers; define how opaque binary members are indexed and whether unrelated archive entries are retained or rejected.
+5. **Provenance:** decide which source-version, validation-profile, and effective-default origins must persist in the v1 package versus the external migration report.
+6. **Capability consistency:** define whether every present feature must be listed in exactly one capability array, whether unused declarations are allowed, and how optional data is skipped.
+7. **Additional normative rules:** specify identifier grammar; canvas/background and node dimension defaults; transform/anchor constraints; Z-order ties; keyframe interpolation; supported effect kinds and omitted burst count; IK omitted fields; supported asset media types; extension identifier grammar; and archive member metadata.
+8. **Confirmation surface:** choose whether a caller confirms all reported losses or explicitly selects loss identifiers. In either case, confirmation binds to source and plan digests. Decide whether atomic destination replacement is a cross-platform requirement.
 
 Until these choices are recorded, this file remains a design proposal. It must not be cited as the stable v1 specification.
 
