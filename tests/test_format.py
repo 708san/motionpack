@@ -22,6 +22,7 @@ sys.path.insert(0,str(ROOT/'tools'))
 import validate as validator_module
 from validate import validate
 import package as package_module
+import isolated_raster_decoder as raster_decoder
 from package import build
 
 def png_ihdr(width,height,*,bad_crc=False):
@@ -154,6 +155,186 @@ class FormatTests(unittest.TestCase):
                 self.assertTrue(all(not p.startswith('/') and '..' not in pathlib.PurePosixPath(p).parts for p in z.namelist()))
                 asset_data=z.read(json.loads(z.read('manifest.json'))['assets']['background'])
             self.assertIn(base64.b64encode(asset_data).decode('ascii'),preview.read_text(encoding='utf8'))
+    @mock.patch.object(package_module, "decode_raster_assets_isolated")
+    def test_default_package_does_not_start_raster_decoder(self, decode):
+        with tempfile.TemporaryDirectory() as tmp:
+            build(ROOT / "examples" / "robot_ik_demo", pathlib.Path(tmp) / "dist")
+        decode.assert_not_called()
+
+    @mock.patch.object(package_module, "decode_raster_assets_isolated", create=True)
+    def test_opt_in_isolated_raster_preview_preserves_archive_source_bytes(self, decode):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self._copy(tmp)
+            manifest_path = project / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            original_assets = {}
+            rewritten = {}
+            for index, (asset_id, _old_path) in enumerate(manifest["assets"].items()):
+                rel = f"assets/preview-{index}.png"
+                payload = png_ihdr(1, 1)
+                target = project / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(payload)
+                original_assets[rel] = payload
+                rewritten[asset_id] = rel
+            manifest["assets"] = rewritten
+            manifest_path.write_text(json.dumps(manifest))
+            decode.return_value = {
+                "asset": raster_decoder.DecodedRaster(
+                    "PNG", 1, 1, bytes((20, 40, 60, 255))
+                )
+            }
+
+            archive, preview = build(
+                project, pathlib.Path(tmp) / "dist", isolated_raster_decode=True
+            )
+
+            self.assertEqual(decode.call_count, len(original_assets))
+            with zipfile.ZipFile(archive) as packaged:
+                for rel, expected in original_assets.items():
+                    self.assertEqual(packaged.read(rel), expected)
+            html = preview.read_text(encoding="utf-8")
+            payload_match = re.search(
+                r"window.__MOTIONPACK__=(\{.*?\});</script>", html, re.DOTALL
+            )
+            self.assertIsNotNone(payload_match)
+            embedded = json.loads(payload_match.group(1))
+            for asset in embedded["assets"].values():
+                self.assertTrue(asset.startswith("data:image/png;base64,"))
+                canonical_png = base64.b64decode(asset.split(",", 1)[1])
+                self.assertTrue(canonical_png.startswith(b"\x89PNG\r\n\x1a\n"))
+                offset = 8
+                image_data = []
+                while offset < len(canonical_png):
+                    chunk_size = int.from_bytes(canonical_png[offset:offset + 4], "big")
+                    chunk_type = canonical_png[offset + 4:offset + 8]
+                    chunk_data = canonical_png[offset + 8:offset + 8 + chunk_size]
+                    offset += 12 + chunk_size
+                    if chunk_type == b"IDAT":
+                        image_data.append(chunk_data)
+                    if chunk_type == b"IEND":
+                        break
+                self.assertEqual(zlib.decompress(b"".join(image_data)), b"\x00\x14\x28\x3c\xff")
+
+    @mock.patch.object(package_module, "_encode_rgba_png")
+    @mock.patch.object(package_module, "decode_raster_assets_isolated")
+    def test_opt_in_aliases_count_toward_embedded_preview_size_limit(self, decode, encode):
+        class SizedPreview:
+            def __len__(self):
+                return 33 * 1024 * 1024
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self._copy(tmp)
+            manifest_path = project / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            self.assertGreaterEqual(len(manifest["assets"]), 2)
+            shared_path = "assets/shared-preview.png"
+            target = project / shared_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(png_ihdr(1, 1))
+            manifest["assets"] = {
+                asset_id: shared_path for asset_id in manifest["assets"]
+            }
+            manifest_path.write_text(json.dumps(manifest))
+
+            out = pathlib.Path(tmp) / "dist"
+            out.mkdir()
+            archive = out / (project.name + ".motionpack")
+            preview = out / "preview.html"
+            archive.write_bytes(b"previous archive")
+            preview.write_bytes(b"previous preview")
+            decode.return_value = {
+                "asset": raster_decoder.DecodedRaster(
+                    "PNG", 1, 1, bytes((20, 40, 60, 255))
+                )
+            }
+            encode.return_value = SizedPreview()
+
+            with self.assertRaisesRegex(ValueError, "64 MiB"):
+                build(project, out, isolated_raster_decode=True)
+
+            decode.assert_called_once()
+            self.assertEqual(archive.read_bytes(), b"previous archive")
+            self.assertEqual(preview.read_bytes(), b"previous preview")
+
+    @mock.patch.object(package_module, "_encode_rgba_png")
+    @mock.patch.object(package_module, "decode_raster_assets_isolated")
+    def test_opt_in_preview_size_limit_preserves_existing_outputs(self, decode, encode):
+        class OversizedPreview:
+            def __len__(self):
+                return 64 * 1024 * 1024 + 1
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self._copy(tmp)
+            manifest_path = project / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            asset_id, old_rel = next(iter(manifest["assets"].items()))
+            source = project / old_rel
+            source.unlink()
+            rel = "assets/preview.png"
+            target = project / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(png_ihdr(1, 1))
+            manifest["assets"][asset_id] = rel
+            manifest_path.write_text(json.dumps(manifest))
+
+            out = pathlib.Path(tmp) / "dist"
+            out.mkdir()
+            archive = out / (project.name + ".motionpack")
+            preview = out / "preview.html"
+            archive.write_bytes(b"previous archive")
+            preview.write_bytes(b"previous preview")
+            decode.return_value = {
+                "asset": raster_decoder.DecodedRaster(
+                    "PNG", 1, 1, bytes((20, 40, 60, 255))
+                )
+            }
+            encode.return_value = OversizedPreview()
+
+            with self.assertRaisesRegex(ValueError, "64 MiB"):
+                build(project, out, isolated_raster_decode=True)
+
+            self.assertEqual(archive.read_bytes(), b"previous archive")
+            self.assertEqual(preview.read_bytes(), b"previous preview")
+
+    @mock.patch.object(package_module, "decode_raster_assets_isolated")
+    def test_opt_in_preview_has_one_total_decode_deadline(self, decode):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self._copy(tmp)
+            manifest = json.loads((project / "manifest.json").read_text())
+            self.assertGreaterEqual(len(set(manifest["assets"].values())), 3)
+            decode.return_value = {
+                "asset": raster_decoder.DecodedRaster(
+                    "PNG", 1, 1, bytes((20, 40, 60, 255))
+                )
+            }
+            clock = iter((0.0, 0.0, 299.0, 301.0))
+            with mock.patch.object(package_module.time, "monotonic", side_effect=lambda: next(clock)):
+                with self.assertRaisesRegex(ValueError, "total decode deadline"):
+                    build(project, pathlib.Path(tmp) / "dist", isolated_raster_decode=True)
+
+            self.assertEqual(decode.call_count, 2)
+            self.assertEqual(decode.call_args_list[0].kwargs["timeout"], 30.0)
+            self.assertEqual(decode.call_args_list[1].kwargs["timeout"], 1.0)
+
+    @mock.patch.object(package_module, "decode_raster_assets_isolated", create=True)
+    def test_opt_in_decoder_failure_preserves_existing_outputs(self, decode):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self._copy(tmp)
+            out = pathlib.Path(tmp) / "dist"
+            out.mkdir()
+            archive = out / (project.name + ".motionpack")
+            preview = out / "preview.html"
+            archive.write_bytes(b"previous archive")
+            preview.write_bytes(b"previous preview")
+            decode.side_effect = package_module.RasterDecodeError("injected decoder failure")
+
+            with self.assertRaises(ValueError):
+                build(project, out, isolated_raster_decode=True)
+
+            self.assertEqual(archive.read_bytes(), b"previous archive")
+            self.assertEqual(preview.read_bytes(), b"previous preview")
+
     def test_package_excludes_unreferenced_private_project_files(self):
         sentinels={
             '.env':b'MOTIONPACK_PRIVATE_ENV_SENTINEL',
