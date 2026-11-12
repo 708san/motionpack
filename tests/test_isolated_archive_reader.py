@@ -60,6 +60,35 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
         )
         return worker
 
+    def _assert_pid_alive(self, pid):
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            kernel32.WaitForSingleObject.restype = wintypes.DWORD
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = kernel32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+            if not handle:
+                self.fail(f"worker process {pid} is not alive")
+            state = kernel32.WaitForSingleObject(handle, 0)
+            kernel32.CloseHandle(handle)
+            self.assertEqual(state, 258, "worker process should still be running")
+            return
+        try:
+            os.kill(pid, 0)
+        except OSError as error:
+            if error.errno == errno.ESRCH:
+                self.fail(f"worker process {pid} is not alive")
+            raise
+        state = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            capture_output=True, text=True, timeout=1, check=False,
+        ).stdout.strip()
+        self.assertTrue(state and not state.startswith("Z"), "worker process should still be running")
+
     def _assert_pid_exited(self, pid):
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline:
@@ -129,13 +158,15 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
     def test_reader_preserves_temp_when_worker_reaping_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             pid_file = pathlib.Path(tmp) / "worker.pid"
+            gate_file = pathlib.Path(tmp) / "allow-worker-exit"
             temp_path_file = pathlib.Path(tmp) / "isolated-temp-path.txt"
             worker = self._fake_worker(
                 tmp,
                 "import os, pathlib, time\n"
                 f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()))\n"
                 f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\n"
-                "time.sleep(1)\n",
+                f"gate = pathlib.Path({str(gate_file)!r})\n"
+                "while not gate.exists(): time.sleep(0.01)\n",
             )
             with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
                 with mock.patch("isolated_archive_reader._windows_job", return_value=None):
@@ -152,7 +183,12 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             temp_path = pathlib.Path(temp_path_file.read_text())
             self.assertIn(str(temp_path), raised.exception.__notes__[0])
             self.assertTrue(temp_path.exists())
-            self._assert_pid_exited(int(pid_file.read_text()))
+            pid = int(pid_file.read_text())
+            try:
+                self._assert_pid_alive(pid)
+            finally:
+                gate_file.touch()
+            self._assert_pid_exited(pid)
             shutil.rmtree(temp_path)
 
     def test_unconfirmed_worker_cleanup_preserves_temporary_data(self):
