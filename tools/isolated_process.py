@@ -121,6 +121,22 @@ def kill_worker(process, windows_job=None):
             process.wait()
     if windows_job is not None:
         handle, close_handle = windows_job
+        if os.name == "nt":
+            from ctypes import wintypes
+
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
+            kernel32.TerminateJobObject.restype = wintypes.BOOL
+            kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            kernel32.WaitForSingleObject.restype = wintypes.DWORD
+
+            # Termination is asynchronous. Keep the Job Object handle open and
+            # wait until Windows signals that every process in the job has exited.
+            kernel32.TerminateJobObject(handle, 1)
+            wait_result = kernel32.WaitForSingleObject(handle, 0xFFFFFFFF)
+            if wait_result != 0:  # WAIT_OBJECT_0
+                error = ctypes.get_last_error()
+                raise OSError(error, "waiting for Windows worker job to exit failed")
         close_handle(handle)
 
 
