@@ -276,15 +276,15 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             temp_path_file = pathlib.Path(tmp) / "isolated-temp-path.txt"
             worker = self._fake_worker(
                 tmp,
-                "import os, pathlib, subprocess, sys, struct\\n"
-                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\\n"
-                f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()) + ' ' + str(child.pid))\\n"
-                f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\\n"
-                "manifest = b'{\\"version\\":\\"0.1\\",\\"assets\\":{}}'\\n"
-                "name = b'manifest.json'\\n"
-                "response = b'MPIR\\\\x02\\\\x00' + struct.pack('!I', 1) + struct.pack('!IQ', len(name), len(manifest)) + name + manifest\\n"
-                "sys.stdout.buffer.write(response)\\n"
-                "sys.stdout.buffer.flush()\\n",
+                "import os, pathlib, subprocess, sys, struct\n"
+                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()) + ' ' + str(child.pid))\n"
+                f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\n"
+                "manifest = b'{\\"version\\":\\"0.1\\",\\"assets\\":{}}'\n"
+                "name = b'manifest.json'\n"
+                "response = b'MPIR\\x02\\x00' + struct.pack('!I', 1) + struct.pack('!IQ', len(name), len(manifest)) + name + manifest\n"
+                "sys.stdout.buffer.write(response)\n"
+                "sys.stdout.buffer.flush()\n",
             )
             with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
                 result = read_package_isolated(self._input_file(tmp), timeout=5)
