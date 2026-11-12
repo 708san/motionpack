@@ -360,8 +360,8 @@ test('collect unbaselined interactive seal art and motion review frames', async 
 
   const motion = [];
   for (const [name, advance] of [
-    ['squish-90ms', 90], ['squish-190ms', 100], ['squish-330ms', 140],
-    ['squish-520ms', 190], ['return-780ms', 260]
+    ['squish-90ms', 90], ['squish-140ms', 50], ['squish-190ms', 50],
+    ['squish-330ms', 140], ['squish-520ms', 190], ['return-780ms', 260]
   ]) {
     await page.clock.runFor(advance);
     motion.push(await captureSealFrame(name));
