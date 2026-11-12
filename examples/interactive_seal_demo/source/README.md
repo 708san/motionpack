@@ -10,12 +10,15 @@ The runtime drawing was manually separated from this shared 910 × 550 coordinat
 | `assets/shadow.svg` | Soft oval contact shadow | Isolated for a subtle idle pulse and squash feedback. |
 | `assets/flippers.svg` | Paired rear flippers | Separated as a layer behind the seal body to keep the silhouette readable. |
 | `assets/body.svg` | Seal silhouette, coat shading and flipper details | Edited into a reusable body layer. |
-| `assets/body_squash.svg` | Wider, lower seal silhouette | Hand-drawn squash pose, cross-faded by the sample clip. |
+| `assets/body_squash.svg` | Wider, lower seal silhouette | Hand-drawn squash pose; the sample fades from the normal body after 90 ms and holds the flattened pose through the 560 ms clip end. |
 | `assets/face.svg` | Open eyes, muzzle, nose, smile and cheeks | Idle facial layer. |
 | `assets/face_rest.svg` | Closed-eye version of the same face | Derived rest expression, independently layered and cross-faded from the idle face by the `rest` variant. |
 | `assets/seal_hit.svg` | Near-transparent silhouette | Input target; v0.4 hit-testing uses the node rectangle, not vector pixels. |
 
 This is manually authored artwork, not AI-generated or automatically segmented. The original and runtime layers are kept together so the source-to-layer relationship is reproducible. The closed-eye rest expression is a manually authored derivative; the complete original source illustration remains unchanged. No hidden pixels are reconstructed. The sample host script, rather than the manifest, maps tap/click notifications to animation playback. It does not add a portable squash feature to the format.
+
+
+The squish timing was tuned without modifying or replacing either `body.svg`, `body_squash.svg`, or the retained `source/interactive_seal_original.svg`. The normal body remains fully visible through 90 ms, cross-fades to the hand-drawn flattened pose by 190 ms, and the flattened pose stays visible until the host returns to idle at clip completion.
 
 The preview generator creates a self-contained HTML file. No remote assets, network service, or external runtime is used. The static fallback is embedded in the HTML and remains visible if scripts or image decoding fail. Browser emulation is not evidence of physical-device behavior.
 

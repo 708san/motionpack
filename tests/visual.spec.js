@@ -360,8 +360,8 @@ test('collect unbaselined interactive seal art and motion review frames', async 
 
   const motion = [];
   for (const [name, advance] of [
-    ['squish-90ms', 90], ['squish-190ms', 100], ['squish-330ms', 140],
-    ['squish-520ms', 190], ['return-780ms', 260]
+    ['squish-90ms', 90], ['squish-140ms', 50], ['squish-190ms', 50],
+    ['squish-330ms', 140], ['squish-520ms', 190], ['return-780ms', 260]
   ]) {
     await page.clock.runFor(advance);
     motion.push(await captureSealFrame(name));
@@ -370,7 +370,7 @@ test('collect unbaselined interactive seal art and motion review frames', async 
   expect(finalState.variant).toBe('rest');
   expect(await page.evaluate(() => window.__sealActivations)).toBe(1);
   for (const state of motion.slice(0, 4)) expect(state).toContain('squish |');
-  expect(motion[4]).toContain('idle | rest |');
+  expect(motion[5]).toContain('idle | rest |');
   await page.mouse.move(2, 2);
   await expect.poll(() => page.locator('#viewport').getAttribute('data-seal-hover')).toBe('false');
   await page.evaluate(({ x, y }) => {
