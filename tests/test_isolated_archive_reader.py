@@ -132,10 +132,10 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
             temp_path_file = pathlib.Path(tmp) / "isolated-temp-path.txt"
             worker = self._fake_worker(
                 tmp,
-                "import os, pathlib, time\\n"
-                f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()))\\n"
-                f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\\n"
-                "time.sleep(1)\\n",
+                "import os, pathlib, time\n"
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()))\n"
+                f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\n"
+                "time.sleep(1)\n",
             )
             with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
                 with mock.patch("isolated_archive_reader._windows_job", return_value=None):
