@@ -18,7 +18,7 @@ These directions were agreed before this draft:
 - Keep authored sparse values distinct from effective values; every effective default carries its source and rule provenance.
 - Preserve ambiguous data, including v0.1 IK, with a warning and without assigning it new meaning.
 - A write that may lose information must report the loss before output. Per the maintainer decision recorded during v1 migration planning (2026-11-10), confirmation is tied to the exact source and conversion plan; a changed source or plan invalidates it.
-- Proposed capability declaration uses `capabilities.required[]` and `capabilities.optional[]`; extension keys use reverse-domain names. Unknown required capabilities and unknown core fields fail safely. Unknown optional capabilities may be ignored only under an explicit safe-ignore rule. Opaque extension data is retained.
+- Proposed capability declaration uses `capabilities.required[]` and `capabilities.optional[]`; extension keys use reverse-domain names. The maintainer selected the identifier strings `org.motionpack.ik.two-bone` and `org.motionpack.interaction` for the IK and interaction capability families. Unknown required capabilities and unknown core fields fail safely. Unknown optional capabilities may be ignored only under an explicit safe-ignore rule. Opaque extension data is retained. The selected names do not settle capability grammar, registry/ownership, declaration/derivation rules, or imply that the v1 runtime implements these features.
 - v1.0 core does not include a GUI or AI authoring service.
 
 These are constraints for contract work, not evidence that the final schema or writer already exists.
