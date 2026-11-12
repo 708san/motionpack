@@ -1,6 +1,6 @@
 # v1 Contract Proposal (Non-Normative)
 
-Status: discussion draft for Issue #120. This document is not a format specification, compatibility promise, implementation requirement, or maintainer decision. Nothing here freezes v1.0. Promote a decision into `FORMAT_SPEC.md` only after maintainer approval and Architect review.
+Status: non-normative discussion draft for Issue #120. This document is not a format specification, compatibility promise, or implementation requirement. It records maintainer-approved decisions D1–D3, but does not freeze v1.0. Promote normative rules into `FORMAT_SPEC.md` only after the remaining maintainer decisions and Architect review.
 
 ## Goal and boundary
 
