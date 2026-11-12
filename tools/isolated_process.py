@@ -146,21 +146,25 @@ def kill_worker(process, windows_job=None):
             ]
             kernel32.QueryInformationJobObject.restype = wintypes.BOOL
 
-            if not kernel32.TerminateJobObject(handle, 1):
-                error = ctypes.get_last_error()
-                raise OSError(error, "terminating Windows worker job failed")
-            while True:
-                accounting = BasicAccountingInformation()
-                if not kernel32.QueryInformationJobObject(
-                    handle, 1, ctypes.byref(accounting),
-                    ctypes.sizeof(accounting), None,
-                ):
+            try:
+                if not kernel32.TerminateJobObject(handle, 1):
                     error = ctypes.get_last_error()
-                    raise OSError(error, "querying Windows worker job failed")
-                if accounting.ActiveProcesses == 0:
-                    break
-                time.sleep(0.01)
-            close_handle(handle)
+                    raise OSError(error, "terminating Windows worker job failed")
+                while True:
+                    accounting = BasicAccountingInformation()
+                    if not kernel32.QueryInformationJobObject(
+                        handle, 1, ctypes.byref(accounting),
+                        ctypes.sizeof(accounting), None,
+                    ):
+                        error = ctypes.get_last_error()
+                        raise OSError(error, "querying Windows worker job failed")
+                    if accounting.ActiveProcesses == 0:
+                        break
+                    time.sleep(0.01)
+            finally:
+                # Closing the final handle retains the Job Object's kill-on-close
+                # fallback if termination or accounting queries fail.
+                close_handle(handle)
         else:
             close_handle(handle)
 
