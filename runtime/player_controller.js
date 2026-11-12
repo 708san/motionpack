@@ -13,36 +13,40 @@
 
   class PlayerController {
     constructor(options) {
-      if (!options || typeof options !== 'object' || Array.isArray(options)) {
+      if (options !== undefined && (!options || typeof options !== 'object' || Array.isArray(options))) {
         throw new TypeError('controller options are required');
       }
       if (!Evaluator || typeof Evaluator.sample !== 'function') {
         throw new Error('MotionPackEvaluator is required');
       }
-      if (!options.manifest || typeof options.manifest !== 'object' || Array.isArray(options.manifest)) {
-        throw new TypeError('a validated manifest is required');
-      }
 
-      this._manifest = options.manifest;
-      this._rig = options.rig;
-      const defaults = this._manifest.defaults;
-      this._clip = options.clip ?? (defaults && hasOwn(defaults, 'clip') ? defaults.clip : undefined);
-      this._variant = options.variant ?? (defaults && hasOwn(defaults, 'variant') ? defaults.variant : undefined);
+      this._manifest = null;
+      this._rig = null;
+      this._clip = null;
+      this._variant = null;
       this._timeMs = 0;
-      this._state = 'stopped';
+      this._state = 'unloaded';
       this._disposed = false;
       this._ikTargets = Object.create(null);
-      this._clipInfo(this._clip);
-      this._variantInfo(this._variant);
-      this.getPose();
+
+      if (options !== undefined) {
+        if (!options.manifest || typeof options.manifest !== 'object' || Array.isArray(options.manifest)) {
+          throw new TypeError('a validated manifest is required');
+        }
+        this.load(options);
+      }
     }
 
     _assertActive() {
       if (this._disposed) throw new Error('player controller has been disposed');
     }
 
-    _clipInfo(name) {
-      const clips = this._manifest.clips || {};
+    _assertLoaded() {
+      if (!this._manifest) throw new Error('player controller is not loaded');
+    }
+
+    _clipInfo(name, manifest = this._manifest) {
+      const clips = manifest.clips || {};
       const clip = hasOwn(clips, name) ? clips[name] : undefined;
       if (!clip) throw new RangeError(`unknown clip: ${name}`);
       if (hasOwn(clip, 'loop') && typeof clip.loop !== 'boolean') {
@@ -54,10 +58,57 @@
       return clip;
     }
 
-    _variantInfo(name) {
-      const variants = this._manifest.variants || {};
+    _variantInfo(name, manifest = this._manifest) {
+      const variants = manifest.variants || {};
       if (!hasOwn(variants, name)) throw new RangeError(`unknown variant: ${name}`);
       return variants[name];
+    }
+
+    load(options) {
+      this._assertActive();
+      if (!options || typeof options !== 'object' || Array.isArray(options)) {
+        throw new TypeError('load options are required');
+      }
+      const manifest = options.manifest;
+      if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+        throw new TypeError('a validated manifest is required');
+      }
+      const rig = options.rig;
+      const defaults = manifest.defaults;
+      const clipName = options.clip ?? (defaults && hasOwn(defaults, 'clip') ? defaults.clip : undefined);
+      const variantName = options.variant ?? (defaults && hasOwn(defaults, 'variant') ? defaults.variant : undefined);
+      this._clipInfo(clipName, manifest);
+      this._variantInfo(variantName, manifest);
+
+      const ikTargets = Object.create(null);
+      const pose = Evaluator.sample(manifest, {
+        clip: clipName,
+        variant: variantName,
+        timeMs: 0,
+        ikTargets
+      }, rig);
+
+      this._manifest = manifest;
+      this._rig = rig;
+      this._clip = clipName;
+      this._variant = variantName;
+      this._timeMs = 0;
+      this._state = 'stopped';
+      this._ikTargets = ikTargets;
+      return pose;
+    }
+
+    unload() {
+      this._assertActive();
+      if (!this._manifest) return false;
+      this._manifest = null;
+      this._rig = null;
+      this._clip = null;
+      this._variant = null;
+      this._ikTargets = Object.create(null);
+      this._timeMs = 0;
+      this._state = 'unloaded';
+      return true;
     }
 
     _normalizeTime(timeMs, clip) {
@@ -67,6 +118,7 @@
 
     play(clipName) {
       this._assertActive();
+      this._assertLoaded();
       if (clipName !== undefined) {
         this._clipInfo(clipName);
         this._clip = clipName;
@@ -78,6 +130,7 @@
 
     pause() {
       this._assertActive();
+      this._assertLoaded();
       if (this._state !== 'playing') return false;
       this._state = 'paused';
       return true;
@@ -85,6 +138,7 @@
 
     resume() {
       this._assertActive();
+      this._assertLoaded();
       if (this._state !== 'paused') return false;
       this._state = 'playing';
       return true;
@@ -92,6 +146,7 @@
 
     stop() {
       this._assertActive();
+      this._assertLoaded();
       this._timeMs = 0;
       this._state = 'stopped';
       return this.getPose();
@@ -99,6 +154,7 @@
 
     seek(timeMs) {
       this._assertActive();
+      this._assertLoaded();
       if (!Number.isFinite(timeMs) || timeMs < 0) {
         throw new RangeError('timeMs must be a finite nonnegative number');
       }
@@ -111,6 +167,7 @@
 
     advance(deltaMs) {
       this._assertActive();
+      this._assertLoaded();
       if (!Number.isFinite(deltaMs) || deltaMs < 0) {
         throw new RangeError('deltaMs must be a finite nonnegative number');
       }
@@ -133,6 +190,7 @@
 
     setVariant(variantName) {
       this._assertActive();
+      this._assertLoaded();
       this._variantInfo(variantName);
       this._variant = variantName;
       return this.getPose();
@@ -140,6 +198,7 @@
 
     setIKTarget(ikId, targetOrNull) {
       this._assertActive();
+      this._assertLoaded();
       const iks = Array.isArray(this._manifest.iks) ? this._manifest.iks : [];
       if (!iks.some(ik => ik && ik.id === ikId)) {
         throw new RangeError(`unknown IK chain: ${ikId}`);
@@ -162,6 +221,7 @@
 
     getPose() {
       this._assertActive();
+      this._assertLoaded();
       return Evaluator.sample(this._manifest, {
         clip: this._clip,
         variant: this._variant,
@@ -173,6 +233,9 @@
     getState() {
       if (this._disposed) {
         return Object.freeze({ state: 'disposed', clip: null, variant: null, timeMs: 0, durationMs: 0, loop: false });
+      }
+      if (!this._manifest) {
+        return Object.freeze({ state: 'unloaded', clip: null, variant: null, timeMs: 0, durationMs: 0, loop: false });
       }
       const clip = this._clipInfo(this._clip);
       return Object.freeze({
