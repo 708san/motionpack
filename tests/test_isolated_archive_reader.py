@@ -160,16 +160,23 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
         read_fd, write_fd = os.pipe()
         stream = os.fdopen(read_fd, "rb", buffering=0)
         stop_event = threading.Event()
+        polling_event = threading.Event()
         overflow = threading.Event()
         output = bytearray()
         reader = threading.Thread(
             target=read_bounded_output,
-            args=(stream, output, overflow, mock.Mock(poll=lambda: None), 1024, stop_event),
+            args=(
+                stream, output, overflow, mock.Mock(poll=lambda: None),
+                1024, stop_event, polling_event,
+            ),
             daemon=True,
         )
         try:
             reader.start()
-            time.sleep(0.1)
+            self.assertTrue(
+                polling_event.wait(1),
+                "pipe drainer did not reach its cancellable wait",
+            )
             stop_event.set()
             reader.join(1)
             self.assertFalse(reader.is_alive(), "pipe drainer ignored cancellation")
