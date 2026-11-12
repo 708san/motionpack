@@ -49,6 +49,7 @@ def build_demo(out, fallback_path=None):
     styles = """
 #viewport{position:relative;aspect-ratio:91 / 55!important;max-height:none!important;background:#d9efea}
 #stage{position:absolute;inset:0;width:100%;height:100%;z-index:1}
+body[data-seal-hover="true"] #stage{cursor:pointer}
 .static-fallback{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:2}
 .static-fallback[hidden]{display:none}
 #idle,#fire,#transform,#reset,#aim{display:none}
