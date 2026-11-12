@@ -28,7 +28,7 @@ All three decisions belong to the maintainer. The choices below summarize the al
 | D2 | SVG root dimensions | Require positive numeric-pixel `width` and `height`; decide whether to adopt the existing 8,192-pixel edge and 16-megapixel ceilings. Dimensionless legacy SVGs need an explicit migration disposition. | Allow omitted dimensions; define deterministic intrinsic sizing and resource checks without renderer-dependent assumptions. | Pending |
 | D3 | Canonicalization scope | Guarantee canonical manifest bytes; ZIP metadata and whole-package hashes may vary by writer. | Guarantee deterministic complete ZIP bytes, which also fixes entry order, timestamps, permissions, compression parameters, comments, extra fields, directory entries, and container metadata. | Pending |
 
-These are choices, not recommendations or decisions. Any combination can be selected. The v1 reader, writer, fixtures, and migration behavior that depend on them remain gated.
+The ledger itself makes no recommendation. The linked proposal includes planning recommendations for some options; those are not maintainer decisions. Any combination can be selected. The v1 reader, writer, fixtures, and migration behavior that depend on them remain gated.
 
 ## Additional semantic decisions
 
