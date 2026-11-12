@@ -35,6 +35,16 @@ On PR #132 head `210cf300fa4ef886a6fa12a811c7f880b8467b17`:
 
 These results establish execution for this commit and these runners only. The source-level matrix and green CI do not prove that every dangerous fixture has been enumerated or rejected, that secrets are absent, or that parsers/renderers are sandboxed.
 
+### Current security-sensitive code execution (PR-head evidence, 2026-11-12)
+
+PR #169 head `355f0b641bca3121e108c214efb3132e30f4b3b8` was based on main `4d26410a15450ff9b5563b08979636c591d59548`. The comparison contains only two non-normative planning-document changes; the security implementation and tests are unchanged from that main base.
+
+- The full command `python3 -m unittest discover -s tests -v` passed in [MotionPack checks run #776](https://github.com/708san/motionpack/actions/runs/43228134264): **237 tests, 17 skipped, OK**. Python syntax checks also passed.
+- The [isolated-reader matrix run #777](https://github.com/708san/motionpack/actions/runs/43228134193) passed the isolated raster decoder and archive-reader test commands on Ubuntu 24.04, macOS 15, and Windows 2025.
+- The [bounded fuzz run #615](https://github.com/708san/motionpack/actions/runs/43228134170) passed its ZIP reader, SVG validator, raster-header, and isolated raster-decoder targets.
+
+These are PR-head results against the current main code snapshot, not a workflow run triggered by the post-merge main commit `36dbc01c0df161f1b1de370b76c9e13f2b16324a`. They establish only the listed test commands and finite fuzz budgets; they do not constitute a security sign-off or prove complete attack coverage.
+
 ### Issue #4 acceptance and related-scope status
 
 The first three rows correspond to the three acceptance criteria written in [Issue #4](https://github.com/708san/motionpack/issues/4). “Partial” does not mean the issue is complete.
@@ -42,7 +52,7 @@ The first three rows correspond to the three acceptance criteria written in [Iss
 | Issue #4 acceptance criterion | Current evidence | Status and remaining gap |
 |---|---|---|
 | No untrusted-package extraction before validation; reject all dangerous fixtures | `tools/archive_reader.py` does not extract arbitrary ZIP members. The tests in the coverage map reject the named traversal, symlink, collision, resource-limit, nested-container and malformed-record fixtures. | **Partial.** The named finite fixture set is not proof that every dangerous input is enumerated or rejected. The phrase “all dangerous fixtures” still needs a bounded maintainer-approved interpretation before closure. |
-| Security Auditor review and CI negative tests pass | A scoped Security Auditor review of PR #132 and the three-role review outcome are recorded in [Issue #4’s review comment](https://github.com/708san/motionpack/issues/4#issuecomment-6813399982). [MotionPack checks #626](https://github.com/708san/motionpack/actions/runs/43145763038) ran the complete Python unittest suite (237 passed, 17 skipped); [isolated-reader run #627](https://github.com/708san/motionpack/actions/runs/43145763108) passed on Linux, macOS and Windows. | **Partial.** These reviews and tests cover the scoped PR and current finite test set, not a full Issue #4 security sign-off or every attack class. |
+| Security Auditor review and CI negative tests pass | A scoped Security Auditor review of PR #132 and the three-role review outcome are recorded in [Issue #4’s review comment](https://github.com/708san/motionpack/issues/4#issuecomment-6813399982). The current security-sensitive code and tests (unchanged from main `4d26410`) passed the full 237-test Python suite (17 skipped) on PR #169 head `355f0b6` in [run #776](https://github.com/708san/motionpack/actions/runs/43228134264), the Linux/macOS/Windows isolated-reader matrix in [run #777](https://github.com/708san/motionpack/actions/runs/43228134193), and bounded fuzzing in [run #615](https://github.com/708san/motionpack/actions/runs/43228134170). These are PR-head runs, not post-merge-main runs. | **Partial.** Reviews and tests cover scoped changes and the current finite test set, not full Issue #4 security sign-off or every attack class. |
 | Review documented limitations and publish `SECURITY.md` guidance | [`SECURITY.md`](../SECURITY.md) is published and documents reader limits, unsupported cases, secret-scan limits and the no-sandbox boundary. The 2026-11-06 static review and scoped 2026-11-12 review below examined the documented controls. | **Partially evidenced.** Guidance is published and reviewed within those stated scopes; no review certifies completeness of every security limitation or arbitrary input. |
 
 **Related Issue #4 scope, beyond those three acceptance bullets:** threat-model separation, private-source handling, and time/memory boundaries are described in the security policy and tests. They remain limited: `source/` is opaque and not scanned; secret detection is heuristic and warning-only by approved default; workers are not permission sandboxes; Linux uses per-worker address-space limits, Windows has per-process plus job-wide committed-memory caps, and macOS has no hard whole-process cap.
