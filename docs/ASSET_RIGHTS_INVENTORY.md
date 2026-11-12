@@ -2,7 +2,7 @@
 
 **Status: incomplete; no artwork in this inventory is cleared for redistribution by this document.** This is a repository-side inventory of the current example candidates. It is not a license grant, rights warranty, or approval of the eventual v1.0 distribution set.
 
-Audited against main commit `e0a41429f9f6cd344413f662fc48cda13fe15d78` on 2026-11-12. Recheck the final release tree and generated artifacts before distribution.
+Audited against GitHub `main` at `e9418bd4d86f5ae5740c897b0cb6382b8f744480` on 2026-11-12. This inventory records the tracked visual and package-like files found in that tree; it does not select which files will ship. Recheck the final release tree and generated artifacts before distribution.
 
 ## Manifest-referenced example assets
 
@@ -20,8 +20,10 @@ The paths below come from each example's `manifest.json`. The two robot examples
 
 - `examples/layered_plant_demo/source/plant_original.svg` and `examples/interactive_seal_demo/source/interactive_seal_original.svg` are preserved source illustrations. The normal example packager excludes `source/`; repository/source archive distribution still requires rights review.
 - `examples/interactive_seal_demo/assets/static_fallback.svg` is read by the preview generator and embedded in its generated HTML fallback. It is excluded from the `.motionpack` runtime archive by the example's package check, but requires separate rights confirmation if the preview or repository is distributed.
-- The tracked compatibility archives `tests/fixtures/compatibility_archive_reader/valid_v03.motionpack` and `valid_v04.motionpack` are generated from the plant and interaction examples and contain their referenced runtime assets. The historical `tests/fuzz_corpus/archive_reader/valid_v01.motionpack` and `valid_v02.motionpack` packages are also tracked; their embedded assets and rights have not been itemized. Review all four if test fixtures are included in a source archive or release distribution.
-- Playwright screenshot baselines, CI screenshot artifacts, and other security/fuzz corpus images are not itemized here. Decide whether each is part of a release or source archive and review its rights separately.
+- Four tracked package fixtures contain embedded runtime assets: `tests/fixtures/compatibility_archive_reader/valid_v03.motionpack`, `valid_v04.motionpack`, and `tests/fuzz_corpus/archive_reader/valid_v01.motionpack`, `valid_v02.motionpack`. The v0.3/v0.4 packages are generated from the plant and interaction examples; the embedded assets in all four packages are not individually inventoried. Include their asset rights in review if these fixtures ship in a source archive or release.
+- Five tracked Playwright screenshot baselines are in `tests/visual.spec.js-snapshots/`: `fire-linux.png`, `form-change-linux.png`, `idle-linux.png`, `pointer-ik-linux.png`, and `transform-linux.png`. They depict robot preview states; their rights follow the source artwork unless separately established. Creator, license/permission, and attribution requirements are unverified.
+- Eight tracked SVG fuzz inputs are in `tests/fuzz_corpus/svg_validator/`: `invalid_css_url.svg`, `invalid_doctype.svg`, `invalid_external_reference.svg`, `invalid_missing_dimensions.svg`, `invalid_unknown_attribute.svg`, `malformed_xml.svg`, `valid_gradient.svg`, and `valid_minimal.svg`. These are parser test inputs; their author and reuse status are undocumented. Review them if tests or corpora are distributed.
+- CI screenshot artifacts are generated per workflow run and are not tracked repository files. They are not included by the normal example packager; decide whether any retained artifact is part of a release and review its underlying asset rights separately.
 
 ## What is not established
 
