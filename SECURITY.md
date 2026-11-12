@@ -152,7 +152,7 @@ host runtimes that already hold validated, manifest-referenced asset bytes. It
 starts a new Python worker and passes bounded bytes over standard input; the
 worker never opens package-controlled paths. Only static PNG, JPEG and WebP are
 accepted in this increment. Animated WebP, SVG and other formats are rejected.
-The existing offline preview remains on the browser image-decoding path.
+The default offline preview remains on the browser image-decoding path. The packager also offers the explicit `--isolated-raster-decode` option: every referenced runtime asset must be a static PNG, JPEG or WebP; SVG, animated WebP and unsupported formats are rejected. The existing worker decodes validated asset bytes one at a time under the shared 64-megapixel budget, and the packager embeds only canonical PNG bytes in the HTML preview. The aggregate 64 MiB encoded PNG budget counts every asset-ID data URL, including repeated references to the same path, to bound preview expansion. The `.motionpack` archive keeps the original asset bytes and manifest unchanged. Raster decoding uses a shared 300-second package-wide deadline and a 30-second maximum deadline for each worker call. Decode, timeout, worker and response-validation errors fail before the output directory or either output file is created or replaced. This is process isolation with resource controls, not an OS permission sandbox; macOS has no hard whole-process memory cap. The default packaging path does not import or require Pillow at runtime unless the option is used.
 
 The adapter returns straight RGBA pixel buffers and applies the existing tool
 ceilings: 8,192 pixels per edge, 16 million pixels per asset, 64 million header
