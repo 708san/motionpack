@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import zlib
 from unittest import mock
 
 from tools import isolated_raster_decoder as decoder
@@ -230,6 +231,18 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
 
 class RasterDecoderInputValidationTests(unittest.TestCase):
     def test_temp_output_creation_failure_removes_temp_dir_before_worker_start(self):
+        def chunk(kind, data):
+            return (
+                struct.pack(">I", len(data)) + kind + data
+                + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+            )
+
+        png = (
+            b"\\x89PNG\\r\\n\\x1a\\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(b"\\x00\\x00\\x00\\x00\\x00"))
+            + chunk(b"IEND", b"")
+        )
         with tempfile.TemporaryDirectory() as parent:
             temp_dir = pathlib.Path(parent) / "raster-worker"
             with mock.patch.object(decoder.tempfile, "mkdtemp", return_value=str(temp_dir)):
@@ -239,8 +252,7 @@ class RasterDecoderInputValidationTests(unittest.TestCase):
                     with mock.patch.object(decoder.subprocess, "Popen") as popen:
                         with self.assertRaisesRegex(OSError, "injected failure"):
                             decoder.decode_raster_assets_isolated(
-                                {"asset": jpeg_with_dnl_defined_height()},
-                                {"asset": "assets/asset.jpg"},
+                                {"asset": png}, {"asset": "assets/asset.png"}
                             )
             self.assertFalse(temp_dir.exists())
             popen.assert_not_called()
