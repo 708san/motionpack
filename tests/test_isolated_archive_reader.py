@@ -273,16 +273,19 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
     def test_timeout_kills_and_reaps_worker(self):
         with tempfile.TemporaryDirectory() as tmp:
             pid_file = pathlib.Path(tmp) / "worker-pids.txt"
+            temp_path_file = pathlib.Path(tmp) / "isolated-temp-path.txt"
             worker = self._fake_worker(
                 tmp,
-                "import os, pathlib, subprocess, sys, time\n"
-                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
-                f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()) + ' ' + str(child.pid))\n"
-                "time.sleep(30)\n",
+                "import os, pathlib, subprocess, sys, time\\n"
+                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\\n"
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()) + ' ' + str(child.pid))\\n"
+                f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\\n"
+                "time.sleep(30)\\n",
             )
             with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
                 with self.assertRaises(IsolatedReadTimeout):
                     read_package_isolated(self._input_file(tmp), timeout=2)
+            self.assertFalse(pathlib.Path(temp_path_file.read_text()).exists())
             for pid in map(int, pid_file.read_text().split()):
                 self._assert_pid_exited(pid)
 
