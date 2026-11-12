@@ -45,6 +45,10 @@ A read-only review of the Issue #4 controls and negative-test definitions found 
 
 The review was static and did not execute tests or fuzzing. See the repository CI evidence and test files for execution results; the review itself is not a formal certification.
 
+## Scoped independent review (2026-11-12)
+
+A Security Auditor reviewed PR #132’s Windows Job Object memory-limit change and found no defect in the added per-process plus job-wide committed-memory configuration. Functional QA and Code Reviewer also reviewed that PR without blockers. Their review scope was the Windows memory-limit change, regression tests, and related documentation; it was not a full security certification or closure review of Issue #4. The actual test and workflow results are recorded above. Reviewers did not run tests locally.
+
 ## Cross-platform execution evidence (2026-11-09)
 
 After the 2026-11-06 static review, PR #50 repaired the workflow YAML and replaced the retired macOS 14 runner label. Main isolated-reader Actions run [#176](https://github.com/708san/motionpack/actions/runs/42509255143) on commit `f1fe82c` passed the isolated raster decoder, isolated archive reader, and report-only metrics steps on `ubuntu-24.04`, `macos-15`, and `windows-2025`. This records execution of the current test suite on all three operating systems; it does not remove the documented process-isolation limits or certify the reader as a sandbox.
