@@ -37,6 +37,7 @@ except ImportError:  # Support direct imports from the tools directory.
         RasterHeaderError, RasterLimitError, parse_raster_dimensions, parse_webp_raster,
     )
 
+_IS_WINDOWS = os.name == "nt"
 MAX_TIMEOUT_SECONDS = 300.0
 MAX_ASSET_ID_BYTES = 1024
 WORKER_SCRIPT = pathlib.Path(__file__).with_name("raster_decode_worker.py")
@@ -259,12 +260,12 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
     if memory_limit_bytes is not None and (type(memory_limit_bytes) is not int or memory_limit_bytes < 0):
         raise ValueError("memory_limit_bytes must be a non-negative integer or None")
     if memory_limit_bytes is None:
-        memory_limit = DEFAULT_MEMORY_LIMIT_BYTES if os.name == "nt" or sys.platform.startswith("linux") else 0
+        memory_limit = DEFAULT_MEMORY_LIMIT_BYTES if _IS_WINDOWS or sys.platform.startswith("linux") else 0
     else:
         memory_limit = memory_limit_bytes
     if memory_limit and sys.platform == "darwin":
         raise UnsupportedMemoryLimit("a hard whole-process memory limit is unsupported on macOS")
-    if memory_limit and os.name != "nt" and not sys.platform.startswith("linux"):
+    if memory_limit and not _IS_WINDOWS and not sys.platform.startswith("linux"):
         raise UnsupportedMemoryLimit("memory limits are supported only on Linux and Windows")
 
     unique, aliases, expected_dimensions = _safe_inputs(assets, asset_paths, limits)
@@ -277,7 +278,7 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
     for key in ("PATH", "SYSTEMROOT", "WINDIR", "LANG", "LC_ALL", "LC_CTYPE"):
         if key in os.environ:
             child_environment[key] = os.environ[key]
-    if os.name == "nt":
+    if _IS_WINDOWS:
         child_environment.update({"TEMP": str(temp_dir), "TMP": str(temp_dir)})
     else:
         child_environment["TMPDIR"] = str(temp_dir)
@@ -285,13 +286,20 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
     kwargs = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE,
               "stderr": subprocess.DEVNULL, "cwd": str(temp_dir),
               "close_fds": True, "env": child_environment}
-    if os.name == "nt":
+    if _IS_WINDOWS:
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     else:
         kwargs["start_new_session"] = True
     try:
+        output = tempfile.TemporaryFile(mode="w+b", dir=str(temp_dir))
+    except BaseException:
+        import shutil
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+    try:
         process = subprocess.Popen(command, **kwargs)
     except OSError as exc:
+        output.close()
         import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise RasterDecodeWorkerFailure("unable to start raster decoder worker") from exc
@@ -299,7 +307,6 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
     worker_cleaned = False
     job_reap_failed = False
     cleanup_error = None
-    output = tempfile.TemporaryFile(mode="w+b", dir=str(temp_dir))
     overflow = threading.Event()
     reader_stop = threading.Event()
     writer = None
@@ -324,7 +331,7 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
                 pass
 
     try:
-        if os.name == "nt":
+        if _IS_WINDOWS:
             try:
                 job = windows_job(process, memory_limit)
             except OSError as exc:
@@ -359,13 +366,13 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
             kill_worker(process, cleanup_job)
         except BaseException as error:
             cleanup_error = error
-            job_reap_failed = cleanup_job is not None and os.name == "nt"
+            job_reap_failed = cleanup_job is not None and _IS_WINDOWS
         else:
             worker_cleaned = True
         raise
     finally:
         if not worker_cleaned and (
-            job is not None or process.poll() is None or os.name != "nt"
+            job is not None or process.poll() is None or not _IS_WINDOWS
         ):
             cleanup_job, job = job, None
             try:
@@ -373,9 +380,9 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
             except BaseException as error:
                 if cleanup_error is None:
                     cleanup_error = error
-                job_reap_failed = cleanup_job is not None and os.name == "nt"
+                job_reap_failed = cleanup_job is not None and _IS_WINDOWS
             else:
-                if cleanup_job is not None or os.name != "nt" or not job_reap_failed:
+                if cleanup_job is not None or not _IS_WINDOWS or not job_reap_failed:
                     worker_cleaned = True
         if writer is not None:
             writer.join(1.0)
