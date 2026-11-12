@@ -203,6 +203,18 @@ class FormatTests(unittest.TestCase):
                 self.assertTrue(asset.startswith("data:image/png;base64,"))
                 canonical_png = base64.b64decode(asset.split(",", 1)[1])
                 self.assertTrue(canonical_png.startswith(b"\x89PNG\r\n\x1a\n"))
+                offset = 8
+                image_data = []
+                while offset < len(canonical_png):
+                    chunk_size = int.from_bytes(canonical_png[offset:offset + 4], "big")
+                    chunk_type = canonical_png[offset + 4:offset + 8]
+                    chunk_data = canonical_png[offset + 8:offset + 8 + chunk_size]
+                    offset += 12 + chunk_size
+                    if chunk_type == b"IDAT":
+                        image_data.append(chunk_data)
+                    if chunk_type == b"IEND":
+                        break
+                self.assertEqual(zlib.decompress(b"".join(image_data)), b"\x00\x14\x28\x3c\xff")
 
     @mock.patch.object(package_module, "_encode_rgba_png")
     @mock.patch.object(package_module, "decode_raster_assets_isolated")
