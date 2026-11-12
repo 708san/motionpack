@@ -2,13 +2,13 @@
 
 **Status: non-normative planning record.** This ledger consolidates what is approved, what remains a maintainer decision, and which work each decision gates. It does not define v1 behavior or change v0.1–v0.4.
 
-Authoritative contract acceptance criteria remain in [Issue #120](https://github.com/708san/motionpack/issues/120). The [v1 contract proposal](V1_CONTRACT_PROPOSAL.md) contains the detailed three-choice options and migration evidence. Promote decisions into `FORMAT_SPEC.md` only after maintainer approval and Architect review.
+Authoritative contract acceptance criteria remain in [Issue #120](https://github.com/708san/motionpack/issues/120). The [v1 contract proposal](V1_CONTRACT_PROPOSAL.md) contains the detailed migration evidence and fuller discussion. Promote decisions into `FORMAT_SPEC.md` only after maintainer approval and Architect review.
 
 ## Approved scope and constraints
 
 The maintainer selected v1.0 minimum scope **A**: stable format, integrated reader/validator, and a writer that reports conversion losses and requires explicit confirmation before a lossy save. GUI and AI authoring are outside v1.0 core.
 
-Previously approved planning directions:
+The following are **approved planning directions, not a frozen v1 contract**:
 
 - Keep the v0.1–v0.4 importer read-only; preserve original manifest bytes, opaque payloads, sparse authored values, and provenance.
 - Keep effective defaults separate from authored values, with source and rule provenance.
@@ -16,33 +16,19 @@ Previously approved planning directions:
 - Bind loss confirmation to the exact source and conversion plan; a source or plan change invalidates confirmation.
 - Use `capabilities.required[]` and `capabilities.optional[]`; use reverse-domain extension keys; reject unknown core fields and unknown required capabilities; ignore unknown optional capabilities only under an explicit safe-ignore rule; retain opaque extension data.
 
-These directions do not constitute a frozen schema or prove that an implementation exists.
+These directions do not prove that a frozen schema or implementation exists.
 
 ## Decisions that block contract freeze
 
-### D1 — v1 core data shapes
+All three decisions belong to the maintainer. The choices below summarize the alternatives; the linked proposal records the fuller compatibility consequences.
 
-**Question:** Reuse v0.4-shaped fields with explicitly defined v1 meanings, or redesign the core schema?
+| ID | Choice | Option A | Option B | Current status |
+|---|---|---|---|---|
+| D1 | v1 core data shapes | Reuse familiar v0.4 field shapes and explicitly define v1 meanings. This reduces structural change, but does not make every v0.x field portable. | Redesign the core schema. This permits a new model, but requires explicit mappings and can increase migration loss. | Pending |
+| D2 | SVG root dimensions | Require positive numeric-pixel `width` and `height`; decide whether to adopt the existing 8,192-pixel edge and 16-megapixel ceilings. Dimensionless legacy SVGs need an explicit migration disposition. | Allow omitted dimensions; define deterministic intrinsic sizing and resource checks without renderer-dependent assumptions. | Pending |
+| D3 | Canonicalization scope | Guarantee canonical manifest bytes; ZIP metadata and whole-package hashes may vary by writer. | Guarantee deterministic complete ZIP bytes, which also fixes entry order, timestamps, permissions, compression parameters, comments, extra fields, directory entries, and container metadata. | Pending |
 
-**Record:** Pending. The detailed options and compatibility consequences are in the proposal.
-
-**Needed before:** Closing the core-field inventory, publishing normative fixtures, and defining v0.1–v0.4 mappings.
-
-### D2 — SVG root dimensions
-
-**Question:** Require positive numeric-pixel `width` and `height`, or allow either to be omitted? If required, should v1 adopt the existing 8,192-pixel edge and 16-megapixel ceilings?
-
-**Record:** Pending. v0.1/v0.2 can contain dimensionless SVGs; migration must not infer dimensions without an explicit rule.
-
-**Needed before:** Normative asset validation and expected migration outcomes for dimensionless legacy SVGs.
-
-### D3 — Canonicalization scope
-
-**Question:** Guarantee canonical manifest bytes only, or deterministic complete ZIP bytes as well?
-
-**Record:** Pending. Whole-ZIP reproducibility additionally fixes entry ordering, timestamps, permissions, compression parameters, comments, extra fields, directory entries, and container metadata.
-
-**Needed before:** Canonical serialization fixtures and writer output guarantees.
+These are choices, not recommendations or decisions. Any combination can be selected. The v1 reader, writer, fixtures, and migration behavior that depend on them remain gated.
 
 ## Additional semantic decisions
 
@@ -50,27 +36,29 @@ The existing v0 specifications, runtime, importer, and examples are evidence abo
 
 | ID | Area | Evidence that can be reused | Decision needed for a testable v1 contract | Blocks |
 |---|---|---|---|---|
-| S1 | Package envelope and entries | ZIP packages use a root `manifest.json`; the importer retains accepted regular-file payload bytes. | Define package identity/version fields, runtime entries, `source/` policy, and handling of unknown or unreferenced regular files. State whether ZIP metadata is in the preservation contract. | Reader, writer, migration |
-| S2 | Core field inventory | Canvas, assets, drawable nodes, clips, tracks, variants, defaults, effects, and (by version) IK and interactions are present in v0.x. | Close the v1 field inventory, JSON types, numeric ranges, required/optional fields, references, collection ordering, and unknown-field behavior by object. | Schema, validator, fixtures |
-| S3 | Nodes and transforms | The importer retains IDs, declaration order, authored fields, and source pointers. | Define graph/reference integrity, transform composition, anchors, dimensions and fallbacks, opacity, and Z ordering. | Reader, renderer conformance, migration |
-| S4 | Time and tracks | Legacy time values use milliseconds; omitted clip `loop` is documented false. | Define interpolation, key ordering and duplicates, boundaries, sampling, loop/end behavior, valid ranges, and v1 defaults. | Schema, runtime conformance, migration |
-| S5 | Effects and variants | v0.x contains declarative effects and sparse variant overlays; omitted burst count 28 is an implementation observation. | Select supported effect types/parameters and their units/defaults; define variant overlay grammar, precedence, and defaults. Do not promote implementation observations by inference. | Capabilities, reader/writer, migration |
-| S6 | IK | v0.2 documents omitted `weight` as 1; omitted `bend` is only an implementation observation. v0.1 IK is ambiguous and approved as preserve/warn/uninterpreted. | Define v1 IK semantics and capability declaration; specify migration only where semantics are approved. Keep v0.1 IK uninterpreted unless the maintainer decides otherwise. | Capabilities, migration, conformance |
-| S7 | Interaction | v0.4 stores opt-in `hover`, `tap`, and `click` booleans; current preview behavior is host notification only. | Decide whether v1 only stores declarations or guarantees cross-renderer events/hit-testing. If behavior is guaranteed, define input types, hit regions, occlusion, ordering, and host boundary. | Capability profile, runtime conformance |
-| S8 | Assets and resource profiles | Existing tools inspect SVG/raster headers under configured limits; reader limits are tool policy, not format guarantees. | Define accepted asset profiles, reference/path rules, format validity vs reader resource limits, and what validation must occur before payload use. | Reader, security profile, conformance |
-| S9 | Capabilities and extensions | The approved direction separates required/optional capabilities and retains opaque extension data. | Define identifier grammar and ownership, declaration/derivation rules, extension value representation, and the exact safe-ignore condition for each optional capability. | Preflight, reader, writer |
-| S10 | Legacy unknowns and provenance | Importer retains raw manifest/payload data and distinguishes authored fields from provenance-bearing effective values. | Define v1 representation and preservation of opaque data; specify mapped, preserved, unsupported, and lossy dispositions per source field. Nested unknown legacy fields are not fully classified today. | Migration report, writer |
-| S11 | Errors and validation order | Current reader has bounded archive checks and a manifest-first prototype; stable public error categories are not defined. | Define error identifiers/categories, validation order, what must fail before asset reads, and how invalid input differs from unsupported capability or migration loss. | Reader API, conformance |
+| S1 | Package envelope and entries | ZIP packages use a root `manifest.json`; the importer retains accepted regular-file payload bytes. | Define package identity/version fields, runtime entries, `source/` policy, unknown/unreferenced regular-file handling, and whether ZIP metadata is preserved. | Reader, writer, migration |
+| S2 | Core field inventory | Canvas, assets, drawable nodes, clips, tracks, variants, defaults, effects, and (by version) IK and interactions are present in v0.x. | Close v1 fields, JSON types, numeric ranges, required/optional fields, references, ordering, and unknown-field behavior by object. | Schema, validator, fixtures |
+| S3 | Nodes and transforms | The importer retains IDs, declaration order, authored fields, and source pointers. | Define graph/reference integrity, transform composition, anchors, dimensions/fallbacks, opacity, and Z ordering. | Reader, renderer conformance, migration |
+| S4 | Time and tracks | Legacy time values use milliseconds; omitted clip `loop` is documented false. | Define interpolation, key ordering/duplicates, boundaries, sampling, loop/end behavior, valid ranges, and v1 defaults. | Schema, runtime conformance, migration |
+| S5 | Effects and variants | v0.x contains declarative effects and sparse variant overlays; omitted burst count 28 is an implementation observation. | Select supported effects/parameters, units/defaults, and variant overlay grammar, precedence, and defaults. Do not promote observations by inference. | Capabilities, reader/writer, migration |
+| S6 | IK | v0.2 documents omitted `weight` as 1; omitted `bend` is only an implementation observation. v0.1 IK is ambiguous and approved as preserve/warn/uninterpreted. | Define v1 IK semantics and capability declaration; map only approved meanings. Keep v0.1 IK uninterpreted absent an explicit decision. | Capabilities, migration, conformance |
+| S7 | Interaction | v0.4 stores opt-in `hover`, `tap`, and `click` booleans; current preview behavior is host notification only. | Decide whether v1 stores declarations only or guarantees cross-renderer events/hit testing. If behavior is guaranteed, define inputs, hit regions, occlusion, ordering, and host boundary. | Capability profile, runtime conformance |
+| S8 | Asset formats and resource profiles | Tools inspect SVG/raster headers under configured limits; these limits are tool policy, not format guarantees. | Define accepted asset bytes/formats and distinguish format validity from implementation resource ceilings. Entry/path placement belongs to S1; feature support belongs to S9. | Reader, security profile, conformance |
+| S9 | Capabilities and extensions | The approved direction separates required/optional capabilities and retains opaque extension data. | Define identifier grammar/ownership, declaration and derivation rules, extension value representation, and exact safe-ignore conditions. Payload preservation belongs to S1/S10. | Preflight, reader, writer |
+| S10 | Legacy unknowns and provenance | Importer retains raw manifest/payload data and separates authored values from provenance-bearing effective values. | Define v1 opaque-data representation and per-field mapped, preserved, unsupported, or lossy dispositions. Nested unknown legacy fields are not fully classified today. | Migration report, writer |
+| S11 | Errors and validation order | Current reader has bounded archive checks and a manifest-first prototype; stable public error categories are not defined. | Define error identifiers/categories, validation order, failures that precede asset reads, and distinctions among invalid input, unsupported capability, and migration loss. | Reader API, conformance |
 | S12 | Loss reports and confirmation | The approved direction requires reporting loss before output and invalidating confirmation when source or plan changes. | Define report fields, source pointer/payload identity, conversion action, confirmation inputs, and no-output behavior on unconfirmed or failed writes. | Writer API, round-trip tests |
-| S13 | Compatibility lifecycle | v0.1–v0.4 remain experimental; the current compatibility policy is a draft. | Define supported format versions, runtime/API version independence, deprecation/support windows, and platform support. | Release policy and compatibility claims |
+| S13 | Compatibility lifecycle | v0.1–v0.4 remain experimental; the compatibility policy is a draft. | Define supported format versions, independent runtime/API versioning, deprecation/support windows, and platform support. | Release policy, compatibility claims |
+
+**Boundary note:** S1 covers the ZIP/package namespace and which bytes or entries are retained. S8 covers asset content profiles and resource limits. S9 covers declared feature support and extension semantics. S10 covers legacy field preservation and migration dispositions. Keep these scopes separate when recording decisions.
 
 ## Safe work before the decisions are complete
 
 The following work can prepare implementation without guessing at public behavior:
 
 1. Reconcile the four pinned v0 fixtures, feature inventory, and importer evidence while keeping documented rules, implementation observations, and unknowns distinct.
-2. Review the internal reader stages: bounded archive snapshot, manifest-first parse, capability preflight, asset validation, and normalized view. Do not publish an API or semantic guarantee from this map.
-3. Maintain candidate conformance cases as conditional until the expected outcomes are approved.
+2. Review internal reader stages—bounded archive snapshot, manifest-first parse, capability preflight, asset validation, and normalized view—without locking public APIs or semantics.
+3. Maintain candidate conformance cases as conditional until expected outcomes are approved.
 4. Continue independent security and visual-release work under their own issues; do not present those results as v1 contract approval.
 
 ## Implementation gates
@@ -78,16 +66,17 @@ The following work can prepare implementation without guessing at public behavio
 1. Record D1–D3 and resolve or explicitly defer S1–S13.
 2. Have the Architect review the selected schema and migration matrix.
 3. Update `FORMAT_SPEC.md` and add normative fixtures.
-4. Implement and verify the manifest-first reader/validator.
+4. Only after contract freeze, implement and verify the manifest-first reader/validator.
 5. Implement the loss-aware writer against the frozen schema.
 6. Prove legacy regression, v1 conformance, round trips, and no output on unconfirmed loss.
-7. Assess separate v1 release gates: security residuals, visual/motion review, platform/performance support, asset rights, license, distribution integrity, and maintainer release approval.
 
-Issue #120 remains open until its implementation and acceptance criteria are met.
+Issue #120 is complete only when its normative contract, capability and extension rules, migration paths, fixtures, integrated reader, loss-aware writer, compatibility coverage, and round-trip/confirmation criteria are satisfied.
+
+Separate v1.0 release gates remain: security residuals, visual/motion review, platform/performance support, asset rights, license, distribution integrity, and maintainer release approval.
 
 ## Acceptance and rollback
 
 - This ledger remains non-normative and makes no maintainer decision.
-- Each open item is distinguishable from approved scope and observed legacy behavior.
+- Each open item is distinguishable from approved planning directions and observed legacy behavior.
 - No v0 behavior, public contract, code, fixture, or release claim changes.
-- If the ledger is rejected or becomes redundant, revert this file; keep the contract choices and implementation gates in Issue #120.
+- If the ledger is rejected or redundant, revert this file; keep the choices and implementation gates in Issue #120.
