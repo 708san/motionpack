@@ -1,6 +1,6 @@
 # v1 Contract Proposal (Non-Normative)
 
-Status: non-normative discussion draft for Issue #120. This document is not a format specification, compatibility promise, or implementation requirement. It records maintainer-approved decisions D1–D3, but does not freeze v1.0. Promote normative rules into `FORMAT_SPEC.md` only after the remaining maintainer decisions and Architect review.
+Status: non-normative discussion draft for Issue #120. This document is not a format specification, compatibility promise, or implementation requirement. It records maintainer-approved directions D1–D3 and the additional package, feature-scope, extension, error, and compatibility choices below, but does not freeze v1.0. Promote normative rules into `FORMAT_SPEC.md` only after the remaining maintainer decisions and Architect review.
 
 ## Goal and boundary
 
@@ -25,7 +25,7 @@ These are constraints for contract work, not evidence that the final schema or w
 
 ## Contract-freeze and implementation blockers
 
-The maintainer has recorded the three top-level choices below. The additional semantic decisions listed later still block freezing the v1 contract and starting conformant reader/writer implementation. See [Issue #120](https://github.com/708san/motionpack/issues/120) for the authoritative acceptance criteria, including loss reporting, no output on unconfirmed loss, canonicalization, and v0.1–v0.4 regression coverage.
+The maintainer has recorded D1–D3 and the additional directions below. Normative field semantics, precise limits, canonicalization rules, and conformance details listed later still block freezing the v1 contract and starting conformant reader/writer implementation. See [Issue #120](https://github.com/708san/motionpack/issues/120) for the authoritative acceptance criteria, including loss reporting, no output on unconfirmed loss, canonicalization, and v0.1–v0.4 regression coverage.
 
 ## Maintainer decisions recorded
 
@@ -51,7 +51,20 @@ The maintainer explicitly adopted the existing 8,192 px per-edge and 16 MP per-S
 
 **Approved option B — guarantee canonical manifest bytes and deterministic complete ZIP bytes.** In addition to canonical manifest bytes, the normative profile must define entry ordering, timestamps, permissions, compression method and parameters, comments, extra fields, directory entries, and all container metadata. Every conforming writer must reproduce these details; fixtures must pin byte-level output. This gives package-level stable hashes and constrains implementations and compression choices.
 
-For either option, specify which files belong in the runtime package, how optional `source/` originals are handled, and whether unknown regular-file entries are rejected, retained opaquely, or reported as loss. The current importer preserves accepted regular-file payload bytes, including opaque `source/`, but not ZIP metadata, directory-only entries, or container layout.
+The maintainer selected package-envelope direction A: allow manifest-referenced runtime assets and preserve bounded opaque payload bytes under `source/` and for unknown regular-file entries. Input ZIP metadata is not part of the preservation promise. This is distinct from D3: a conforming writer must still emit deterministic ZIP metadata according to a yet-to-be-frozen profile. Exact per-entry and aggregate bounds, entry-name/path rules, and how preserved opaque entries interact with canonical output remain to be specified.
+
+
+The maintainer also approved these directions for Issue #120. They guide the proposal but are not yet normative contract text:
+
+- **Package envelope:** allow manifest-referenced runtime assets; preserve bounded opaque payloads in `source/` and unknown regular-file entries. Input ZIP metadata is not preserved. Exact size/count/path bounds and how opaque entries are deterministically emitted remain open.
+- **Feature scope:** define v1 meanings for the full v0.4 feature surface. This approves the scope, not the individual field rules or cross-renderer behavior; those remain subject to specification and Architect review.
+- **Extensions:** represent extension values as JSON values, preserve their semantic values, and canonicalize them. Exact canonical JSON rules and extension-key/schema constraints remain to be frozen.
+- **Reader/writer failures:** use staged validation, stable error categories, and produce no output on failure. The stage order and exact public category identifiers remain open.
+- **Compatibility lifecycle:** support stable v1 and keep the v0.x importer read-only, with no time-based support-duration promise. This does not promise legacy write-back or define platform/API support windows.
+
+## Remaining normative contract blockers
+
+The additional semantic decisions below still block freezing the v1 contract and starting conformant reader/writer implementation. See [Issue #120](https://github.com/708san/motionpack/issues/120) for the authoritative acceptance criteria, including loss reporting, no output on unconfirmed loss, canonicalization, and v0.1–v0.4 regression coverage.
 
 ## Evidence-based legacy migration inventory
 
@@ -62,7 +75,7 @@ This is a preliminary planning matrix, not a v1 mapping. “Confirmed view” me
 | v0.1 | Canvas, assets, nodes, clips, tracks, declarative effects, variants/defaults; SVG dimensions may be omitted. | Map only fields whose v1 semantics are approved. Preserve source bytes and sparse presence. Unknown nested fields are not fully classified. Dimensionless SVGs are preserved without inferred dimensions and reported unsupported or lossy until explicitly repaired. |
 | v0.2 | Adds two-bone IK; missing IK `weight` is specified as 1. Runtime also observes omitted `bend` as 1, but the format does not specify this. | IK mapping and default provenance need explicit v1 semantics. The observed bend default must not become normative by inference. |
 | v0.3 | Adds the SVG dimension validation profile: positive numeric px dimensions, edge up to 8,192 px, area up to 16 MP. | The maintainer selected these positive-pixel dimensions and ceilings for v1; reader conformance must validate them separately from lower host resource limits. |
-| v0.4 | Adds per-node `hover`, `tap`, and `click` booleans; omitted flags are disabled; notifications are data-only. | Define whether v1 adopts the current preview’s detailed pointer, hit-test, occlusion, and event semantics or only stores declarations. Cross-renderer behavior is not established. |
+| v0.4 | Adds per-node `hover`, `tap`, and `click` booleans; omitted flags are disabled; notifications are data-only. | v1 scope is approved to define semantics for all v0.4 features. Exact interaction and cross-renderer guarantees remain to be written and reviewed normatively; no behavior is inferred solely from the preview. |
 
 Across all versions, the importer currently keeps original manifest bytes and retained regular-file payloads, while its normalized projection only reports confirmed mappings. Unrecognized top-level fields are reported unsupported by that projection; nested unknown fields are generally preserved but unclassified. v0.1 IK is preserved and warned as a specification/implementation mismatch, not interpreted as a v1 capability. These importer behaviors do not decide the future writer’s output policy.
 
@@ -99,24 +112,25 @@ These are future test targets, not currently passing v1 tests. D1–D3 are decid
 
 No v1 writer, integrated v1 reader, or v1 normative conformance suite is present yet. Track these cases as planning requirements until a frozen contract makes their expected results unambiguous.
 
-## Contract decisions required beyond the three choices
+## Remaining decisions for a testable normative contract
 
-Before implementation is called conformant, the normative contract still needs decisions for:
+The following details remain open even after the approved directions above:
 
-- Complete v1 core fields, types, ranges, reference integrity, collection ordering, and which objects have closed field sets.
+- Complete v1 core fields, types, ranges, reference integrity, collection ordering, and closed field sets.
 - Time units, keyframe ordering/boundaries/interpolation, clip looping, transform/anchor/Z behavior, variants, and declarative-effect parameters.
-- Whether interaction is only stored data or includes any cross-renderer event/hit-test guarantee.
-- Capability identifier grammar, required/optional declaration rules, capability registry ownership, and the exact safe-ignore rule for each optional capability.
-- Extension value shape and byte-preserving representation.
-- Runtime asset versus opaque source payload boundaries, unknown archive-entry policy, and reader validation/resource-limit profile.
-- Stable error categories and which validation failures occur before any asset payload is read.
-- Loss report schema, source pointer/payload identity, conversion action, confirmation token inputs, and no-output behavior on unconfirmed loss.
+- Exact interaction field meanings and whether v1 guarantees cross-renderer event/hit-test behavior. The full v0.4 feature surface is in scope, but current preview behavior is not automatically normative.
+- Capability identifier grammar, required/optional declaration rules, registry ownership, and exact safe-ignore rules.
+- Canonical JSON rules for extensions, duplicate-key handling, numeric equivalence, Unicode, and extension validation.
+- Exact opaque package payload identity (entry name and payload bytes), paths/types admitted, per-entry and aggregate bounds, and deterministic writer treatment. Input ZIP metadata is not retained; output ZIP metadata still requires a fixed D3 profile.
+- Stable error identifiers, validation stages/order, failures before payload reads, and the distinction among invalid input, unsupported capability, and migration loss.
+- Loss report schema, source pointer/payload identity, conversion action, confirmation inputs, and no-output/unchanged-destination behavior on failure.
+- Compatibility boundaries for format/runtime APIs and supported platforms. Read-only v0.x importer support has no duration guarantee.
 
 Do not classify permissively accepted v0 nested fields as invalid merely because their v1 mapping is not yet known.
 
 ## Proposed work sequence
 
-1. Record D1–D3 as approved above; resolve or explicitly defer the additional semantic decisions below with safe behavior.
+1. Record D1–D3 and the additional approved directions above; resolve or explicitly defer remaining normative details with safe behavior.
 2. Have the Architect review the resulting normative schema and migration rules.
 3. Update `FORMAT_SPEC.md` and add normative fixtures/conformance cases for v1, including unknown required/core fields, explicitly safe optional capabilities, opaque extensions, canonicalization, loss confirmation, and round trips.
 4. Implement manifest-first v1 validation/reading and integrate the capability preflight before referenced asset reads.
