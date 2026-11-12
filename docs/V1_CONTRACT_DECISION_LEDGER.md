@@ -50,7 +50,7 @@ The existing v0 specifications, runtime, importer, and examples are evidence abo
 | S12 | Loss reports and confirmation | The approved direction requires reporting loss before output and invalidating confirmation when source or plan changes. | Define report fields, source pointer/payload identity, conversion action, confirmation inputs, and no-output behavior on unconfirmed or failed writes. | Writer API, round-trip tests |
 | S13 | Compatibility lifecycle | v0.1–v0.4 remain experimental; the compatibility policy is a draft. | Define supported format versions, independent runtime/API versioning, deprecation/support windows, and platform support. | Release policy, compatibility claims |
 
-**Boundary note:** S1 covers the ZIP/package namespace and which bytes or entries are retained. S8 covers asset content profiles and resource limits. S9 covers declared feature support and extension semantics. S10 covers legacy field preservation and migration dispositions. Keep these scopes separate when recording decisions.
+**Boundary note:** S1 covers the ZIP/package namespace and preservation of archive entries/bytes. S8 covers asset content profiles and resource limits. S9 covers declared feature support and the representation/preservation of opaque extension values. S10 covers legacy field preservation and migration dispositions. Keep these scopes separate when recording decisions.
 
 ## Safe work before the decisions are complete
 
