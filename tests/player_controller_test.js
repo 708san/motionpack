@@ -172,6 +172,14 @@ assert.deepStrictEqual(unloaded.getState(), priorState,
   'a failed replacement load preserves the prior controller state');
 assert.deepStrictEqual(unloaded.getPose(), priorPose,
   'a failed replacement load preserves the prior pose');
+assert.throws(() => unloaded.load({
+  manifest,
+  rig: { applyIK() { throw new Error('synthetic initial sample failure'); } }
+}), /synthetic initial sample failure/);
+assert.deepStrictEqual(unloaded.getState(), priorState,
+  'a failed initial sample preserves the prior loaded state');
+assert.deepStrictEqual(unloaded.getPose(), priorPose,
+  'a failed initial sample preserves the prior pose');
 const replacement = unloaded.load({ manifest: otherManifest, rig });
 assert.deepStrictEqual(unloaded.getState(), {
   state: 'stopped', clip: 'fire', variant: otherManifest.defaults.variant,
