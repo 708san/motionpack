@@ -34,7 +34,8 @@ try:
 except ImportError:  # Support direct execution/import from the tools directory.
     from isolated_process import (
         DEFAULT_MEMORY_LIMIT_BYTES, kill_worker as _kill_worker,
-        read_bounded_output as _read_output, windows_job as _windows_job,
+        read_bounded_output as _read_output, stop_output_reader as _stop_output_reader,
+        windows_job as _windows_job,
     )
 MAX_SNAPSHOT_BYTES = 40 * 1024 * 1024
 MAX_RESULT_BYTES = 40 * 1024 * 1024
