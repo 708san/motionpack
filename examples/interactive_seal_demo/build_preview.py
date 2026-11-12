@@ -49,6 +49,7 @@ def build_demo(out, fallback_path=None):
     styles = """
 #viewport{position:relative;aspect-ratio:91 / 55!important;max-height:none!important;background:#d9efea}
 #stage{position:absolute;inset:0;width:100%;height:100%;z-index:1}
+#viewport[data-seal-hover="true"] #stage{cursor:pointer}
 .static-fallback{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:2}
 .static-fallback[hidden]{display:none}
 #idle,#fire,#transform,#reset,#aim{display:none}
@@ -63,6 +64,7 @@ def build_demo(out, fallback_path=None):
   'use strict';
   var fallback=document.getElementById('static-fallback');
   var canvas=document.getElementById('stage');
+  var viewport=document.getElementById('viewport');
   var status=document.getElementById('status');
   var button=document.getElementById('seal-activate');
   var locked=false;
@@ -79,8 +81,8 @@ def build_demo(out, fallback_path=None):
     var detail=event.detail||{};
     window.__lastInteraction=detail;
     if(detail.nodeId!=='seal_hit')return;
-    if(detail.type==='hoverenter')document.body.setAttribute('data-seal-hover','true');
-    if(detail.type==='hoverleave')document.body.setAttribute('data-seal-hover','false');
+    if(detail.type==='hoverenter')viewport.setAttribute('data-seal-hover','true');
+    if(detail.type==='hoverleave')viewport.setAttribute('data-seal-hover','false');
     if(detail.type==='tap'||detail.type==='click')activate(detail.type);
   });
   button.addEventListener('click',function(){
