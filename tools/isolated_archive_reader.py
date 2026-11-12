@@ -10,6 +10,7 @@ import math
 import os
 import pathlib
 import stat
+import shutil
 import struct
 import subprocess
 import sys
@@ -40,6 +41,27 @@ MAX_REQUEST_BYTES = 128 * 1024
 MAX_TIMEOUT_SECONDS = 300.0
 PROTOCOL_MAGIC = b"MPIR\x02"
 WORKER_SCRIPT = pathlib.Path(__file__).with_name("archive_reader_worker.py")
+
+
+class _PreservableTemporaryDirectory:
+    """Temporary workspace retained if worker termination cannot be confirmed."""
+
+    def __init__(self, prefix):
+        self.path = pathlib.Path(tempfile.mkdtemp(prefix=prefix))
+        self._preserve = False
+
+    def __enter__(self):
+        return str(self.path)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if not self._preserve:
+            shutil.rmtree(self.path)
+
+    def preserve_after_failed_reap(self, error):
+        self._preserve = True
+        error.add_note(
+            f"worker termination could not be confirmed; temporary data retained at {self.path}"
+        )
 
 
 class IsolatedReadError(RuntimeError):
@@ -268,7 +290,8 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
 
     started = time.monotonic()
     source_path = pathlib.Path(path).expanduser().absolute()
-    with tempfile.TemporaryDirectory(prefix="motionpack-isolated-") as temp_dir:
+    temporary_directory = _PreservableTemporaryDirectory(prefix="motionpack-isolated-")
+    with temporary_directory as temp_dir:
         snapshot = pathlib.Path(temp_dir) / "input.motionpack"
         request = json.dumps(
             {"path": str(source_path), "snapshot_path": str(snapshot),
@@ -330,15 +353,22 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
             cleanup_job, job = job, None
             try:
                 _kill_worker(process, cleanup_job)
-            finally:
+            except BaseException as cleanup_error:
+                temporary_directory.preserve_after_failed_reap(cleanup_error)
                 worker_cleaned = True
+                raise
+            worker_cleaned = True
             raise
         finally:
             if not worker_cleaned and (
                 job is not None or process.poll() is None or os.name != "nt"
             ):
                 cleanup_job, job = job, None
-                _kill_worker(process, cleanup_job)
+                try:
+                    _kill_worker(process, cleanup_job)
+                except BaseException as cleanup_error:
+                    temporary_directory.preserve_after_failed_reap(cleanup_error)
+                    raise
                 worker_cleaned = True
             if job is not None:
                 handle, close_handle = job
