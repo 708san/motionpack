@@ -89,7 +89,7 @@ The maintainer approved these v1 sampling rules. They do not define host schedul
 - When `loop` is omitted, its effective v1 value is `false`; preserve the authored omission separately from the effective value.
 - A requested sample time must be finite and nonnegative. For looping clips, normalize it modulo `duration_ms` into `[0, duration_ms)`; for non-looping clips, clamp values above duration to `duration_ms`. Exact duration on a looping clip therefore samples time zero; negative values are invalid.
 
-Still open: maximum v1 clip duration, precision/representation limits for fractional-millisecond key times, property-specific numeric ranges and invalid-value behavior, and interaction with effect/IK sampling limits. These choices establish a sampling contract, not wall-clock scheduling or renderer pixel equivalence.
+Still open: maximum v1 clip duration, precision/representation limits for fractional-millisecond key times, property-specific numeric ranges and invalid-value behavior, and cross-feature interactions between effects/IK and S4 time sampling beyond the rules stated above. These choices establish a sampling contract, not wall-clock scheduling or renderer pixel equivalence.
 
 ## S5 approved variant and effect directions (planning record)
 
