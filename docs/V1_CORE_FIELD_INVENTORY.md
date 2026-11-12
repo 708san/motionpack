@@ -1,0 +1,84 @@
+# v1 core-field inventory and legacy evidence crosswalk
+
+**Status: non-normative planning artifact for Issues #120 and #151.** This document inventories current evidence and approved planning directions. It does not define a v1 schema, compatibility promise, loss-report API, serializer, or normative conformance result. Keep `FORMAT_SPEC.md` unchanged until the contract-freeze decisions and Architect review are complete.
+
+This crosswalk complements [V0_FEATURE_INVENTORY.md](V0_FEATURE_INVENTORY.md) (versioned implementation evidence) and [V01_TO_V1_MIGRATION_PROPOSAL.md](V01_TO_V1_MIGRATION_PROPOSAL.md) (preservation layers, evidence labels, and candidate migration semantics). Reconcile those sources; do not create a competing migration vocabulary.
+
+## Evidence and disposition vocabulary
+
+Use the evidence labels already defined in `V01_TO_V1_MIGRATION_PROPOSAL.md`: **Documented rule**, **Observed implementation**, **Proposed v1 interpretation**, **Maintainer-approved migration policy**, and **Unresolved**. A current implementation behavior is not a format guarantee.
+
+Migration descriptions distinguish:
+
+- **byte-preserved**: exact manifest bytes or accepted regular-file payload bytes are retained; this does not reconstruct original ZIP layout or metadata.
+- **mapped**: an explicitly approved semantic counterpart exists.
+- **interpreted-default**: an absent sparse field has a separate effective value with source and rule provenance; it is not written into authored data.
+- **preserved-uninterpreted**: data remains available but no semantic behavior is claimed.
+- **unsupported**: the current experimental normalized projection has no mapping, or a future target cannot support a construct; this does not mean the v0.x input is invalid or that its bytes were discarded.
+- **ambiguous / unresolved**: evidence is insufficient or conflicting; retain the data and avoid assigning a v1 meaning.
+
+The read-only importer retains exact manifest and accepted regular-file payload bytes, sparse parsed values, and provenance. It does not retain ZIP container metadata. An effective value belongs in a separate view and must record source version, source pointer, authored-presence status, rule identifier, and whether the rule is documented or implementation-derived. See [LEGACY_IMPORT_SNAPSHOT.md](LEGACY_IMPORT_SNAPSHOT.md).
+
+## Core field inventory
+
+Paths use JSON Pointer patterns. Braced segments are dynamic keys or array indices, not literal schema field names. “Shape seen” reports source evidence; it is not a closed v1 grammar. Unless a row says otherwise, v0.x validators may accept extra nested fields. Such fields stay unclassified and preserved; lack of a normalized mapping does not make them invalid.
+
+| Path / object | Shape and source-version evidence | Current behavior and migration evidence | v1 planning direction | Unresolved contract work |
+|---|---|---|---|---|
+| `/format`, `/version` | **Documented rule:** `format` is `motionpack`; supported experimental versions are `0.1`–`0.4`. | Validator selects versioned profiles. Importer records source version and retains original manifest bytes. | Reuse the v0.4-shaped core; v1 versioning and migration source are distinct. | Exact v1 discriminator types, unsupported-version errors, and version parsing. |
+| `/id` | Seen as an optional package identifier in importer normalization; nested/root optionality is not fully specified as a closed v0 schema. | Importer maps it to `identifier` when present and preserves authored data. | No v1 requirement or grammar approved by this inventory. | Presence, type, syntax, uniqueness scope, and migration disposition. |
+| `/canvas` | Documented logical pixel `width`/`height`; optional `background`. Validator checks integer dimensions 1–8192. | Validator ceilings are implementation limits unless made normative. Migration proposal leaves unit/default details open. | Canvas dimensions and background are in the v1-shaped core scope. | Required fields, numeric limits, background grammar/default, and whether validator bounds become v1 bounds. |
+| `/assets/{assetId}` | Dynamic asset IDs map to local SVG/PNG/JPEG/WebP paths. Remote URLs are rejected; `source/` is reserved for opaque source data, not runtime references. | Raster parsing is extension-based; source asset/profile/resource restrictions are tool behavior. Importer preserves referenced and other accepted regular-file payload bytes. | Full v0.4 feature surface; preserve bounded opaque payloads under `source/` and unknown regular-file entries. | Asset ID/path grammar, path normalization, content/profile validity, package entry types and bounds, and deterministic output treatment. |
+| `/nodes/{i}` | Documented high-level drawable image node with `id`, `asset`, optional `parent`, transforms, dimensions, anchor and Z. Exact child-key closure is not specified. | Validator checks selected fields and graph references/cycles; preview uses intrinsic asset dimensions when drawable width/height are absent. Importer retains sparse fields and declaration order. | **Approved S3 direction:** parent-local transforms compose root-to-node; defaults are x/y/rotation=0, scale/opacity=1, anchor=[0.5,0.5]; omitted drawable dimensions use asset intrinsic dimensions; global ascending Z, omitted Z=0, later declaration wins ties; parent opacity is not inherited. | Exact types, finite/range rules, negative scale, graph edge cases, reference rules, defaults provenance, and cross-renderer pixel behavior. |
+| `/nodes/{i}/interaction` | v0.4 only: object containing only optional boolean `hover`, `tap`, `click`; omitted settings/flags are disabled. | Validator rejects unknown direct interaction keys. Runtime events are data-only; hit testing is rectangular and top drawable blocks input. Importer records explicit declarations. | **Approved direction:** v1 uses capability identifier `org.motionpack.interaction`; per-node opt-in notifications; variant may replace the whole interaction object. | Capability declaration/derivation, host/renderer support, event guarantees, and migration of v0.4 interaction declarations. |
+| `/clips/{clipName}` | Dynamic clip names; documented duration, optional boolean `loop` (default false), node tracks, effects, optional IK tracks. | Importer preserves sparse presence. Duration cap 3,600,000 ms is current validator behavior, not yet a v1 limit. | **Approved S4 direction:** positive integer duration ms; omitted loop false; finite nonnegative sample time; loop wraps modulo duration, non-loop clamps and holds final pose at duration; host owns ended/next-clip. | Maximum duration, field closure, fractional-ms handling, default provenance, and error behavior. |
+| `/clips/{name}/tracks/{i}` | Node track shape seen as `node`, `property`, `keys`; properties currently include x/y/rotation/opacity/uniform scale. | Evaluator currently applies segment smoothstep and holds endpoint values; observed behavior is not automatically a format rule. Importer keeps sparse records. | **Approved S4 direction:** at least one key; finite numeric values and times in inclusive [0,duration], strictly increasing; smoothstep for numeric properties (rotation scalar); hold nearest key outside keyed span. | Property-specific ranges, numeric representation/precision, unknown properties, and any future interpolation selector. |
+| `/clips/{name}/tracks/{i}/keys/{j}` | Observed key fields `time_ms`, `value`; no complete closed field set in v0.x. | Validator checks ordering/range and selected values. Keep unknown nested fields unclassified. | Apply approved S4 sampling semantics only after exact v1 key grammar is decided. | Exact JSON number limits, fractional milliseconds, duplicate-key behavior, and malformed-key error categories. |
+| `/clips/{name}/ik_tracks/{i}`, `/iks/{i}` | IK is documented from v0.2; chains include IDs/limbs/lengths/target and optional bend/weight; IK tracks animate axes. | Current validator/runtime do not version-gate IK. Thus v0.1 IK may be accepted by implementation despite the spec delta. Missing v0.2+ weight and observed bend defaults are exposed as provenance-bearing implementation facts. A synthetic relabeled fixture is not historical v0.1 evidence. | Capability identifier `org.motionpack.ik.two-bone` is selected. v0.1 IK remains preserved with warning and uninterpreted. | Exact v1 IK field mapping/capability requirements, chain graph rules, numeric limits, interaction with variants/effects, and whether observed defaults become v1 semantics. |
+| `/clips/{name}/effects/{i}` | Documented declarative `beam`, `ring`, `burst` attached to nodes; full parameter grammar is not specified. | Omitted burst count has observed implementation default 28; authored zero is distinguishable and currently draws zero. Neither observation alone fixes v1 meaning. | **Approved S5 directions:** integer start >=0, positive integer duration, end within clip, inclusive active interval after S4 normalization; offset is node-local/world-transformed; beam target and ring/burst radius use canvas logical coordinates without source-node scale. Geometry/time/coordinate meaning is format-level; pixel realization is renderer-profile-specific. | Field/type grammar, parameter units/ranges/defaults, authored-zero semantics, IK/effect evaluation order, and renderer profile requirements. |
+| `/variants/{name}/nodes/{nodeId}` | Sparse overlay keyed by dynamic variant/node IDs; v0.x nested overlay field set is not closed. | Importer preserves sparse fields. | **Approved S5 direction:** overlay may set asset, x/y, width/height, rotation, scale, opacity, z, anchor, interaction; cannot change ID or parent. Shallow merge; supplied interaction replaces whole object. Variant wins same-node/property clip-track conflict. | Interaction of variant with IK/other stages, validation of unknown overlay fields, and loss disposition for unrecognized overlay data. |
+| `/defaults` | Seen as initial clip/variant selectors; extra keys are not rejected by the general permissive v0.x validator. | Importer retains sparse fields. | Included in v1-shaped core inventory. | Requiredness, references, absent-value behavior, unknown-key policy, and canonical ordering. |
+| `/capabilities/required[]`, `/capabilities/optional[]` | Not part of v0.1–v0.4 manifest contract; an experimental manifest-only v1 preflight prototype exists. | Prototype recognizes selected IDs but is not integrated into package reader or proof of v1 conformance. | **Approved direction:** required/optional lists; unknown core/required fails safely; unsupported optional may be ignored only under an explicit safe-ignore rule. | Identifier grammar, duplicates/overlap, ownership/registry, declaration vs derivation, safe-ignore conditions, and preflight errors. |
+| `/extensions/{reverseDomainKey}` | No equivalent closed v0 schema. | v0 importer retains unknown manifest fields but does not classify all nested unknowns. | **Approved direction:** reverse-domain keys; JSON values retain semantic value and are canonicalized. | Key grammar/ownership, extension schema validation, JSON duplicate keys/numeric equivalence/Unicode, canonical encoding. |
+| ZIP entries and metadata | v0 package is a ZIP with root `manifest.json`, referenced assets, and optional opaque `source/` files. | Importer retains accepted regular-file payload bytes, not compression representation, ordering, timestamps, permissions, comments, extra fields, directories, or other container layout. | **Approved direction D3:** canonical manifest bytes and deterministic complete ZIP output; input ZIP metadata is not preserved. | Entry/path/type/count/size limits, ordering, timestamps, permissions, compression settings, comments, extra fields, directory entries, and deterministic treatment of opaque payloads. |
+
+## Version-by-version migration evidence map
+
+The matrix below records the source evidence classes to consult. It does not claim that every v0 construct has a final v1 mapping.
+
+| Source version | Version-specific additions / relevant evidence | Migration handling supported by current decisions | Evidence boundary |
+|---|---|---|---|
+| **v0.1** | Base package: canvas, local assets, nodes, clips/tracks, effects, sparse variants/defaults. SVG root dimensions may be omitted. | Preserve exact manifest/payload bytes and sparse values. Dimensionless SVG must not receive guessed dimensions. Any v0.1 IK is retained, warned, and uninterpreted. | Fixture `tests/fuzz_corpus/archive_reader/valid_v01.motionpack` is SHA-pinned. Synthetic relabeling of a v0.2 IK fixture is not evidence of a historical v0.1 IK package. |
+| **v0.2** | Adds two-bone IK and IK tracks; omitted IK weight documented as 1. Dimensionless SVG remains accepted. | Preserve sparse authored data; expose only separately provenance-bearing defaults supported by importer evidence. | Fixture `tests/fuzz_corpus/archive_reader/valid_v02.motionpack` is SHA-pinned. Omitted bend=1 is observed implementation behavior, not a documented v0.2 rule. |
+| **v0.3** | Adds the SVG dimension validation profile: positive numeric px width/height, edge <=8192 and area <=16 MP. | Preserve source and record the profile; do not reclassify this validator profile as playback capability. | Fixture `tests/fixtures/compatibility_archive_reader/valid_v03.motionpack` is SHA-pinned. |
+| **v0.4** | Adds per-node optional interaction booleans. | Preserve explicit sparse interaction data; omitted flags remain absent in source and may be shown as effective false with provenance under the importer view. | Fixture `tests/fixtures/compatibility_archive_reader/valid_v04.motionpack` is SHA-pinned. |
+
+For the complete per-field importer findings, consult `LEGACY_IMPORT_SNAPSHOT.md`, `NORMALIZED_LEGACY_MODEL.md`, `V01_TO_V1_MIGRATION_PROPOSAL.md`, and `V0_FEATURE_INVENTORY.md`. Do not treat the importer’s current `unsupported` label as a normative rejection or loss.
+
+## Conformance work to derive after semantics are decided
+
+These are test-planning prompts, not expected normative outcomes until the relevant rule is approved:
+
+1. **Schema and references:** valid/invalid JSON types, requiredness, unknown core fields, duplicate JSON keys, IDs/references, parent cycles, and dynamic map keys.
+2. **Version migration:** one native fixture per v0.1–v0.4 version; sparse versus effective values with provenance; dimensionless legacy SVG; v0.1 IK mismatch; unknown nested field retention; explicit v0.4 interaction.
+3. **Evaluation:** parent transform composition, global Z tie order, parent opacity, omitted dimensions, track key boundaries, exact loop duration, non-loop duration, variant-track precedence, and variant/IK cases after those rules are decided.
+4. **Effects:** start/end inclusive boundaries, S4 wrap/clamp normalization, coordinate-space examples, unknown parameters, authored `count: 0`, omitted count, and renderer-profile-specific visual expectations.
+5. **Package/capability/errors:** unknown required and optional capabilities under chosen safe-ignore rules; opaque extension preservation; ZIP path/type/size bounds; deterministic full archive bytes; stable error stage/category; failed save leaves no output; loss confirmation bound to the exact source and conversion plan.
+6. **Round trip:** v1 write/read/write byte reproducibility and semantic preservation, plus explicit report and confirmation for any loss.
+
+Each case must cite a source requirement or remain marked **decision pending**. Do not turn an implementation observation into a normative expected value without a recorded decision.
+
+## Evidence references and limitations
+
+- `docs/FORMAT_SPEC.md` — experimental v0.1–v0.4 stated rules.
+- `docs/V0_FEATURE_INVENTORY.md` — version delta, code/test evidence, current limits.
+- `docs/V01_TO_V1_MIGRATION_PROPOSAL.md` — evidence labels, preservation layers, migration policy and proposal vocabulary.
+- `docs/LEGACY_IMPORT_SNAPSHOT.md`, `docs/NORMALIZED_LEGACY_MODEL.md` — experimental importer boundary.
+- `tools/validate.py`, `tools/legacy_importer.py`, `tools/v1_capability_preflight.py`, `runtime/evaluator.js`, `runtime/ik_solver.js`, `runtime/viewer.js` — implementation evidence; inspect the exact function and tests before using any behavior as evidence.
+- Pinned v0.1–v0.4 fixtures and referenced tests are listed in `V0_FEATURE_INVENTORY.md`.
+
+Repository fixtures do not represent every external package or asset. The inventory is documentation evidence, not a security certification, cross-renderer guarantee, full compatibility audit, or declaration that the v1 contract is frozen.
+
+## Review and rollback
+
+Architect review must confirm coverage and evidence traceability before this crosswalk is used to update the normative specification. Revert this document if its evidence model is rejected. No legacy fixture, source asset, format behavior, or reader/writer implementation is changed.
