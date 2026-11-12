@@ -85,7 +85,11 @@ The maintainer approved these v1 sampling rules. They do not define host schedul
 - For a looping clip, sample time `duration_ms` as time zero. For a non-looping clip, sample and hold the final pose at `duration_ms`.
 - A host player owns `ended` notifications and decisions about what clip to play next; those are not package sampling semantics.
 
-Still open: empty-track behavior, normalization of requested sample times beyond clip duration, the v1 default when `loop` is omitted (the v0.x default `false` is not automatically inherited), maximum v1 clip duration, precision/representation limits for fractional-millisecond key times, property-specific numeric ranges and invalid-value behavior, and interaction with effect/IK sampling limits. These choices establish a sampling contract, not wall-clock scheduling or renderer pixel equivalence.
+- Every track must contain at least one key; an empty `keys` array is invalid.
+- When `loop` is omitted, its effective v1 value is `false`; preserve the authored omission separately from the effective value.
+- A requested sample time must be finite and nonnegative. For looping clips, normalize it modulo `duration_ms` into `[0, duration_ms)`; for non-looping clips, clamp values above duration to `duration_ms`. Exact duration on a looping clip therefore samples time zero; negative values are invalid.
+
+Still open: maximum v1 clip duration, precision/representation limits for fractional-millisecond key times, property-specific numeric ranges and invalid-value behavior, and interaction with effect/IK sampling limits. These choices establish a sampling contract, not wall-clock scheduling or renderer pixel equivalence.
 
 ## Remaining normative contract blockers
 
