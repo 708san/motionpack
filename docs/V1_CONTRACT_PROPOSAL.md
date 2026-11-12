@@ -68,6 +68,37 @@ Across all versions, the importer currently keeps original manifest bytes and re
 
 The experimental effective-default view currently reports: clip `loop=false` for v0.1–v0.4; IK `weight=1` for v0.2–v0.4; IK `bend=1` as an implementation observation for v0.2–v0.4; burst `count=28` as an implementation observation for v0.1–v0.4 when absent; and v0.4 interaction flags as disabled when absent. These are source-version facts with provenance. They are not automatically v1 defaults, and authored values remain distinct from omitted values.
 
+## Read-only importer evidence inventory (non-normative)
+
+This inventory records what the current legacy importer and its tests demonstrate. It is evidence for future contract and conformance work; it does not define v1 mappings or change v0.1–v0.4 behavior.
+
+| Area | Existing implementation/test evidence | Limit of this evidence |
+|---|---|---|
+| Source package preservation | `test_read_only_snapshots_preserve_all_v01_to_v04_payloads` builds v0.1–v0.4 inputs, retains the original manifest bytes and every accepted regular-file payload byte (including opaque `source/original.bin`), and checks that import does not mutate the input. Snapshot mappings are immutable. | ZIP metadata, directory-only entries, and container layout are not retained. This is the importer’s current behavior, not an approved v1 package policy. |
+| Sparse fields and locations | `test_normalized_view_projects_sparse_fields_and_provenance` checks authored field presence for nodes, clips, tracks, defaults, and source JSON pointers. Omitted fields remain omitted in the projected authored values. | The projection is not a complete v1 object model; it does not decide how v1 represents these fields. |
+| Root-level unknown fields | The preservation test injects an unknown top-level field. The raw manifest retains it, and the migration report marks it `unsupported` with no normalized target. | This is the read-only importer’s projection report. A future v1 reader/writer still needs an explicit preservation and save policy. |
+| Nested unknown fields | The same test injects an unknown nested node field. It remains available in the preserved manifest and node fields, with no migration finding emitted for it. | Nested unknown fields are preserved but not semantically classified by the current importer. |
+| Version-specific source facts | `test_report_source_facts_are_deterministic_and_source_only` checks repeatable source-fact and migration reports for v0.1–v0.4, including the v0.3+ SVG-dimension validation-profile fact and the v0.4 interaction declaration fact. | These facts describe source versions and observed declarations. They do not authorize mapping every declaration to a v1 capability or guarantee runtime parity. |
+| Sparse defaults and provenance | Dedicated tests cover omitted clip `loop=false`; burst `count=28` as an implementation observation; IK `weight=1` as a v0.2+ specification default; IK `bend=1` as a v0.2+ implementation observation; and v0.4 interaction flags defaulting to disabled. Each effective value is kept separately with a source pointer and rule provenance. | None of these observations is automatically a v1 default. Authored presence and effective values must remain distinct unless an explicit v1 decision says otherwise. |
+| Ambiguous v0.1 IK | `test_v01_ik_is_normalized_with_spec_mismatch_diagnostic` checks that v0.1 IK bytes and sparse fields are preserved, a specification-mismatch diagnostic is emitted, and the migration finding is `preserved_uninterpreted` with no v1 semantic target. | This is a known specification/implementation mismatch. It must not be converted into a v1 meaning by inference. |
+| Deterministic reporting | The source-fact test imports each version twice and compares the findings and source facts. | Deterministic reports for these fixtures do not define canonical manifest serialization or deterministic archive bytes. |
+
+### Candidate v1 conformance cases
+
+These are future test targets, not currently passing v1 tests. Expected outcomes remain conditional wherever the contract choices below are open.
+
+- Minimal valid v1 package and boundary-invalid manifest cases, after the v1 core field inventory and validation rules are approved.
+- Reject an unknown core field and an unknown required capability before reading referenced asset payloads.
+- Ignore an unknown optional capability only when the approved safe-ignore rule applies; otherwise reject it.
+- Preserve an opaque extension payload across read and write without assigning it meaning.
+- Verify the approved canonicalization level. If canonical manifest bytes are selected, pin UTF-8, JSON normalization, key ordering, number form, and newline behavior. If whole-ZIP reproducibility is selected, also pin every relevant ZIP entry and container attribute.
+- Exercise each v0.1–v0.4 fixture through the importer and v1 migration report, including unknown top-level and nested fields, opaque `source/` payloads, sparse defaults, dimensionless legacy SVGs, and the v0.1 IK mismatch.
+- For each reported migration loss, verify source pointer/payload identity and conversion action; ensure an unconfirmed lossy write creates no output and leaves the source unchanged.
+- Verify that a confirmation becomes invalid after either the source bytes or conversion plan changes.
+- Read back every accepted writer output and compare preserved data, normalized values, and the agreed canonicalization evidence.
+
+No v1 writer, integrated v1 reader, or v1 normative conformance suite is present yet. Track these cases as planning requirements until a frozen contract makes their expected results unambiguous.
+
 ## Contract decisions required beyond the three choices
 
 Before implementation is called conformant, the normative contract still needs decisions for:
