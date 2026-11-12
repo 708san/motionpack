@@ -2,7 +2,7 @@
 
 **Status: not approved for v1.0 release or announcement.** This register maps the governed release gates to evidence and claim limits. It does not change the format contract, select a license, approve residual security risks, or authorize publication.
 
-Audited against GitHub `main` at `60bd3ad0fc89e02ab70635cb6e1d3baf59c5a673` on 2026-11-12. Recheck every status against the release candidate before publication.
+Audited against GitHub `main` at `1f4283cab58abd9825337d63fe1c29dfc1279ff6` on 2026-11-12. The maintainer-selected minimum v1.0 scope is a stable format, reader/validator, and loss-aware writer; GUI and AI authoring are outside the core scope. The v1 contract remains a proposal in [PR #121](https://github.com/708san/motionpack/pull/121), with schema decisions still open. Human artwork and motion review is tracked in [Issue #122](https://github.com/708san/motionpack/issues/122). Recheck every status against the release candidate before publication.
 
 ## Release gates
 
@@ -40,4 +40,5 @@ The release manager should attach links to the release-candidate commit, require
 - [Legacy import snapshot](LEGACY_IMPORT_SNAPSHOT.md)
 - [Candidate asset-rights inventory](ASSET_RIGHTS_INVENTORY.md)
 - [Version-by-version feature inventory](V0_FEATURE_INVENTORY.md)
+- [v1 contract milestone](https://github.com/708san/motionpack/issues/120)
 - [README and current product claims](../README.md)
