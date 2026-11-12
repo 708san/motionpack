@@ -272,6 +272,8 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
     ``read_package_in_process`` only when in-process parsing is intentional.
     Set ``include_entries=True`` to retain all regular-file payloads (including
     opaque source entries); the complete framed response remains capped at 40 MiB.
+    On Windows, worker-tree cleanup may extend the requested timeout by up to five
+    seconds; if the job cannot be confirmed empty, the temporary snapshot is retained.
     """
     limits = limits or ReaderLimits()
     if not isinstance(limits, ReaderLimits):
