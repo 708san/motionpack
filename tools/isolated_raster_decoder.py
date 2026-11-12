@@ -297,6 +297,7 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
         raise RasterDecodeWorkerFailure("unable to start raster decoder worker") from exc
     job = None
     worker_cleaned = False
+    job_reap_failed = False
     cleanup_error = None
     output = tempfile.TemporaryFile(mode="w+b", dir=str(temp_dir))
     overflow = threading.Event()
@@ -358,6 +359,7 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
             kill_worker(process, cleanup_job)
         except BaseException as error:
             cleanup_error = error
+            job_reap_failed = cleanup_job is not None and os.name == "nt"
         else:
             worker_cleaned = True
         raise
@@ -371,8 +373,10 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
             except BaseException as error:
                 if cleanup_error is None:
                     cleanup_error = error
+                job_reap_failed = cleanup_job is not None and os.name == "nt"
             else:
-                worker_cleaned = True
+                if cleanup_job is not None or os.name != "nt" or not job_reap_failed:
+                    worker_cleaned = True
         if writer is not None:
             writer.join(1.0)
         reader_stopped = stop_output_reader(reader, reader_stop) if reader.is_alive() else True
