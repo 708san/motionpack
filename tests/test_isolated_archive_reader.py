@@ -126,6 +126,35 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                 kill_worker(process)
         self.assertEqual(process.wait_timeout, 5)
 
+    def test_reader_preserves_temp_when_worker_reaping_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pid_file = pathlib.Path(tmp) / "worker.pid"
+            temp_path_file = pathlib.Path(tmp) / "isolated-temp-path.txt"
+            worker = self._fake_worker(
+                tmp,
+                "import os, pathlib, time\\n"
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()))\\n"
+                f"pathlib.Path({str(temp_path_file)!r}).write_text(str(pathlib.Path(request['snapshot_path']).parent))\\n"
+                "time.sleep(1)\\n",
+            )
+            with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
+                with mock.patch("isolated_archive_reader._windows_job", return_value=None):
+                    with mock.patch(
+                        "isolated_archive_reader._kill_worker",
+                        side_effect=TimeoutError("simulated worker reaping failure"),
+                    ):
+                        with self.assertRaisesRegex(
+                            TimeoutError, "simulated worker reaping failure"
+                        ) as raised:
+                            read_package_isolated(
+                                self._input_file(tmp), timeout=0.5
+                            )
+            temp_path = pathlib.Path(temp_path_file.read_text())
+            self.assertIn(str(temp_path), raised.exception.__notes__[0])
+            self.assertTrue(temp_path.exists())
+            self._assert_pid_exited(int(pid_file.read_text()))
+            shutil.rmtree(temp_path)
+
     def test_unconfirmed_worker_cleanup_preserves_temporary_data(self):
         temporary_directory = _PreservableTemporaryDirectory(
             prefix="motionpack-isolated-test-"
