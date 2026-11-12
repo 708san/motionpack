@@ -95,10 +95,12 @@ Still open: maximum v1 clip duration, precision/representation limits for fracti
 
 The maintainer approved these limited v1 directions. They do not change v0.x behavior or define the full v1 schema:
 
-- If a selected variant and a clip track specify the same node property, the variant wins. The current evaluator applies the variant before tracks, so v1 must preserve the approved precedence without silently changing legacy behavior.
+- Variant overlays may set `asset`, `x`, `y`, `width`, `height`, `rotation`, `scale`, `opacity`, `z`, `anchor`, and `interaction`. They cannot change node identity or parentage.
+- Apply a shallow per-node merge: an overlay field absent from the selected variant retains the base node value. If an overlay supplies `interaction`, it replaces the entire base interaction object; flags omitted from that replacement object are disabled.
+- If a selected variant and a clip track specify the same node property, the variant wins in v1. The current v0.x evaluator merges variant values and then applies clip tracks, so the track currently wins; v1 must reverse that conflict resolution without changing v0.x behavior.
 - Effect `offset` is node-local and transformed through the node's world transform. Beam `target` and ring/burst `radius` use canvas logical coordinates and are not scaled by the source node transform, matching the current preview's coordinate split.
 
-Still open: the variant overlay field set, omitted-field/default behavior, merge rules, and precedence against IK or other evaluation stages; effect field grammar, units, parameter ranges/defaults, timing and renderer appearance; and cross-renderer conformance. These directions do not promise pixel-identical output.
+Still open: interaction with IK or other evaluation stages; effect field grammar, units, parameter ranges/defaults, timing and renderer appearance; and cross-renderer conformance. These directions do not promise pixel-identical output.
 
 ## Remaining normative contract blockers
 
@@ -156,7 +158,7 @@ The following details remain open even after the approved directions above:
 
 - Complete v1 core fields, types, ranges, reference integrity, collection ordering, and closed field sets.
 - Maximum clip duration, fractional-millisecond precision/representation limits, property-specific numeric ranges, and remaining effect/IK timing interactions.
-- Remaining variant overlay fields/defaults/merge behavior and interaction with IK; only same-property variant-over-track precedence is approved. Remaining effect fields, units, parameter ranges/defaults, timing interactions, renderer appearance, and conformance; only the stated coordinate split is approved.
+- Variant overlay fields, sparse merge behavior, interaction replacement semantics, and same-property precedence are approved as described above; interaction with IK remains open. Effect fields, units, parameter ranges/defaults, timing interactions, renderer appearance, and conformance remain open; only the stated coordinate split is approved.
 - Exact interaction field meanings and whether v1 guarantees cross-renderer event/hit-test behavior. The full v0.4 feature surface is in scope, but current preview behavior is not automatically normative.
 - Capability identifier grammar, required/optional declaration rules, registry ownership, and exact safe-ignore rules.
 - S3 numeric domains and invalid-value behavior for transforms, opacity and z; negative-scale support; and any further graph/reference rules.
