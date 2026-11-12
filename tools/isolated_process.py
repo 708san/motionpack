@@ -97,6 +97,57 @@ def windows_job(process, memory_limit_bytes):
 
 
 def kill_worker(process, windows_job=None):
+    if os.name == "nt" and windows_job is not None:
+        from ctypes import wintypes
+
+        class BasicAccountingInformation(ctypes.Structure):
+            _fields_ = [
+                ("TotalUserTime", ctypes.c_longlong),
+                ("TotalKernelTime", ctypes.c_longlong),
+                ("ThisPeriodTotalUserTime", ctypes.c_longlong),
+                ("ThisPeriodTotalKernelTime", ctypes.c_longlong),
+                ("TotalPageFaultCount", wintypes.DWORD),
+                ("TotalProcesses", wintypes.DWORD),
+                ("ActiveProcesses", wintypes.DWORD),
+                ("TotalTerminatedProcesses", wintypes.DWORD),
+            ]
+
+        handle, close_handle = windows_job
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        kernel32.TerminateJobObject.restype = wintypes.BOOL
+        kernel32.QueryInformationJobObject.argtypes = [
+            wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD),
+        ]
+        kernel32.QueryInformationJobObject.restype = wintypes.BOOL
+
+        try:
+            if not kernel32.TerminateJobObject(handle, 1):
+                error = ctypes.get_last_error()
+                raise OSError(error, "terminating Windows worker job failed")
+            while True:
+                accounting = BasicAccountingInformation()
+                if not kernel32.QueryInformationJobObject(
+                    handle, 1, ctypes.byref(accounting),
+                    ctypes.sizeof(accounting), None,
+                ):
+                    error = ctypes.get_last_error()
+                    raise OSError(error, "querying Windows worker job failed")
+                if accounting.ActiveProcesses == 0:
+                    break
+                time.sleep(0.01)
+        finally:
+            # Close even if a job API call fails. This also invokes the configured
+            # kill-on-close fallback when termination could not be confirmed.
+            if not close_handle(handle):
+                error = ctypes.get_last_error()
+                raise OSError(error, "closing Windows worker job handle failed")
+
+        if process.poll() is None:
+            process.wait()
+        return
+
     if os.name == "nt":
         if process.poll() is None:
             try:
@@ -120,55 +171,6 @@ def kill_worker(process, windows_job=None):
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
-    if windows_job is not None:
-        handle, close_handle = windows_job
-        if os.name == "nt":
-            from ctypes import wintypes
-
-            class BasicAccountingInformation(ctypes.Structure):
-                _fields_ = [
-                    ("TotalUserTime", ctypes.c_longlong),
-                    ("TotalKernelTime", ctypes.c_longlong),
-                    ("ThisPeriodTotalUserTime", ctypes.c_longlong),
-                    ("ThisPeriodTotalKernelTime", ctypes.c_longlong),
-                    ("TotalPageFaultCount", wintypes.DWORD),
-                    ("TotalProcesses", wintypes.DWORD),
-                    ("ActiveProcesses", wintypes.DWORD),
-                    ("TotalTerminatedProcesses", wintypes.DWORD),
-                ]
-
-            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-            kernel32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
-            kernel32.TerminateJobObject.restype = wintypes.BOOL
-            kernel32.QueryInformationJobObject.argtypes = [
-                wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
-                ctypes.POINTER(wintypes.DWORD),
-            ]
-            kernel32.QueryInformationJobObject.restype = wintypes.BOOL
-
-            try:
-                if not kernel32.TerminateJobObject(handle, 1):
-                    error = ctypes.get_last_error()
-                    raise OSError(error, "terminating Windows worker job failed")
-                while True:
-                    accounting = BasicAccountingInformation()
-                    if not kernel32.QueryInformationJobObject(
-                        handle, 1, ctypes.byref(accounting),
-                        ctypes.sizeof(accounting), None,
-                    ):
-                        error = ctypes.get_last_error()
-                        raise OSError(error, "querying Windows worker job failed")
-                    if accounting.ActiveProcesses == 0:
-                        break
-                    time.sleep(0.01)
-            finally:
-                # Closing the final handle retains the Job Object's kill-on-close
-                # fallback if termination or accounting queries fail.
-                if not close_handle(handle):
-                    error = ctypes.get_last_error()
-                    raise OSError(error, "closing Windows worker job handle failed")
-        else:
-            close_handle(handle)
 
 
 def read_bounded_output(stream, output, overflow, process, max_bytes):
