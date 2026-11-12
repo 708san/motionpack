@@ -76,7 +76,9 @@ def windows_job(process, memory_limit_bytes):
         flags = 0x00002000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
         if memory_limit_bytes:
             flags |= 0x00000100  # JOB_OBJECT_LIMIT_PROCESS_MEMORY
+            flags |= 0x00000200  # JOB_OBJECT_LIMIT_JOB_MEMORY
             information.ProcessMemoryLimit = memory_limit_bytes
+            information.JobMemoryLimit = memory_limit_bytes
         information.BasicLimitInformation.LimitFlags = flags
         if not kernel32.SetInformationJobObject(
             job, 9, ctypes.byref(information), ctypes.sizeof(information)

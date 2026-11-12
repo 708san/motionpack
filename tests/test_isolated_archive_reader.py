@@ -18,11 +18,12 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import archive_reader
 from archive_reader import ArchiveError, ReaderLimits, read_package as read_package_in_process
-from isolated_process import kill_worker, read_bounded_output, stop_output_reader
+from isolated_process import kill_worker, read_bounded_output, stop_output_reader, windows_job
 from isolated_archive_reader import _snapshot_archive
 from isolated_archive_reader import (
     IsolatedReadTimeout,
     IsolatedResourceLimit,
+    IsolatedWorkerFailure,
     UnsupportedMemoryLimit,
     read_package_isolated,
 )
@@ -565,6 +566,103 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                         self._input_file(tmp),
                         timeout=20, memory_limit_bytes=512 * 1024 * 1024,
                     )
+
+    @unittest.skipUnless(os.name == "nt", "Windows Job Object enforcement check")
+    def test_windows_job_limit_blocks_combined_worker_child_commit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = pathlib.Path(tmp) / "child-memory-result"
+            worker = self._fake_worker(
+                tmp,
+                "import pathlib, subprocess, sys\n"
+                "parent = bytearray(96 * 1024 * 1024)\n"
+                "for offset in range(0, len(parent), 4096): parent[offset] = 1\n"
+                "child_code = ("
+                "'import sys\\ntry:\\n'"
+                "' data=bytearray(96 * 1024 * 1024)\\n'"
+                "' for offset in range(0, len(data), 4096): data[offset]=1\\n'"
+                "' print(\\'allocated\\')\\n'"
+                "'except MemoryError:\\n print(\\'blocked\\')\\n'"
+                ")\n"
+                "child = subprocess.run("
+                "[sys.executable, '-c', child_code], capture_output=True, "
+                "text=True, timeout=15, check=False)\n"
+                f"pathlib.Path({str(marker)!r}).write_text(child.stdout.strip(), encoding='utf-8')\n"
+                "raise SystemExit(7)\n",
+            )
+            with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
+                with self.assertRaises(IsolatedWorkerFailure):
+                    read_package_isolated(
+                        self._input_file(tmp),
+                        timeout=20, memory_limit_bytes=192 * 1024 * 1024,
+                    )
+            self.assertEqual(
+                marker.read_text(encoding="utf-8"),
+                "blocked",
+                "the worker and child must share the Windows Job Object memory budget",
+            )
+
+    @unittest.skipUnless(os.name == "nt", "Windows Job Object policy check")
+    def test_windows_job_sets_shared_committed_memory_limit(self):
+        import ctypes
+        from ctypes import wintypes
+
+        class BasicLimitInformation(ctypes.Structure):
+            _fields_ = [
+                ("PerProcessUserTimeLimit", ctypes.c_longlong),
+                ("PerJobUserTimeLimit", ctypes.c_longlong),
+                ("LimitFlags", wintypes.DWORD),
+                ("MinimumWorkingSetSize", ctypes.c_size_t),
+                ("MaximumWorkingSetSize", ctypes.c_size_t),
+                ("ActiveProcessLimit", wintypes.DWORD),
+                ("Affinity", ctypes.c_size_t),
+                ("PriorityClass", ctypes.c_ulong),
+                ("SchedulingClass", ctypes.c_ulong),
+            ]
+
+        class IoCounters(ctypes.Structure):
+            _fields_ = [(name, ctypes.c_ulonglong) for name in (
+                "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
+            )]
+
+        class ExtendedLimitInformation(ctypes.Structure):
+            _fields_ = [
+                ("BasicLimitInformation", BasicLimitInformation),
+                ("IoInfo", IoCounters),
+                ("ProcessMemoryLimit", ctypes.c_size_t),
+                ("JobMemoryLimit", ctypes.c_size_t),
+                ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                ("PeakJobMemoryUsed", ctypes.c_size_t),
+            ]
+
+        limit = 512 * 1024 * 1024
+        process = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        job = None
+        try:
+            job = windows_job(process, limit)
+            handle, _ = job
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.QueryInformationJobObject.argtypes = [
+                wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+                ctypes.POINTER(wintypes.DWORD),
+            ]
+            kernel32.QueryInformationJobObject.restype = wintypes.BOOL
+            information = ExtendedLimitInformation()
+            if not kernel32.QueryInformationJobObject(
+                handle, 9, ctypes.byref(information), ctypes.sizeof(information), None,
+            ):
+                raise OSError(ctypes.get_last_error(), "QueryInformationJobObject failed")
+
+            self.assertTrue(
+                information.BasicLimitInformation.LimitFlags & 0x00000200,
+                "JOB_OBJECT_LIMIT_JOB_MEMORY must cap the combined committed memory",
+            )
+            self.assertEqual(information.JobMemoryLimit, limit)
+        finally:
+            kill_worker(process, job)
 
     @unittest.skipUnless(sys.platform == "darwin", "macOS policy check")
     def test_mac_os_rejects_explicit_hard_memory_limit(self):
