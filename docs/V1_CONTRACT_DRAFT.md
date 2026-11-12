@@ -83,15 +83,15 @@ The writer should have a no-output preflight stage and a separate commit-to-disk
 2. Produce a deterministic field-level loss report, including JSON pointers and payload hashes where applicable.
 3. Bind confirmation to the source digest and the exact migration-plan/loss-report digest.
 4. If the report contains no losses or semantic reinterpretations, no loss confirmation is required. Otherwise reject missing, stale, or incomplete confirmation before creating or replacing the destination.
-5. Validate the v1 model before staging. After confirmation when required, write a temporary package, re-read it with the v1 reader, and publish it to the destination only after validation.
-6. Write to a new destination by default; do not replace the source package in place.
-7. Re-read the output with the v1 reader and compare canonical manifest values, opaque extensions, and asset hashes.
+5. Validate the v1 model in memory.
+6. After confirmation when required, write a temporary package beside the destination. Re-read the temporary package with the v1 reader and compare canonical manifest values, opaque extensions, and asset hashes.
+7. Atomically publish the verified temporary package to a new destination by default; do not replace the source package in place. Failure before publication leaves the source and any existing destination unchanged.
 
 Any source or plan change invalidates prior confirmation. A loss report must never claim that retaining opaque bytes means the field is supported.
 
 The exact Python API and whether confirmation selects individual losses or accepts the complete report remain open. Unsupported items block output unless the caller explicitly elects a listed lossy omission and confirms it. A proposed API must make the confirmation step explicit and difficult to call accidentally.
 
-The proposed staging model is to validate the model in memory, then—after any required loss confirmation—write a temporary package beside the destination, read it back with the v1 reader, and atomically publish it only after validation. Failure must leave both source and destination unchanged; portability and filesystem guarantees for atomic replacement need to be specified.
+The staging model above is the proposed single publication sequence. Atomic replacement guarantees and portability across supported filesystems still need to be specified.
 
 ## Manifest-first read order
 
