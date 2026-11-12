@@ -67,7 +67,7 @@ The maintainer also approved these directions for Issue #120. They guide the pro
 
 - **Loss reporting and confirmation:** use itemized conceptual entries identifying source location, changed information, and proposed conversion action/reason. Report and obtain confirmation before creating output; then stage a temporary ZIP in the destination directory, validate it, and atomically publish it. On failure, remove temporary output and leave any existing destination unchanged. Bind confirmation with SHA-256 over original manifest bytes, each retained entry’s normalized path and exact payload bytes in path order, and canonical bytes of the output-affecting conversion plan; input ZIP metadata and destination path are excluded. Public report/API fields, digest framing, canonical plan schema, cleanup-failure handling, concurrency, durability, and platform-specific atomic-publication details remain open.
 - **Package writing and reading:** use `ZIP_STORED` and the selected canonical ZIP profile: reject non-NFC names and selected unsafe path forms without normalization; retain accepted names unchanged; reject Windows reserved device names, trailing dots/spaces and control characters; fix entry order and metadata; emit ZIP64 only when required; require v1 readers to accept ZIP64. Exact numeric creator/version fields, canonical ZIP64 encoding/thresholds, format-wide bounds, precise Windows-name grammar, and accepted ZIP64 input variants remain open.
-- **Assets:** define static SVG, PNG, JPEG, and WebP content profiles and inspect content rather than extensions. For v1 PNG, the maintainer selected bounded chunk-structure and CRC validation, requiring IDAT and IEND before host pixel decoding; the host decoder remains responsible for full pixel decoding. This is v1-only and does not change v0.x signature/IHDR-only preflight behavior. Keep host decoder/time/memory ceilings separate from format validity and distinguish host-limit failures. Exact chunk ordering/allowed types, unknown ancillary handling, trailing bytes, other raster completeness checks, SVG grammar, metadata/color policy, isolation guarantees, and format bounds remain open for Architect review. APNG is selected for rejection in v1, pending Architect review before normative text.
+- **Assets:** define static SVG/PNG/JPEG/WebP content profiles and inspect content rather than extensions. Maintainer-selected v1 raster directions: PNG chunk framing/CRC with IDAT and IEND, APNG rejected, compressed metadata retained without decompression; JPEG SOF0/SOF2 marker scan through EOI with exact EOF and DNL/other coding processes rejected; static WebP with animation rejected and exact RIFF-to-file boundary. Host pixel decoding and resource ceilings remain separate. These rules apply only to v1; v0.x behavior is unchanged. Exact marker/chunk/metadata grammar, unknown marker/chunk handling, SVG grammar, decoder isolation, and numeric resource limits remain open for Architect review.
 - **Numeric values:** permit finite decimal values with explicit per-property domains. Durations and effect timing remain integers. Exact bounds, invalid-value behavior, numeric precision/canonicalization, graph/reference rules, and maximum clip duration remain open.
 - **Capabilities and interaction:** declare supported features through capabilities. Interaction declarations are data; any event or hit-test execution guarantee is scoped to a host/runtime profile. Preserve the semantic JSON value for unknown optional feature data in `extensions[capability-id]`, canonicalizing it on serialization without promising the original lexical bytes. Ignore that capability's behavior during execution only when the value is inert, within package resource limits, and cannot override, reference, or externally load core/required-feature data. Visual/interaction effects belonging to that safely ignored capability may be omitted. Reject duplicate IDs within either capability list, IDs present in both lists, and indeterminate safe-ignore cases. Exact field grammar, resource-limit binding, reference validation, declaration/derivation, and identifier registry/ownership remain open for normative review.
 
@@ -93,6 +93,29 @@ This candidate elaborates the maintainer-selected direction in Issue #154: valid
 **Bounds and compatibility:** the PNG-defined per-chunk length ceiling is a format constraint. Encoded-asset byte, chunk-count, aggregate-raster, decoded-memory and decode-time ceilings are host resource policy unless a numeric v1 format limit is separately approved. Current tool defaults must not silently become v1 format-validity limits. The stricter completeness rule applies only to v1; v0.x retains signature/IHDR-only preflight and its existing fixtures.
 
 Primary references: [W3C PNG Third Edition, chunk layout and CRC](https://www.w3.org/TR/png-3/#chunk-layout), [chunk ordering](https://www.w3.org/TR/png-3/#chunk-ordering), [APNG structure](https://www.w3.org/TR/png-3/#apng-structure).
+
+### Candidate JPEG and static WebP profiles — non-normative
+
+These details elaborate the maintainer-selected v1 directions recorded in Issue #154. They are review candidates, not frozen format rules. Pixel decoding remains the host runtime's responsibility.
+
+**JPEG candidate:**
+
+- Accept a single SOI-to-EOI JPEG interchange stream using SOF0 baseline sequential or SOF2 progressive DCT only. Reject other frame/coding processes, DNL-defined height, a second SOI/frame, truncation, and bytes after EOI.
+- Scan marker boundaries across all scans; parse bounded length-bearing marker segments, account for stuffed FF-00 bytes and restart markers in entropy-coded data, and require at least one SOS before EOI.
+- Treat APP0–APP15 and COM payloads as opaque, bounded metadata. Do not interpret or decompress them during structural validation. Reject reserved/unrecognized markers whose framing cannot be determined safely.
+- This profile does not validate entropy-coded coefficients or prove that a host decoder can decode the image. Whether all standard APP/COM placement and multiplicity rules are enforced remains for Architect review.
+
+**Static WebP candidate:**
+
+- Require a complete RIFF/WEBP container and exact equality between the RIFF-declared end and the asset end; reject truncation and trailing bytes.
+- Accept simple still-image VP8 or VP8L form and a valid VP8X extended still form. Reject the VP8X animation flag and ANIM/ANMF chunks.
+- Require exactly one image bitstream; validate chunk boundaries and required zero padding for odd-sized RIFF chunks. For extended form, validate VP8X canvas agreement and the applicable still-image/alpha chunk relationships.
+- Keep optional ICCP, EXIF, and XMP payloads opaque during validation. Exact feature flags, allowed metadata placement, and unknown-chunk positions need Architect-reviewed conformance rules. No metadata decompression is performed by the structural scanner.
+- The container scan does not validate the VP8/VP8L compressed bitstream or guarantee identical metadata/color handling by host decoders.
+
+The v1 directions do not change current v0.x validation, including its acceptance of animated WebP and its header-focused JPEG/WebP inspection. Host limits for asset bytes, marker/chunk counts, metadata size, dimensions, decoded memory, and decode time remain distinct from format validity; exact numeric limits are still open.
+
+Primary references: [ITU-T T.81, Annex B JPEG interchange syntax](https://www.w3.org/Graphics/JPEG/itu-t81.pdf), [WebP Container Specification](https://developers.google.com/speed/webp/docs/riff_container).
 
 ## S3 approved node evaluation directions (planning record)
 
