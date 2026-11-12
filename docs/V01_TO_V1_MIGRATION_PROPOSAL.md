@@ -20,7 +20,7 @@ Primary evidence: FORMAT_SPEC.md, V0_FEATURE_INVENTORY.md, NORMALIZED_LEGACY_MOD
 2. **Sparse normalized view** — the imported manifest and normalized records retain authored values and field presence. Missing fields stay missing. This is the current read-only importer contract.
 3. **Effective semantic interpretation** — when an effective value is exposed, it appears in a separate provenance-bearing view after applying a documented or implementation-derived rule. It never overwrites the source or sparse normalized view.
 
-**Maintainer-approved separation rule (2026-11-10):** keep authored values and field presence in the sparse normalized view. Any effective value derived from a default belongs in a separate interpretation view and carries its source version, source JSON pointer or archive path, whether the field was authored, the applied rule identifier, whether the rule is documented or implementation-derived, and a confidence/status. Never write a derived value back into the sparse view or source. If no defensible rule exists, expose no effective value and report the uncertainty.
+**Maintainer-approved separation rule (2026-11-10):** keep authored values and field presence in the sparse normalized view. Any effective value derived from a default belongs in a separate interpretation view and carries its source version, source JSON pointer or archive path, whether the field was authored, the applied rule identifier, and whether the rule is documented or implementation-derived. Never write a derived value back into the sparse view or source. If no defensible rule exists, expose no effective value and report the uncertainty. A confidence/status field is a possible future report detail, not part of the approved minimum provenance rule; the current importer's `EffectiveValue` does not contain it.
 
 ## Proposed preservation and loss report
 
@@ -44,7 +44,7 @@ Each report item should identify the source location and distinguish source rete
 - **mapped** — source construct has a proposed v1 semantic counterpart.
 - **interpreted-default** — an absent field receives an effective value under a named rule; source presence remains absent.
 - **preserved-uninterpreted** — source value remains available but no semantic behavior is claimed.
-- **unsupported** — current target does not implement the construct.
+- **unsupported** — proposed target disposition for a construct the selected v1 target cannot support or map. This is distinct from the current importer's `unsupported` finding, which only means its experimental normalized projection has no mapping.
 - **ambiguous** — evidence conflicts or does not determine a safe meaning.
 - **container-unavailable** — ZIP metadata not captured by the importer.
 - **rejected** — structural, security, resource-limit, or unsupported-required-capability error prevented a complete import.
@@ -56,7 +56,7 @@ Each report item should identify the source location and distinguish source rete
 - **require-confirmation** before any future save that transforms or drops information. Without explicit confirmation before saving, do not produce a lossy save; preserve the original or cancel that save. Confirmation authorizes only the specified information loss and does not authorize semantic interpretation of ambiguous data.
 - **fail-import** for invalid, security-rejected, or resource-limit-exceeding input and, in v1, an unknown required capability before asset loading or playback.
 
-**Still unresolved:** which documented or implementation-derived rules are appropriate v1 semantic defaults, and whether the proposed report action names/fields should become a public API.
+**Still unresolved:** which additional documented or implementation-derived rules outside the approved S3/S4 directions should become v1 semantics, and whether the proposed report action names/fields should become a public API.
 
 ## Version-by-version mapping proposal
 
@@ -78,7 +78,7 @@ Each report item should identify the source location and distinguish source rete
 | Raster image inspection | **Observed tool behavior:** extension-based PNG/JPEG/WebP header dimensions; incomplete image-data validation; WebP frame accounting and configured pixel ceilings. | Preserve exact payload; store any inspection result as evidence, not decoded content. | Treat parser ceilings/results as tool validation metadata, not format-wide validity or decoder safety guarantees. | Tool profile only, subject to security review. |
 | Missing clip loop | **Documented v0.x rule and maintainer-approved v1 S4 direction:** absent `loop` means effective false; a present value must be boolean. | Retain absence vs explicit false and the source version/rule provenance. | Apply effective v1 `loop=false` when omitted, while preserving the authored omission and never materializing it into source data. | Approved v1 direction; maximum clip duration and fractional-key precision/representation remain open. |
 | Missing canvas background | **Documented/current:** optional; no universal fallback is established here. | Preserve omission. | Leave unspecified unless a target renderer profile defines a traced fallback. | Unresolved. |
-| Missing node width/height | **Observed implementation:** the preview uses intrinsic asset dimensions when a drawable size is omitted. **Maintainer-approved S3 direction:** each omitted drawable width/height uses the referenced image's intrinsic dimension for that axis. | Preserve authored omission and the asset relationship; keep any effective dimension separate from the sparse source value and attach its provenance. | Resolve an omitted drawable dimension from the referenced image's intrinsic dimension for that axis; never write the derived value back into source data. | Approved direction; renderer pixel equivalence and asset-specific decoding/resource behavior remain separate profile questions. |
+| Missing node width/height | **Observed implementation:** the preview uses intrinsic asset dimensions when a drawable size is omitted. **Maintainer-approved S3 direction:** each omitted drawable width/height uses the referenced image's intrinsic dimension for that axis. A dimensionless v0.1/v0.2 SVG has no declared intrinsic size; D2 forbids guessing one. | Preserve authored omission and the asset relationship; keep any effective dimension separate from the sparse source value and attach its provenance. | Resolve an omitted dimension from a declared intrinsic size when available. If a legacy SVG is dimensionless, preserve its bytes and report the unresolved size as unsupported/loss until an explicit, provenance-preserving repair supplies dimensions. Never write a derived value back into source data. | S3 behavior approved; dimensionless legacy assets require explicit repair under D2. Renderer pixel equivalence and asset-specific decoding/resource behavior remain separate profile questions. |
 | Effects and renderer defaults | **Observed implementation:** burst count defaults to 28. **S4 direction:** numeric-track interpolation and clip sampling boundaries are approved; this does not define effect or IK timing. | Preserve source declarations and omissions. | Do not make renderer defaults normative by copying them into v1 semantics without approval; report profile-dependent interpretation. | Effect-specific timing, parameters/defaults and renderer behavior remain unresolved under S5; effect/IK interaction with track sampling remains open under S4. |
 | Unknown legacy fields | **Observed implementation:** unknown top-level fields are listed; nested fields remain in the parsed manifest and a general diagnostic says they are not semantically classified. Individual nested unknown locations are not currently identified. | Preserve raw manifest bytes and parsed fields; current importer does not classify every nested location. | Keep opaque and uninterpreted unless a reviewed mapping exists. A future detailed report may identify JSON Pointers; never silently drop data on save. | Proposed future reporting detail; do not claim it exists today. |
 | Unknown v1 core fields / extensions | **Maintainer-approved direction, recorded in COMPATIBILITY_POLICY_DRAFT.md (2026-11-09):** unknown core fields are rejected; reverse-domain extensions hold opaque data; capability arrays separate required/optional. | Does not change v0.x manifests. | Unknown required capability fails before assets/playback; optional handling only where omission is declared safe; extension preservation required for round-trip. | Approved direction; full v1 schema remains draft. |
@@ -89,6 +89,19 @@ Each report item should identify the source location and distinguish source rete
 | Source workflow and provenance | **Observed example:** layered plant source and manual separation notes demonstrate workflow, not a formal provenance schema or automated authoring pipeline. | Preserve source/ payloads opaquely; do not infer layer-to-source lineage without explicit metadata. | Carry only explicit provenance records; classify undocumented lineage as unavailable/uninterpreted. | Provenance schema remains separate work. |
 | Offline preview and renderer support | **Observed implementation:** generated preview embeds referenced files and uses browser images/Canvas; no supported browser/version matrix or cross-renderer parity guarantee. | Preserve preview-independent package data; preview is not encoded as a format capability. | Declare renderer profiles/support separately from source feature facts. | Runtime/platform support remains a release decision. |
 
+## Pinned v0 fixture crosswalk and coverage limits
+
+These fixtures are the version anchors used by archive-reader and importer tests. They verify selected package/version behavior; they do not individually cover every migration row or establish v1 semantics.
+
+| Source version | Frozen fixture and pin | Direct fixture assertions in tests | Coverage limit |
+|---|---|---|---|
+| v0.1 | `tests/fuzz_corpus/archive_reader/valid_v01.motionpack`; SHA-256 `e76a7a60c12b3e2c5045ee655b9714995b1f66a7491dfe1584a51c3cd9a48982`, pinned in `tests/test_archive_reader.py`. | Reader asserts format/version, `legacy-rigid-demo`, 800×1000 canvas, nine nodes, idle/fire/transform clips, defaults, no IK declaration, and exact asset-reference coverage. | This seed does not evidence later v0.2-v0.4 features or prove what external v0.1 packages contain. |
+| v0.2 | `tests/fuzz_corpus/archive_reader/valid_v02.motionpack`; SHA-256 `ffc5bc6c3a4d4531c41c925a70e943dcd111b17b7f674527247079fdd626fbad`, pinned in `tests/test_isolated_archive_reader.py`. | Used as a frozen valid archive seed by isolated-reader/importer tests. IK semantics also have separate `tests/ik_test.js`, `tests/runtime_ik_smoke.js`, and `robot_ik_demo` evidence. | The frozen archive pin establishes package compatibility; IK algorithm behavior is demonstrated by separate code/tests, not by the hash alone. |
+| v0.3 | `tests/fixtures/compatibility_archive_reader/valid_v03.motionpack`; SHA-256 `06ad0b8b4b05e8212573784cbdda00a6c8dee9cfe8a9840888feb50cbf6611ea`, regenerated from `layered_plant_demo`. | Tests assert deterministic regeneration, v0.3 version, `layered-plant-demo`, foliage/pot assets, and archive membership consisting of the manifest and referenced runtime assets. | The fixture checks the v0.3 package/dimension profile; it does not establish all SVG renderer/security guarantees. |
+| v0.4 | `tests/fixtures/compatibility_archive_reader/valid_v04.motionpack`; SHA-256 `c98a270b566a6792748fc479a63af484fc1c9378d3a4e7c638db96704943bcb8`, regenerated from `interaction_demo`. | Tests assert deterministic regeneration, v0.4 version, and hover-only, tap-only, and click-only declarations. Separate adapter/preview tests cover interaction behavior. | The fixture anchors declarations and packaging; browser behavior remains implementation evidence, not cross-renderer conformance. |
+
+`tests/test_legacy_importer.py` runs snapshots/source-fact/default checks across all four version labels, but some probes are synthetic: the v0.1 IK mismatch test relabels a v0.2 fixture, and burst-default probes are injected into test manifests. Those tests verify importer behavior for constructed inputs; they do not establish historical prevalence. For each migration row, fixture evidence is limited to the assertions above; other claims rely on the separately cited format, implementation, and focused tests. No fixture proves that the proposed v1 reader/writer or its cross-renderer semantics exists.
+
 ## Capability facts versus target support
 
 Keep three facts separate:
@@ -97,7 +110,7 @@ Keep three facts separate:
 2. **Version/profile rule** — a source-version requirement applies, such as v0.3 SVG dimensions.
 3. **Target support** — the selected v1 reader/runtime actually implements the construct.
 
-The v0.1–v0.4 importer can infer source facts but cannot claim target support. The approved capability identifiers are org.motionpack.ik.two-bone and org.motionpack.interaction. Their approved direction does not settle the full v1 schema, identifier registration policy, or every version-to-capability derivation rule.
+The maintainer selected the capability identifier strings `org.motionpack.ik.two-bone` and `org.motionpack.interaction` for the v1 capability direction. The v0.1–v0.4 importer can infer source facts but cannot claim target support. Selection of these strings does not settle v1 IK/interaction semantics, the complete identifier grammar or registry/ownership policy, declaration rules, or version-to-capability derivation.
 
 ## Maintainer-approved migration handling (2026-11-10)
 
@@ -107,7 +120,7 @@ The v0.1–v0.4 importer can infer source facts but cannot claim target support.
 
 ## Remaining maintainer decisions
 
-1. Which documented or implementation-derived source behaviors should become v1 semantic defaults, and which must remain profile-dependent or unresolved?
+1. Which remaining documented or implementation-derived behaviors outside approved S3/S4 should become v1 semantics or remain profile-dependent—especially effects, variants, IK, and interactions?
 2. What exact v1 fields, stable diagnostic identifiers, and error/report model consume these policies? This proposal does not define or implement them.
 3. Which source-version/profile facts can be converted to required/optional v1 capabilities without overstating target support?
 
