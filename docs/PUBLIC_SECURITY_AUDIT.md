@@ -35,18 +35,21 @@ On PR #132 head `210cf300fa4ef886a6fa12a811c7f880b8467b17`:
 
 These results establish execution for this commit and these runners only. The source-level matrix and green CI do not prove that every dangerous fixture has been enumerated or rejected, that secrets are absent, or that parsers/renderers are sandboxed.
 
-### Issue #4 acceptance status
+### Issue #4 acceptance and related-scope status
 
-This status table tracks the issue’s actual acceptance criteria. “Partial” is not a completion claim; Issue #4 remains open.
+The first three rows correspond to the three acceptance criteria written in [Issue #4](https://github.com/708san/motionpack/issues/4). “Partial” does not mean the issue is complete.
 
-| Acceptance criterion | Current evidence | Status and remaining gap |
+| Issue #4 acceptance criterion | Current evidence | Status and remaining gap |
 |---|---|---|
 | No untrusted-package extraction before validation; reject all dangerous fixtures | `tools/archive_reader.py` does not extract arbitrary ZIP members. The tests in the coverage map reject the named traversal, symlink, collision, resource-limit, nested-container and malformed-record fixtures. | **Partial.** The named finite fixture set is not proof that every dangerous input is enumerated or rejected. The phrase “all dangerous fixtures” still needs a bounded maintainer-approved interpretation before closure. |
-| Security Auditor review and CI negative tests pass | A Security Auditor reviewed the scoped PR #132 Windows memory change; [MotionPack checks #626](https://github.com/708san/motionpack/actions/runs/43145763038) ran the complete Python unittest suite (237 passed, 17 skipped), and [isolated-reader run #627](https://github.com/708san/motionpack/actions/runs/43145763108) passed on Linux, macOS and Windows. | **Partial.** The review and tests are evidence for the named change and current test set, not a full Issue #4 security sign-off or proof against every attack class. |
-| Review documented limitations and publish `SECURITY.md` guidance | [`SECURITY.md`](../SECURITY.md) is published and documents reader limits, unsupported cases, secret-scan limits, and the no-sandbox boundary. The [public audit](PUBLIC_SECURITY_AUDIT.md) records additional technical limitations. | **Partial.** The current documents do not designate a private vulnerability contact, and this record is not a maintainer’s explicit acceptance of every residual risk. |
-| Threat model, source privacy, time and memory boundaries (Issue #4 scope) | The security policy distinguishes untrusted packages from local tooling, documents opaque `source/` handling and package exclusion, and states platform-specific worker limits and decoder boundaries. Tests cover source exclusion and worker time/memory behavior. | **Partial.** `source/` remains opaque and is not scanned; secret detection is heuristic and warning-only by approved default; the worker is not a permission sandbox; Linux is per-worker address-space limited, Windows has per-process plus job-wide committed-memory caps, and macOS has no hard whole-process cap. |
- 
-Issue #4 therefore remains open. The evidence map is a review aid for the enumerated tests and current controls; it does not replace maintainer decisions on acceptance scope, vulnerability reporting, or residual-risk disposition.
+| Security Auditor review and CI negative tests pass | A scoped Security Auditor review of PR #132 and the three-role review outcome are recorded in [Issue #4’s review comment](https://github.com/708san/motionpack/issues/4#issuecomment-6813399982). [MotionPack checks #626](https://github.com/708san/motionpack/actions/runs/43145763038) ran the complete Python unittest suite (237 passed, 17 skipped); [isolated-reader run #627](https://github.com/708san/motionpack/actions/runs/43145763108) passed on Linux, macOS and Windows. | **Partial.** These reviews and tests cover the scoped PR and current finite test set, not a full Issue #4 security sign-off or every attack class. |
+| Review documented limitations and publish `SECURITY.md` guidance | [`SECURITY.md`](../SECURITY.md) is published and documents reader limits, unsupported cases, secret-scan limits and the no-sandbox boundary. The 2026-11-06 static review and scoped 2026-11-12 review below examined the documented controls. | **Partially evidenced.** Guidance is published and reviewed within those stated scopes; no review certifies completeness of every security limitation or arbitrary input. |
+
+**Related Issue #4 scope, beyond those three acceptance bullets:** threat-model separation, private-source handling, and time/memory boundaries are described in the security policy and tests. They remain limited: `source/` is opaque and not scanned; secret detection is heuristic and warning-only by approved default; workers are not permission sandboxes; Linux uses per-worker address-space limits, Windows has per-process plus job-wide committed-memory caps, and macOS has no hard whole-process cap.
+
+**Related release-security governance gaps:** no dedicated private vulnerability contact has been designated, and no maintainer record accepts all residual security risks. These are release-readiness concerns; they are not represented as extra Issue #4 acceptance criteria here.
+
+Issue #4 remains open. This evidence map does not replace maintainer decisions on acceptance scope, vulnerability reporting, or residual-risk disposition.
 
 ## Independent Security Auditor review (2026-11-06)
 
