@@ -25,7 +25,7 @@ A v1 package proposes these root fields:
 | capabilities | Required object containing exactly required and optional arrays of unique printable ASCII identifiers. | Carries forward approved capability shape; exact constraints must be normative |
 | id | Optional project identifier, preserving v0 packages that omit it. | Proposed; validation grammar is open |
 | canvas, assets, nodes, clips, variants, defaults | Core visual-animation model. Initially retain v0.4 object shapes for fields whose meanings are fully specified. | Proposed; per-field semantics remain open |
-| iks | Two-bone chains, represented only with the required capability org.motionpack.ik.two-bone when the v1 IK semantics are defined. | Proposed; field/default semantics remain open |
+| iks | Two-bone chains and IK tracks use org.motionpack.ik.two-bone when their v1 semantics are defined. The declaration is required or optional according to the package's support/fallback contract. | Proposed; field/default and required/optional rules remain open |
 | extensions | Optional object keyed by reverse-domain identifiers; values are opaque JSON retained without interpretation. | Proposed; key grammar and preservation rules need fixtures |
 
 Example shape (illustrative, not yet normative):
@@ -51,7 +51,7 @@ Example shape (illustrative, not yet normative):
 
 Unknown core fields are rejected. A reader may ignore an unknown optional capability only when that reader has an explicit safe-ignore rule for it. The approved capability IDs are org.motionpack.ik.two-bone and org.motionpack.interaction. Opaque extension values are preserved, but their meaning is not implied. Capability presence does not establish reader support for all unrelated core fields.
 
-The declaration-to-content rule remains to be frozen: the contract must say whether each present optional feature is listed exactly once in required or optional, whether unused declarations are allowed, and how readers skip data for an unknown optional feature.
+The declaration-to-content rule remains to be frozen: each present feature should be listed exactly once in required or optional, and the contract must define whether unused declarations are allowed and how readers skip data for an unknown optional feature. Recommended rule: list a capability as required when ignoring it changes promised core behavior; list it as optional only when a defined fallback or safe-ignore behavior exists. IK currently has no specified fallback, so required is the conservative proposal when IK data is used. Interaction data is event-only and may be optional when rendering remains complete; make it required when host interaction handling is part of the package's promised use.
 
 ## Proposed migration model
 
@@ -83,7 +83,7 @@ The writer should have a no-output preflight stage and a separate commit-to-disk
 2. Produce a deterministic field-level loss report, including JSON pointers and payload hashes where applicable.
 3. Bind confirmation to the source digest and the exact migration-plan/loss-report digest.
 4. If the report contains no losses or semantic reinterpretations, no loss confirmation is required. Otherwise reject missing, stale, or incomplete confirmation before creating or replacing the destination.
-5. Validate the resulting v1 manifest and package before writing.
+5. Validate the v1 model before staging. After confirmation when required, write a temporary package, re-read it with the v1 reader, and publish it to the destination only after validation.
 6. Write to a new destination by default; do not replace the source package in place.
 7. Re-read the output with the v1 reader and compare canonical manifest values, opaque extensions, and asset hashes.
 
@@ -91,7 +91,7 @@ Any source or plan change invalidates prior confirmation. A loss report must nev
 
 The exact Python API and whether confirmation selects individual losses or accepts the complete report remain open. Unsupported items block output unless the caller explicitly elects a listed lossy omission and confirms it. A proposed API must make the confirmation step explicit and difficult to call accidentally.
 
-The proposed staging model is to build and validate in memory, write a temporary package beside the destination, read it back with the v1 reader, and atomically publish it only after validation and confirmation. Failure must leave both source and destination unchanged; portability and filesystem guarantees for atomic replacement need to be specified.
+The proposed staging model is to validate the model in memory, then—after any required loss confirmation—write a temporary package beside the destination, read it back with the v1 reader, and atomically publish it only after validation. Failure must leave both source and destination unchanged; portability and filesystem guarantees for atomic replacement need to be specified.
 
 ## Manifest-first read order
 
