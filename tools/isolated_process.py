@@ -206,7 +206,7 @@ def kill_worker(process, windows_job=None):
 
 
 
-def read_bounded_output(stream, output, overflow, process, max_bytes, stop_event):
+def read_bounded_output(stream, output, overflow, process, max_bytes, stop_event, polling_event=None):
     """Drain a pipe without blocking indefinitely between cleanup checks."""
     descriptor = stream.fileno()
     windows_kernel = None
@@ -234,12 +234,16 @@ def read_bounded_output(stream, output, overflow, process, max_bytes, stop_event
                     return
                 raise OSError(error, "PeekNamedPipe failed")
             if available.value == 0:
+                if polling_event is not None:
+                    polling_event.set()
                 stop_event.wait(0.05)
                 continue
             chunk_size = min(64 * 1024, available.value)
         else:
             ready, _, _ = select.select([descriptor], [], [], 0.05)
             if not ready:
+                if polling_event is not None:
+                    polling_event.set()
                 continue
             chunk_size = 64 * 1024
         chunk = os.read(descriptor, chunk_size)
