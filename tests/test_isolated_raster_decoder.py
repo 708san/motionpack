@@ -2,6 +2,7 @@ import io
 import os
 import pathlib
 import struct
+import subprocess
 import tempfile
 import time
 import unittest
@@ -165,6 +166,47 @@ class IsolatedRasterDecoderTests(unittest.TestCase):
         limits = decoder.RasterDecodeLimits(max_response_bytes=1)
         with self.assertRaises(decoder.RasterDecodeResourceLimit):
             self.decode(self.image_bytes("PNG"), ".png", limits=limits)
+
+    def test_unconfirmed_windows_job_reap_retains_decoder_temp_dir(self):
+        class FakeProcess:
+            def __init__(self):
+                self.stdin = io.BytesIO()
+                self.stdout = io.BytesIO()
+                self.returncode = None
+
+            def wait(self, timeout=None):
+                raise subprocess.TimeoutExpired("decoder", timeout)
+
+            def poll(self):
+                return self.returncode
+
+        process = FakeProcess()
+        job = (123, mock.Mock())
+        with tempfile.TemporaryDirectory() as parent:
+            temp_path = pathlib.Path(parent) / "raster-worker"
+            temp_path.mkdir()
+            kill_calls = []
+
+            def fail_job_then_kill_parent(_process, received_job=None):
+                kill_calls.append(received_job)
+                if received_job is not None:
+                    raise TimeoutError("simulated Job Object reap failure")
+                process.returncode = -9
+
+            with mock.patch.object(decoder.os, "name", "nt"):
+                with mock.patch.object(decoder.tempfile, "mkdtemp", return_value=str(temp_path)):
+                    with mock.patch.object(decoder.subprocess, "Popen", return_value=process):
+                        with mock.patch.object(decoder, "windows_job", return_value=job):
+                            with mock.patch.object(decoder, "kill_worker", side_effect=fail_job_then_kill_parent):
+                                with mock.patch.object(
+                                    decoder, "read_bounded_output",
+                                    side_effect=lambda _stream, _output, _overflow, _process, _limit, stop: stop.wait(),
+                                ):
+                                    with self.assertRaises(decoder.RasterDecodeTimeout) as raised:
+                                        self.decode(self.image_bytes("PNG"), ".png", timeout=0.01)
+            self.assertEqual(kill_calls, [job, None])
+            self.assertTrue(temp_path.exists())
+            self.assertIn(str(temp_path), raised.exception.__notes__[0])
 
     def test_timeout_terminates_worker(self):
         with tempfile.TemporaryDirectory() as directory:
