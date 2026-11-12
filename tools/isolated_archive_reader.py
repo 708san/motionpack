@@ -332,7 +332,9 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
             worker_cleaned = True
             raise
         finally:
-            if not worker_cleaned and (process.poll() is None or os.name != "nt"):
+            if not worker_cleaned and (
+                job is not None or process.poll() is None or os.name != "nt"
+            ):
                 _kill_worker(process, job)
                 job = None
                 worker_cleaned = True
