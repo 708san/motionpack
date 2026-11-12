@@ -158,8 +158,8 @@ No v1 writer, integrated v1 reader, or v1 normative conformance suite is present
 The following details remain open even after the approved directions above:
 
 - Complete v1 core fields, types, ranges, reference integrity, collection ordering, and closed field sets.
-- Maximum clip duration, fractional-millisecond precision/representation limits, property-specific numeric ranges, and remaining effect/IK timing interactions.
-- Variant overlay fields, sparse merge behavior, interaction replacement semantics, and same-property precedence are approved as described above; interaction with IK remains open. Effect field grammar, units, parameter ranges/defaults, cross-feature sampling interactions, renderer appearance, and conformance remain open; the inclusive active interval and stated coordinate split are approved.
+- Maximum clip duration, fractional-millisecond precision/representation limits, property-specific numeric ranges, and cross-feature effect/IK sampling interactions beyond S4 time normalization.
+- Variant overlay fields, sparse merge behavior, interaction replacement semantics, and same-property precedence are approved as described above; interaction with IK remains open. Effect field grammar, units, parameter ranges/defaults, cross-feature sampling interactions beyond S4 time normalization, renderer appearance, and conformance remain open; the inclusive active interval and stated coordinate split are approved.
 - Exact interaction field meanings and whether v1 guarantees cross-renderer event/hit-test behavior. The full v0.4 feature surface is in scope, but current preview behavior is not automatically normative.
 - Capability identifier grammar, required/optional declaration rules, registry ownership, and exact safe-ignore rules.
 - S3 numeric domains and invalid-value behavior for transforms, opacity and z; negative-scale support; and any further graph/reference rules.
