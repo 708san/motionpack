@@ -19,7 +19,8 @@ from typing import Mapping
 try:
     from .archive_reader import MAX_ASSETS, MAX_ASSET, MAX_TOTAL_ASSETS
     from .isolated_process import (
-        DEFAULT_MEMORY_LIMIT_BYTES, kill_worker, read_bounded_output, windows_job,
+        DEFAULT_MEMORY_LIMIT_BYTES, kill_worker, read_bounded_output,
+        stop_output_reader, windows_job,
     )
     from .validate import (
         MAX_PNG_DIMENSION, MAX_PNG_PIXELS, MAX_TOTAL_PNG_PIXELS,
@@ -28,7 +29,8 @@ try:
 except ImportError:  # Support direct imports from the tools directory.
     from archive_reader import MAX_ASSETS, MAX_ASSET, MAX_TOTAL_ASSETS
     from isolated_process import (
-        DEFAULT_MEMORY_LIMIT_BYTES, kill_worker, read_bounded_output, windows_job,
+        DEFAULT_MEMORY_LIMIT_BYTES, kill_worker, read_bounded_output,
+        stop_output_reader, windows_job,
     )
     from validate import (
         MAX_PNG_DIMENSION, MAX_PNG_PIXELS, MAX_TOTAL_PNG_PIXELS,
@@ -270,18 +272,18 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
         return {}
     request = _make_request(unique, limits, memory_limit)
     started = time.monotonic()
-    temp_dir = tempfile.TemporaryDirectory(prefix="motionpack-raster-worker-")
+    temp_dir = pathlib.Path(tempfile.mkdtemp(prefix="motionpack-raster-worker-"))
     child_environment = {}
     for key in ("PATH", "SYSTEMROOT", "WINDIR", "LANG", "LC_ALL", "LC_CTYPE"):
         if key in os.environ:
             child_environment[key] = os.environ[key]
     if os.name == "nt":
-        child_environment.update({"TEMP": temp_dir.name, "TMP": temp_dir.name})
+        child_environment.update({"TEMP": str(temp_dir), "TMP": str(temp_dir)})
     else:
-        child_environment["TMPDIR"] = temp_dir.name
+        child_environment["TMPDIR"] = str(temp_dir)
     command = [sys.executable, "-I", str(pathlib.Path(WORKER_SCRIPT).resolve())]
     kwargs = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE,
-              "stderr": subprocess.DEVNULL, "cwd": temp_dir.name,
+              "stderr": subprocess.DEVNULL, "cwd": str(temp_dir),
               "close_fds": True, "env": child_environment}
     if os.name == "nt":
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
@@ -290,11 +292,12 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
     try:
         process = subprocess.Popen(command, **kwargs)
     except OSError as exc:
-        temp_dir.cleanup()
+        import shutil
+        shutil.rmtree(temp_dir, ignore_errors=True)
         raise RasterDecodeWorkerFailure("unable to start raster decoder worker") from exc
     job = None
     worker_cleaned = False
-    output = tempfile.TemporaryFile(mode="w+b", dir=temp_dir.name)
+    output = tempfile.TemporaryFile(mode="w+b", dir=str(temp_dir))
     overflow = threading.Event()
     reader_stop = threading.Event()
     writer = None
@@ -353,7 +356,6 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
         try:
             kill_worker(process, cleanup_job)
         except BaseException:
-            worker_cleaned = True
             raise
         worker_cleaned = True
         raise
@@ -362,21 +364,25 @@ def decode_raster_assets_isolated(assets, asset_paths, *, limits=None, timeout=3
             job is not None or process.poll() is None or os.name != "nt"
         ):
             cleanup_job, job = job, None
-            try:
-                kill_worker(process, cleanup_job)
-            except BaseException:
-                worker_cleaned = True
-                raise
+            kill_worker(process, cleanup_job)
             worker_cleaned = True
         if writer is not None:
             writer.join(1.0)
-        if reader.is_alive():
-            reader_stop.set()
-            reader.join(1.0)
+        reader_stopped = stop_output_reader(reader, reader_stop) if reader.is_alive() else True
         for stream in (process.stdin, process.stdout):
             if stream is not None and not stream.closed and (
-                stream is not process.stdout or not reader.is_alive()
+                stream is not process.stdout or reader_stopped
             ):
                 stream.close()
-        output.close()
-        temp_dir.cleanup()
+        if reader_stopped:
+            output.close()
+        if worker_cleaned and reader_stopped:
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=False)
+        else:
+            active_exception = sys.exc_info()[1]
+            note = f"raster decoder cleanup unconfirmed; temporary data retained at {temp_dir}"
+            if active_exception is not None:
+                active_exception.add_note(note)
+            else:
+                raise RasterDecodeWorkerFailure(note)
