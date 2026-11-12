@@ -18,17 +18,17 @@ The following are **approved planning directions, not a frozen v1 contract**:
 
 These directions do not prove that a frozen schema or implementation exists.
 
-## Decisions that block contract freeze
+## Recorded choices and remaining contract blockers
 
-All three decisions belong to the maintainer. The choices below summarize the alternatives; the linked proposal records the fuller compatibility consequences.
+The maintainer selected D1 option A, D2 option A with the existing 8,192 px per-edge and 16 MP per-asset ceilings, and D3 option B. The linked proposal records the fuller compatibility consequences. These choices clear only D1–D3; S1–S13 remain open or require an explicit safe deferral.
 
 | ID | Choice | Option A | Option B | Current status |
 |---|---|---|---|---|
-| D1 | v1 core data shapes | Reuse familiar v0.4 field shapes and explicitly define v1 meanings. This reduces structural change, but does not make every v0.x field portable. | Redesign the core schema. This permits a new model, but requires explicit mappings and can increase migration loss. | Pending |
-| D2 | SVG root dimensions | Require positive numeric-pixel `width` and `height`; decide whether to adopt the existing 8,192-pixel edge and 16-megapixel ceilings. Dimensionless legacy SVGs need an explicit migration disposition. | Allow omitted dimensions; define deterministic intrinsic sizing and resource checks without renderer-dependent assumptions. | Pending |
-| D3 | Canonicalization scope | Guarantee canonical manifest bytes; ZIP metadata and whole-package hashes may vary by writer. | Guarantee deterministic complete ZIP bytes, which also fixes entry order, timestamps, permissions, compression parameters, comments, extra fields, directory entries, and container metadata. | Pending |
+| D1 | v1 core data shapes | Reuse familiar v0.4 field shapes and explicitly define v1 meanings. This reduces structural change, but does not make every v0.x field portable. | Redesign the core schema. This permits a new model, but requires explicit mappings and can increase migration loss. | **Approved: option A** |
+| D2 | SVG root dimensions | Require positive numeric-pixel `width` and `height`; adopt 8,192 px per edge and 16 MP per asset. Dimensionless legacy SVGs need an explicit migration disposition. | Allow omitted dimensions; define deterministic intrinsic sizing and resource checks without renderer-dependent assumptions. | **Approved: option A, including the stated ceilings** |
+| D3 | Canonicalization scope | Guarantee canonical manifest bytes; ZIP metadata and whole-package hashes may vary by writer. | Guarantee deterministic complete ZIP bytes, which also fixes entry order, timestamps, permissions, compression parameters, comments, extra fields, directory entries, and container metadata. | **Approved: option B** |
 
-The ledger itself makes no recommendation. The linked proposal includes planning recommendations for some options; those are not maintainer decisions. Any combination can be selected. The v1 reader, writer, fixtures, and migration behavior that depend on them remain gated.
+The recorded choices establish v1 shape reuse, mandatory bounded SVG dimensions, and byte-deterministic complete ZIP output. The exact canonical JSON and ZIP serialization profile still needs a normative definition. Dimensionless v0.1/v0.2 SVGs must not receive guessed dimensions; their migration must preserve the source and report unsupported or loss until explicit repair. S1–S13 and all implementation/conformance work depending on them remain gated.
 
 ## Additional semantic decisions
 
@@ -63,7 +63,7 @@ The following work can prepare implementation without guessing at public behavio
 
 ## Implementation gates
 
-1. Record D1–D3 and resolve or explicitly defer S1–S13.
+1. D1–D3 are recorded. Resolve or explicitly defer S1–S13 with their safe behavior.
 2. Have the Architect review the selected schema and migration matrix.
 3. Update `FORMAT_SPEC.md` and add normative fixtures.
 4. Only after contract freeze, implement and verify the manifest-first reader/validator.
@@ -76,7 +76,7 @@ Separate v1.0 release gates remain: security residuals, visual/motion review, pl
 
 ## Acceptance and rollback
 
-- This ledger remains non-normative and makes no maintainer decision.
-- Each open item is distinguishable from approved planning directions and observed legacy behavior.
+- This ledger records maintainer decisions but remains non-normative; it does not freeze the v1 schema or implement its behavior.
+- Each remaining open item is distinguishable from approved planning directions and observed legacy behavior.
 - No v0 behavior, public contract, code, fixture, or release claim changes.
 - If the ledger is rejected or redundant, revert this file; keep the choices and implementation gates in Issue #120.
