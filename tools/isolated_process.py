@@ -126,6 +126,7 @@ def kill_worker(process, windows_job=None):
             if not kernel32.TerminateJobObject(handle, 1):
                 error = ctypes.get_last_error()
                 raise OSError(error, "terminating Windows worker job failed")
+            reap_deadline = time.monotonic() + 5.0
             while True:
                 accounting = BasicAccountingInformation()
                 if not kernel32.QueryInformationJobObject(
@@ -136,7 +137,12 @@ def kill_worker(process, windows_job=None):
                     raise OSError(error, "querying Windows worker job failed")
                 if accounting.ActiveProcesses == 0:
                     break
-                time.sleep(0.01)
+                remaining = reap_deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(
+                        "Windows worker job did not exit before the cleanup deadline"
+                    )
+                time.sleep(min(0.01, remaining))
         finally:
             # Close even if a job API call fails. This also invokes the configured
             # kill-on-close fallback when termination could not be confirmed.
