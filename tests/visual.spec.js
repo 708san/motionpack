@@ -349,7 +349,7 @@ test('collect unbaselined interactive seal art and motion review frames', async 
     return { x: box.x + box.width * 0.5, y: box.y + box.height * (351 / 550) };
   });
   await page.mouse.move(sealPoint.x, sealPoint.y);
-  await expect.poll(() => page.locator('body').getAttribute('data-seal-hover')).toBe('true');
+  await expect.poll(() => page.locator('#viewport').getAttribute('data-seal-hover')).toBe('true');
   await page.clock.runFor(16);
   await captureSealFrame('hover-on-seal');
   await page.mouse.click(sealPoint.x, sealPoint.y);
@@ -372,7 +372,7 @@ test('collect unbaselined interactive seal art and motion review frames', async 
   for (const state of motion.slice(0, 4)) expect(state).toContain('squish |');
   expect(motion[4]).toContain('idle | rest |');
   await page.mouse.move(2, 2);
-  await expect.poll(() => page.locator('body').getAttribute('data-seal-hover')).toBe('false');
+  await expect.poll(() => page.locator('#viewport').getAttribute('data-seal-hover')).toBe('false');
   await page.evaluate(({ x, y }) => {
     const canvas = document.querySelector('#stage');
     canvas.dispatchEvent(new PointerEvent('pointerdown', {
