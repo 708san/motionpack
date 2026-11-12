@@ -23,6 +23,7 @@ from isolated_archive_reader import _snapshot_archive
 from isolated_archive_reader import (
     IsolatedReadTimeout,
     IsolatedResourceLimit,
+    IsolatedWorkerFailure,
     UnsupportedMemoryLimit,
     read_package_isolated,
 )
@@ -565,6 +566,40 @@ class IsolatedArchiveReaderTests(unittest.TestCase):
                         self._input_file(tmp),
                         timeout=20, memory_limit_bytes=512 * 1024 * 1024,
                     )
+
+    @unittest.skipUnless(os.name == "nt", "Windows Job Object enforcement check")
+    def test_windows_job_limit_blocks_combined_worker_child_commit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = pathlib.Path(tmp) / "child-memory-result"
+            worker = self._fake_worker(
+                tmp,
+                "import pathlib, subprocess, sys\n"
+                "parent = bytearray(96 * 1024 * 1024)\n"
+                "for offset in range(0, len(parent), 4096): parent[offset] = 1\n"
+                "child_code = ("
+                "'import sys\\ntry:\\n'"
+                "' data=bytearray(96 * 1024 * 1024)\\n'"
+                "' for offset in range(0, len(data), 4096): data[offset]=1\\n'"
+                "' print(\\'allocated\\')\\n'"
+                "'except MemoryError:\\n print(\\'blocked\\')\\n'"
+                ")\n"
+                "child = subprocess.run("
+                "[sys.executable, '-c', child_code], capture_output=True, "
+                "text=True, timeout=15, check=False)\n"
+                f"pathlib.Path({str(marker)!r}).write_text(child.stdout.strip(), encoding='utf-8')\n"
+                "raise SystemExit(7)\n",
+            )
+            with mock.patch("isolated_archive_reader.WORKER_SCRIPT", worker):
+                with self.assertRaises(IsolatedWorkerFailure):
+                    read_package_isolated(
+                        self._input_file(tmp),
+                        timeout=20, memory_limit_bytes=192 * 1024 * 1024,
+                    )
+            self.assertEqual(
+                marker.read_text(encoding="utf-8"),
+                "blocked",
+                "the worker and child must share the Windows Job Object memory budget",
+            )
 
     @unittest.skipUnless(os.name == "nt", "Windows Job Object policy check")
     def test_windows_job_sets_shared_committed_memory_limit(self):
