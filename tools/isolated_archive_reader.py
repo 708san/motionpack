@@ -391,12 +391,12 @@ def read_package_isolated(path, *, limits=None, timeout=30.0, memory_limit_bytes
                 handle, close_handle = job
                 close_handle(handle)
             if reader.is_alive():
-                try:
-                    process.stdout.close()
-                except OSError:
-                    pass
                 reader.join(1)
             for stream in (process.stdin, process.stdout):
-                if stream is not None and not stream.closed:
+                if (
+                    stream is not None
+                    and not stream.closed
+                    and (stream is not process.stdout or not reader.is_alive())
+                ):
                     stream.close()
 
