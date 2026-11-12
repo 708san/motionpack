@@ -164,7 +164,9 @@ def kill_worker(process, windows_job=None):
             finally:
                 # Closing the final handle retains the Job Object's kill-on-close
                 # fallback if termination or accounting queries fail.
-                close_handle(handle)
+                if not close_handle(handle):
+                    error = ctypes.get_last_error()
+                    raise OSError(error, "closing Windows worker job handle failed")
         else:
             close_handle(handle)
 
