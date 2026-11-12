@@ -97,7 +97,7 @@ The maintainer approved these limited v1 directions. They do not change v0.x beh
 
 - Variant overlays may set `asset`, `x`, `y`, `width`, `height`, `rotation`, `scale`, `opacity`, `z`, `anchor`, and `interaction`. They cannot change node identity or parentage.
 - Apply a shallow per-node merge: an overlay field absent from the selected variant retains the base node value. If an overlay supplies `interaction`, it replaces the entire base interaction object; flags omitted from that replacement object are disabled.
-- If a selected variant and a clip track specify the same node property, the variant wins. The current evaluator applies variants before tracks, so v1 must preserve the approved precedence without silently changing legacy behavior.
+- If a selected variant and a clip track specify the same node property, the variant wins in v1. The current v0.x evaluator merges variant values and then applies clip tracks, so the track currently wins; v1 must reverse that conflict resolution without changing v0.x behavior.
 - Effect `offset` is node-local and transformed through the node's world transform. Beam `target` and ring/burst `radius` use canvas logical coordinates and are not scaled by the source node transform, matching the current preview's coordinate split.
 
 Still open: interaction with IK or other evaluation stages; effect field grammar, units, parameter ranges/defaults, timing and renderer appearance; and cross-renderer conformance. These directions do not promise pixel-identical output.
