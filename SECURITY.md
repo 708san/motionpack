@@ -117,8 +117,10 @@ The default memory policy is OS-specific:
 - Linux applies a 512 MiB `RLIMIT_AS` address-space ceiling in the worker before
   it opens the snapshot. This is a virtual-address limit, not a resident-memory
   or cgroup limit.
-- Windows applies a 512 MiB per-process committed-memory limit using a Job
-  Object before sending the worker its request.
+- Windows applies both a 512 MiB per-process committed-memory limit and a
+  512 MiB job-wide committed-memory limit using a Job Object before sending
+  the worker its request. The job-wide limit covers the worker and processes
+  assigned to that job.
 - macOS has no supported whole-process hard memory limit in this implementation.
   The wrapper still enforces its timeout and protocol bounds there. An explicit
   positive `memory_limit_bytes` request raises `UnsupportedMemoryLimit` on macOS.
