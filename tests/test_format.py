@@ -154,6 +154,46 @@ class FormatTests(unittest.TestCase):
                 self.assertTrue(all(not p.startswith('/') and '..' not in pathlib.PurePosixPath(p).parts for p in z.namelist()))
                 asset_data=z.read(json.loads(z.read('manifest.json'))['assets']['background'])
             self.assertIn(base64.b64encode(asset_data).decode('ascii'),preview.read_text(encoding='utf8'))
+    def test_package_excludes_unreferenced_private_project_files(self):
+        sentinels={
+            '.env':b'MOTIONPACK_PRIVATE_ENV_SENTINEL',
+            'id_rsa':b'MOTIONPACK_DUMMY_PRIVATE_KEY_SENTINEL',
+            'private/notes.txt':b'MOTIONPACK_PRIVATE_FILE_SENTINEL',
+            'prompt.txt':b'MOTIONPACK_PRIVATE_PROMPT_SENTINEL',
+            'assets/unreferenced.txt':b'MOTIONPACK_UNREFERENCED_ASSET_SENTINEL',
+            'source/original.bin':b'MOTIONPACK_OPAQUE_SOURCE_SENTINEL',
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            project=self._copy(tmp)
+            for relative,payload in sentinels.items():
+                target=project/relative
+                target.parent.mkdir(parents=True,exist_ok=True)
+                target.write_bytes(payload)
+            source_manifest=json.loads((project/'manifest.json').read_text())
+            source_manifest['assets']['background_alias_probe']=source_manifest['assets']['background']
+            (project/'manifest.json').write_text(json.dumps(source_manifest))
+            source_assets=source_manifest['assets']
+            archive,preview=build(project,pathlib.Path(tmp)/'dist')
+            with zipfile.ZipFile(archive) as packaged:
+                infos=packaged.infolist()
+                names=[info.filename for info in infos]
+                manifest=json.loads(packaged.read('manifest.json'))
+                member_contents=[packaged.read(info) for info in infos]
+            self.assertEqual(manifest['assets'],source_assets)
+            expected={'manifest.json'}|set(source_assets.values())
+            self.assertEqual(set(names),expected)
+            self.assertEqual(len(names),len(expected))
+            self.assertEqual(names.count(source_assets['background']),1)
+            preview_bytes=preview.read_bytes()
+            for relative,payload in sentinels.items():
+                with self.subTest(path=relative):
+                    self.assertNotIn(relative, names)
+                    self.assertFalse(any(relative.encode() in content for content in member_contents))
+                    self.assertFalse(any(payload in content for content in member_contents))
+                    self.assertFalse(any(base64.b64encode(payload) in content for content in member_contents))
+                    self.assertNotIn(relative.encode(),preview_bytes)
+                    self.assertNotIn(payload,preview_bytes)
+                    self.assertNotIn(base64.b64encode(payload),preview_bytes)
     def test_package_warns_on_secret_like_referenced_asset_without_rejecting_or_disclosing(self):
         examples=(
             ('GitHub token-like value','xghp_'+'A'*36),
