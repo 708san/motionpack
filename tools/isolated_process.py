@@ -3,6 +3,7 @@ import ctypes
 import os
 import signal
 import subprocess
+import time
 
 
 DEFAULT_MEMORY_LIMIT_BYTES = 512 * 1024 * 1024
@@ -124,20 +125,46 @@ def kill_worker(process, windows_job=None):
         if os.name == "nt":
             from ctypes import wintypes
 
+            class BasicAccountingInformation(ctypes.Structure):
+                _fields_ = [
+                    ("TotalUserTime", ctypes.c_longlong),
+                    ("TotalKernelTime", ctypes.c_longlong),
+                    ("ThisPeriodTotalUserTime", ctypes.c_longlong),
+                    ("ThisPeriodTotalKernelTime", ctypes.c_longlong),
+                    ("TotalPageFaultCount", wintypes.DWORD),
+                    ("TotalProcesses", wintypes.DWORD),
+                    ("ActiveProcesses", wintypes.DWORD),
+                    ("TotalTerminatedProcesses", wintypes.DWORD),
+                ]
+
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
             kernel32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
             kernel32.TerminateJobObject.restype = wintypes.BOOL
-            kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-            kernel32.WaitForSingleObject.restype = wintypes.DWORD
+            kernel32.QueryInformationJobObject.argtypes = [
+                wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+                ctypes.POINTER(wintypes.DWORD),
+            ]
+            kernel32.QueryInformationJobObject.restype = wintypes.BOOL
 
-            # Termination is asynchronous. Keep the Job Object handle open and
-            # wait until Windows signals that every process in the job has exited.
-            kernel32.TerminateJobObject(handle, 1)
-            wait_result = kernel32.WaitForSingleObject(handle, 0xFFFFFFFF)
-            if wait_result != 0:  # WAIT_OBJECT_0
-                error = ctypes.get_last_error()
-                raise OSError(error, "waiting for Windows worker job to exit failed")
-        close_handle(handle)
+            try:
+                if not kernel32.TerminateJobObject(handle, 1):
+                    error = ctypes.get_last_error()
+                    raise OSError(error, "terminating Windows worker job failed")
+                while True:
+                    accounting = BasicAccountingInformation()
+                    if not kernel32.QueryInformationJobObject(
+                        handle, 1, ctypes.byref(accounting),
+                        ctypes.sizeof(accounting), None,
+                    ):
+                        error = ctypes.get_last_error()
+                        raise OSError(error, "querying Windows worker job failed")
+                    if accounting.ActiveProcesses == 0:
+                        break
+                    time.sleep(0.01)
+            finally:
+                close_handle(handle)
+        else:
+            close_handle(handle)
 
 
 def read_bounded_output(stream, output, overflow, process, max_bytes):
