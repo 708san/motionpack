@@ -169,20 +169,28 @@ class FormatTests(unittest.TestCase):
                 target=project/relative
                 target.parent.mkdir(parents=True,exist_ok=True)
                 target.write_bytes(payload)
+            source_manifest=json.loads((project/'manifest.json').read_text())
+            source_assets=source_manifest['assets']
             archive,preview=build(project,pathlib.Path(tmp)/'dist')
             with zipfile.ZipFile(archive) as packaged:
-                entries=set(packaged.namelist())
+                infos=packaged.infolist()
+                names=[info.filename for info in infos]
                 manifest=json.loads(packaged.read('manifest.json'))
-            expected={'manifest.json'}|set(manifest['assets'].values())
-            self.assertEqual(entries,expected)
-            archive_bytes=archive.read_bytes()
-            preview_bytes=preview.read_bytes()
+                member_contents=[packaged.read(info) for info in infos]
+            self.assertEqual(manifest['assets'],source_assets)
+            expected={'manifest.json'}|set(source_assets.values())
+            self.assertEqual(set(names),expected)
+            self.assertEqual(len(names),len(expected))
             for relative,payload in sentinels.items():
                 with self.subTest(path=relative):
-                    self.assertNotIn(relative.encode(),archive_bytes)
-                    self.assertNotIn(payload,archive_bytes)
+                    self.assertNotIn(relative, names)
+                    self.assertFalse(any(relative.encode() in content for content in member_contents))
+                    self.assertFalse(any(payload in content for content in member_contents))
+                    self.assertFalse(any(base64.b64encode(payload) in content for content in member_contents))
+                    preview_bytes=preview.read_bytes()
                     self.assertNotIn(relative.encode(),preview_bytes)
                     self.assertNotIn(payload,preview_bytes)
+                    self.assertNotIn(base64.b64encode(payload),preview_bytes)
     def test_package_warns_on_secret_like_referenced_asset_without_rejecting_or_disclosing(self):
         examples=(
             ('GitHub token-like value','xghp_'+'A'*36),
