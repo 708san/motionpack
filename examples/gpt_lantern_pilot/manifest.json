@@ -91,15 +91,23 @@
           "keys": [
             {
               "time_ms": 0,
-              "value": -0.025
+              "value": -2.2
+            },
+            {
+              "time_ms": 800,
+              "value": 0
             },
             {
               "time_ms": 1600,
-              "value": 0.025
+              "value": 2.2
+            },
+            {
+              "time_ms": 2400,
+              "value": 0
             },
             {
               "time_ms": 3200,
-              "value": -0.025
+              "value": -2.2
             }
           ]
         },
@@ -109,15 +117,49 @@
           "keys": [
             {
               "time_ms": 0,
-              "value": 0.58
+              "value": 0.68
+            },
+            {
+              "time_ms": 800,
+              "value": 0.76
             },
             {
               "time_ms": 1600,
-              "value": 0.82
+              "value": 0.88
+            },
+            {
+              "time_ms": 2400,
+              "value": 0.76
             },
             {
               "time_ms": 3200,
-              "value": 0.58
+              "value": 0.68
+            }
+          ]
+        },
+        {
+          "node": "glow",
+          "property": "y",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 256
+            },
+            {
+              "time_ms": 800,
+              "value": 246
+            },
+            {
+              "time_ms": 1600,
+              "value": 240
+            },
+            {
+              "time_ms": 2400,
+              "value": 246
+            },
+            {
+              "time_ms": 3200,
+              "value": 256
             }
           ]
         }
