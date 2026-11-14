@@ -8,6 +8,7 @@ const root = path.resolve(__dirname, '..');
 const output = path.join(root, 'test-results', 'visual', 'gpt-lantern');
 const screenshots = path.join(root, 'test-results', 'visual', 'candidate-screenshots');
 const preview = path.join(output, 'preview.html');
+const standalone = path.join(output, 'gpt-lantern-standalone.html');
 
 test.beforeAll(() => {
   fs.mkdirSync(screenshots, { recursive: true });
@@ -17,6 +18,11 @@ test.beforeAll(() => {
   execFileSync('python3', ['tools/package.py', 'examples/gpt_lantern_pilot', '--out', output], {
     cwd: root, stdio: 'inherit'
   });
+  execFileSync('python3', [
+    'tools/export_html.py', path.join(output, 'gpt_lantern_pilot.motionpack'),
+    '--out', standalone
+  ], { cwd: root, stdio: 'inherit' });
+  expect(fs.readFileSync(standalone).equals(fs.readFileSync(preview))).toBe(true);
 });
 
 test('offline playback, cycle captures, and mobile viewport evidence', async ({ browser }, testInfo) => {
@@ -98,4 +104,22 @@ test('offline playback, cycle captures, and mobile viewport evidence', async ({ 
   fs.appendFileSync(path.join(root, 'test-results', 'visual', 'capture-metadata.txt'),
     'gpt-lantern: 390x844 full viewport screenshot, canvas crop separately named; ' +
     '0/800/1600/2400/3200ms; playwright-emulated-mobile=true; visual-approved=false\n');
+});
+
+test('GPT-authored archive exports to a playable single-file HTML', async ({ page }) => {
+  const requests = [];
+  const errors = [];
+  page.on('request', request => {
+    if (/^https?:/i.test(request.url())) requests.push(request.url());
+  });
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route(/^https?:\\/\\//i, route => route.abort());
+  await page.goto(pathToFileURL(standalone).href);
+  await page.locator('#stage').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => !!window.MotionPackPlayer);
+  await expect.poll(() => page.evaluate(() => window.MotionPackPlayer.getState().clip))
+    .toBe('float');
+  await expect(page.locator('#status')).toContainText('float');
+  expect(requests).toEqual([]);
+  expect(errors).toEqual([]);
 });
