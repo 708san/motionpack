@@ -1,1 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" fill="#101d38"/><circle cx="96" cy="87" r="2.5" fill="#eef6ff"/><circle cx="399" cy="82" r="3" fill="#eef6ff"/><circle cx="428" cy="208" r="2" fill="#eef6ff"/><circle cx="77" cy="275" r="2" fill="#eef6ff"/><circle cx="152" cy="195" r="1.8" fill="#a6bddb"/><circle cx="339" cy="50" r="1.8" fill="#a6bddb"/><circle cx="355" cy="375" r="2" fill="#a6bddb"/><path d="M0 439 Q120 405 256 442 Q394 466 512 428 L512 512 L0 512Z" fill="#192b48"/><path d="M0 476 Q115 440 259 479 Q400 495 512 459 L512 512 L0 512Z" fill="#243856"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs><linearGradient id="night"><stop offset="0" stop-color="#0b172e"/><stop offset="1" stop-color="#31476b"/></linearGradient></defs>
+<rect width="512" height="512" fill="url(#night)"/>
+<circle cx="406" cy="103" r="28" fill="#f6efce" opacity="0.87"/>
+<circle cx="416" cy="97" r="26" fill="#122240" opacity="0.96"/>
+<circle cx="72" cy="72" r="2" fill="#dce5fa"/><circle cx="122" cy="121" r="1.5" fill="#c0cce5"/>
+<circle cx="186" cy="45" r="2.3" fill="#f3e6c6"/><circle cx="291" cy="69" r="1.7" fill="#d8e4ff"/>
+<circle cx="352" cy="160" r="1.5" fill="#e3e6f3"/><circle cx="448" cy="214" r="2.4" fill="#f4ecdd"/>
+<circle cx="475" cy="46" r="1.6" fill="#c9dbfc"/><circle cx="45" cy="212" r="1.5" fill="#e4dfea"/>
+<circle cx="161" cy="199" r="1.2" fill="#dbe6fc"/><circle cx="330" cy="26" r="1.4" fill="#b8ceec"/>
+<circle cx="22" cy="315" r="1.4" fill="#dce5fa"/><circle cx="96" cy="288" r="1.7" fill="#d4dff5"/>
+<circle cx="464" cy="334" r="1.8" fill="#f8efdb"/><circle cx="369" cy="297" r="1.3" fill="#bdcfeb"/>
+<path d="M0 360 Q79 335 144 367 Q216 325 285 354 Q388 323 512 365 L512 512 L0 512Z" fill="#253854" opacity=".8"/>
+<path d="M0 412 Q97 370 179 402 Q276 372 347 398 Q444 354 512 387 L512 512 L0 512Z" fill="#1b2b48"/>
+<path d="M0 462 Q85 430 168 454 Q263 415 357 454 Q435 424 512 444 L512 512 L0 512Z" fill="#111f38"/>
+<path d="M0 491 Q92 469 157 490 Q267 464 355 489 Q427 473 512 484 L512 512 L0 512Z" fill="#0b172d"/>
+<path d="M60 445 L69 426 L78 445 L75 445 L75 468 L63 468 L63 445Z" fill="#0d1b32"/>
+<path d="M423 445 L432 426 L441 445 L438 445 L438 468 L426 468 L426 445Z" fill="#0d1b32"/>
+</svg>
