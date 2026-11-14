@@ -30,6 +30,10 @@ python3 -m unittest discover -s tests -v
 
 A new headless CLI reads a validated `.motionpack` and produces pose-frame JSON for native host integration, without starting a browser. This needs Python 3 and Node.js; it is **not** yet a native or Unity playback engine. See [Portable Runtime M1](docs/PORTABLE_RUNTIME_M1.md) for commands, Unity adapter proof of concept, security boundaries, and unimplemented platforms.
 
+## Optional semantic and ambient behavior
+
+The offline host may call `window.MotionPackPlayer.configureBehavior(profile)` to define named actions and bounded, seeded, non-periodic ambient action events. `act('greet')` maps a semantic name to an authored clip, `setAutonomy(false)` disables ambient scheduling, and `configureBehavior(null)` clears the optional behavior mapping. Ordinary `playClip()` still works independently. Profile data is supplied only by the trusted host, not executable archive content. See [Behavior Engine MVP](docs/BEHAVIOR_ENGINE_MVP.md).
+
 ## Optional procedural motion overlays
 
 Hosts can opt into deterministic procedural motion (breathing, blinking and sway) through `window.MotionPackPlayer.configureMotion(profile)` in the offline preview; `configureMotion(null)` disables it. Standard clips continue unchanged unless explicitly configured. See [Motion Director MVP](docs/MOTION_DIRECTOR_MVP.md). This does **not** yet implement a semantic action scheduler or archive-defined autonomous behaviour.
