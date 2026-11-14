@@ -99,6 +99,16 @@ for(const name of clips){
  button.onclick=()=>playClip(name);
  controls.insertBefore(button,reset);
 }
+// Sparse visual variants can be selected independently of animation clips.
+if(multiVariant){
+ for(const name of variants){
+  const button=document.createElement('button');
+  button.type='button';
+  button.textContent='Variant: '+name;
+  button.onclick=()=>player.setVariant(name);
+  controls.insertBefore(button,reset);
+ }
+}
 // A single looping scene is an animation, not a robot-control dashboard.
 const showControls=multiClip||multiVariant||hasIK;
 if(controls)controls.hidden=!showControls;
