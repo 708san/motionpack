@@ -49,7 +49,7 @@ MotionPackの見た目・動きは、静止画の差分だけでは評価でき�
 
 ### 次の視覚作業の具体的な引き継ぎ
 
-[Issue #122](https://github.com/708san/motionpack/issues/122)のmaintainerコメントは、PR #144のcandidateを却下しています。140msに目立つ二重輪郭があり、190msにもghostingが残り、squish/returnが一貫した動きに見えません。また `seal-idle-390x844.png` は全画面画像ではなく横長のcanvas cropでした。別ファイルの `seal-viewport-390x844.png` は存在しますが、候補一式の命名・提示が混乱を招きました。実際に確認する画像・動きの詳細は[却下コメント](https://github.com/708san/motionpack/issues/122#issuecomment-6827752668)を参照してください。
+[Issue #122](https://github.com/708san/motionpack/issues/122)のmaintainerコメントは、PR #144のcandidateを却下しています。140msに目立つ二重輪郭があり、190msにもghostingが残り、squish/returnが一貫した動きに見えません。レビュー対象として提示された `seal-idle-390x844.png` は全画面390×844のviewport画像ではなく、横長のcanvas cropでした。maintainerは全画面での確認に必要な証拠が提示セットにないとして却下しています。実際に確認する画像・動きの詳細は[却下コメント](https://github.com/708san/motionpack/issues/122#issuecomment-6827752668)を参照してください。
 
 したがってPR #144のartifactは承認済み作品やvisual baselineとして使わないでください。新候補では動きを再設計し、正確に命名した全画面画像と再生可能動画を提出します。元のイラストとprovenanceを保持し、出力を直接見てから次の修正を決めてください。
 
