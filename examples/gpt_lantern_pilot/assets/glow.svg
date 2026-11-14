@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<ellipse cx="256" cy="252" rx="193" ry="208" fill="#ffca78" opacity="0.0090"/>
+<ellipse cx="256" cy="252" rx="185" ry="199.5" fill="#ffca78" opacity="0.0097"/>
+<ellipse cx="256" cy="252" rx="177" ry="191" fill="#ffca78" opacity="0.0104"/>
+<ellipse cx="256" cy="252" rx="169" ry="182.5" fill="#ffca78" opacity="0.0111"/>
+<ellipse cx="256" cy="252" rx="161" ry="174" fill="#ffca78" opacity="0.0118"/>
+<ellipse cx="256" cy="252" rx="153" ry="165.5" fill="#ffca78" opacity="0.0125"/>
+<ellipse cx="256" cy="252" rx="145" ry="157" fill="#ffca78" opacity="0.0132"/>
+<ellipse cx="256" cy="252" rx="137" ry="148.5" fill="#ffca78" opacity="0.0139"/>
+<ellipse cx="256" cy="252" rx="129" ry="140" fill="#ffca78" opacity="0.0146"/>
+<ellipse cx="256" cy="252" rx="121" ry="131.5" fill="#ffca78" opacity="0.0153"/>
+<ellipse cx="256" cy="252" rx="113" ry="123" fill="#ffca78" opacity="0.0160"/>
+<ellipse cx="256" cy="252" rx="105" ry="114.5" fill="#ffca78" opacity="0.0167"/>
+<ellipse cx="256" cy="252" rx="97" ry="106" fill="#ffca78" opacity="0.0174"/>
+<ellipse cx="256" cy="252" rx="89" ry="97.5" fill="#ffca78" opacity="0.0181"/>
+<ellipse cx="256" cy="252" rx="81" ry="89" fill="#ffca78" opacity="0.0188"/>
+<ellipse cx="256" cy="252" rx="73" ry="80.5" fill="#ffca78" opacity="0.0195"/>
+<ellipse cx="256" cy="252" rx="65" ry="72" fill="#ffca78" opacity="0.0202"/>
+<ellipse cx="256" cy="252" rx="57" ry="63.5" fill="#ffca78" opacity="0.0209"/>
+<ellipse cx="256" cy="250" rx="46" ry="61" fill="#ffe3a0" opacity=".045"/>
+<circle cx="164" cy="214" r="2.5" fill="#ffdb8f" opacity=".43"/>
+<circle cx="355" cy="286" r="1.7" fill="#ffdd8f" opacity=".47"/>
+<circle cx="311" cy="159" r="1.5" fill="#ffe4a2" opacity=".41"/>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<!-- Original layered lantern illustration. No filters, scripts, styles, or external references. -->
+<path d="M247 121 Q256 102 265 121" fill="none" stroke="#f7e1aa" stroke-width="4"/>
+<path d="M230 132 Q256 118 282 132 L286 148 Q256 157 226 148Z" fill="#523b4c" stroke="#f5cd7f" stroke-width="4"/>
+<path d="M221 150 Q256 136 291 150 C304 180 310 278 301 317 Q256 348 211 317 C202 275 208 180 221 150Z" fill="#a94637" stroke="#f6d184" stroke-width="6"/>
+<path d="M229 161 Q256 150 282 161 C291 203 297 282 288 305 Q256 326 224 305 C215 283 220 203 229 161Z" fill="#e9954c"/>
+<path d="M237 163 Q256 158 275 164 C284 206 287 276 279 297 Q256 313 233 297 C226 272 229 204 237 163Z" fill="#ffd48a"/>
+<path d="M248 185 Q220 217 242 259 Q232 234 252 214 Q264 230 253 250 Q278 240 263 201 Q271 208 276 231 Q293 266 259 293 Q232 282 234 257 Q215 224 248 185Z" fill="#ffe9ad"/>
+<path d="M255 216 Q245 234 257 247 Q249 231 263 224 Q276 247 256 267 Q267 252 255 216Z" fill="#fff8d5"/>
+<path d="M224 153 Q237 143 249 144 L234 312 Q217 304 216 270Z" fill="#7b3639" opacity=".35"/>
+<path d="M266 146 Q280 148 291 155 L298 273 Q300 306 283 311Z" fill="#883c3b" opacity=".32"/>
+<path d="M256 146 L256 317" fill="none" stroke="#e6aa69" stroke-width="2" opacity=".56"/>
+<path d="M231 155 Q219 227 227 310" fill="none" stroke="#f0b875" stroke-width="3" opacity=".75"/>
+<path d="M281 155 Q293 231 286 308" fill="none" stroke="#f0b875" stroke-width="3" opacity=".75"/>
+<path d="M215 312 Q256 334 297 312 L293 329 Q256 349 219 329Z" fill="#594455" stroke="#f5cf83" stroke-width="4"/>
+<path d="M224 326 Q256 339 287 326" fill="none" stroke="#d89c65" stroke-width="2"/>
+<path d="M256 343 L256 368" fill="none" stroke="#f6d188" stroke-width="4"/>
+<path d="M251 372 L261 372 L267 383 L256 392 L245 383Z" fill="#f8cf7e" stroke="#7c4c4b" stroke-width="2"/>
+<circle cx="256" cy="382" r="3" fill="#fff0bc"/>
+</svg>
