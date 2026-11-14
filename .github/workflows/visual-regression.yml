@@ -25,6 +25,9 @@ jobs:
           name: motionpack-visual-candidates
           path: |
             test-results/visual/candidate-screenshots/*.png
+            test-results/visual/gpt-lantern/*.webm
+            test-results/visual/gpt-lantern/*.motionpack
+            test-results/visual/gpt-lantern/*standalone.html
             test-results/visual/capture-metadata.txt
             test-results/performance/performance.json
           if-no-files-found: warn
