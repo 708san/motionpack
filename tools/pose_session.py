@@ -58,12 +58,19 @@ def serve(archive, *, input_stream=None, output_stream=None, node_executable="no
                 raise ValueError("malformed pose request") from exc
             if not isinstance(request, dict):
                 raise ValueError("pose request must be an object")
-            # The caller only sends data; no executable filename or script
-            # can ever originate from the package or from request fields.
-            allowed = {"timeMs", "clip", "variant", "ikTargets"}
-            if set(request) - allowed:
+            # The trusted host can supply behavior data separately from the
+            # archive. Never infer executable actions from .motionpack metadata.
+            kind = request.get("type", "sample")
+            fields = {
+                "sample": {"type", "timeMs", "clip", "variant", "ikTargets"},
+                "configureBehavior": {"type", "profile"},
+                "act": {"type", "action"},
+                "advanceBehavior": {"type", "deltaMs"},
+                "setAutonomy": {"type", "enabled"},
+            }
+            if not isinstance(kind, str) or kind not in fields or set(request) - fields[kind]:
                 raise ValueError("unsupported pose request field")
-            request["type"] = "sample"
+            request["type"] = kind
             data = json.dumps(request, allow_nan=False, separators=(",", ":")) + "\n"
             process.stdin.write(data.encode("utf-8"))
             process.stdin.flush()
@@ -71,10 +78,27 @@ def serve(archive, *, input_stream=None, output_stream=None, node_executable="no
             if not response_bytes or len(response_bytes) > MAX_RESPONSE_BYTES:
                 raise ValueError("invalid pose response")
             reply = json.loads(response_bytes)
-            if reply.get("type") == "frame":
+            if not isinstance(reply, dict):
+                raise ValueError("unexpected pose result")
+            response_type = reply.get("type")
+            if response_type == "frame":
                 frame = reply.get("frame")
                 if not isinstance(frame, dict) or frame.get("protocol") != "motionpack-pose":
                     raise ValueError("unexpected pose frame")
+            elif response_type == "action":
+                if set(reply) != {"type", "action"} or (
+                    reply["action"] is not None and not isinstance(reply["action"], dict)
+                ):
+                    raise ValueError("unexpected semantic action")
+            elif response_type == "behaviorEvents":
+                if set(reply) != {"type", "events"} or not isinstance(reply["events"], list):
+                    raise ValueError("unexpected ambient events")
+            elif response_type == "behaviorConfigured":
+                if set(reply) != {"type", "enabled"} or type(reply["enabled"]) is not bool:
+                    raise ValueError("unexpected behavior configuration")
+            elif response_type == "autonomy":
+                if set(reply) != {"type", "enabled"} or type(reply["enabled"]) is not bool:
+                    raise ValueError("unexpected autonomy state")
             elif reply != {"type": "error", "code": "INVALID_REQUEST"}:
                 raise ValueError("unexpected pose result")
             output_stream.write(json.dumps(reply, ensure_ascii=False,
