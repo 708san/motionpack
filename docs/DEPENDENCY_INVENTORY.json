@@ -28,6 +28,7 @@
         "ci.yml",
         "governance.yml",
         "isolated-reader.yml",
+        "portable-headless.yml",
         "visual-regression.yml",
         "zip-reader-fuzz.yml"
       ]
