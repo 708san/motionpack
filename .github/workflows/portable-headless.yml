@@ -24,4 +24,4 @@ jobs:
       - name: Compare portable pose protocol with reference evaluator
         run: node tests/headless_pose_test.js
       - name: Evaluate packaged archives without HTML
-        run: python -m unittest tests.test_headless_pose -v
+        run: python -m unittest tests.test_headless_pose tests.test_pose_session -v

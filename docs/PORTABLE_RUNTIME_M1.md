@@ -42,3 +42,18 @@ Unity Editor compilation, image import, effects, automatic archive loading, sust
 ## Scope and limitations
 
 The current one-shot CLI launches subprocesses and is not suitable for 60 fps sampling. The bridge does not decode/rasterize SVGs or PNGs; it returns transforms and effect descriptions only. The reader's isolated process is defense-in-depth, not an OS security sandbox. Platform parity, performance, deterministic physics, independent native player and self-contained native app exports are future milestones.
+
+## Persistent headless pose session (experimental)
+
+The new `tools/pose_session.py` loads one validated `.motionpack` archive **once** using the existing bounded isolated ZIP reader, then keeps the trusted Node.js pose evaluator running for a stream of requests. This removes the one-process-per-frame overhead from `sample_pose.py`, but remains an interprocess bridge rather than a production native library.
+
+```sh
+python3 tools/package.py examples/robot_ik_demo --out /tmp/mp-build
+printf '%s\\n' '{"timeMs":0}' '{"timeMs":500,"clip":"idle"}' \\
+  | python3 tools/pose_session.py /tmp/mp-build/robot_ik_demo.motionpack
+```
+
+The protocol uses newline-delimited JSON (one request/response per line). The first output line is a `ready` object; subsequent output lines contain `{ "type":"frame", "frame": ... }` or generic `{ "type":"error","code":"INVALID_REQUEST" }`. Every request may include `timeMs`, `clip`, `variant`, and `ikTargets`. The output frame schema is the same `motionpack-pose` v1 protocol described above. The bridge rejects oversized requests, unsupported keys and malformed input; the archive cannot provide code to execute. The Python and Node processes still require an installed runtime.
+
+Cross-platform functional CI uses real packaged archives to compare multiple streamed frames against independently sampled reference frames. This does **not** validate 60 fps rendering, low-latency performance, C# integration, production process isolation or Unity Editor support.
+
