@@ -14,7 +14,7 @@ const director=Director.create({channels:[
 const a=director.sample(base,250);
 assert.equal(a.nodes.get('body').rotation,9);
 assert.ok(a.nodes.get('body').scale>1);
-assert.equal(a.nodes.get('eye').opacity,1);
+assert.ok(a.nodes.get('eye').opacity>0&&a.nodes.get('eye').opacity<1,'blink is partly closed');
 assert.equal(base.nodes.get('body').rotation,3,'source pose must remain unchanged');
 assert.notEqual(a.nodes.get('body'),base.nodes.get('body'));
 assert.equal(director.sample(base,250).nodes.get('body').rotation,9,'same input deterministic');
