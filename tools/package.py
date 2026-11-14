@@ -149,8 +149,9 @@ def render_preview_html(embedded):
 .viewport{width:100%;aspect-ratio:1 / 1;max-height:75vh;overflow:hidden;background:#081324}
 canvas{display:block;width:100%;height:100%;background:#081324}
 button{padding:10px;background:#345f8e;color:white;border:1px solid #78a2c9;border-radius:8px;margin:4px;cursor:pointer}
+[hidden]{display:none!important}.immersive #status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 </style></head><body><div class="shell"><h2>MotionPack experimental preview</h2><div class="panel">
-<div class="viewport" id="viewport"><canvas id="stage"></canvas></div><div><button id="idle">Idle</button><button id="fire">Fire beam</button>
+<div class="viewport" id="viewport"><canvas id="stage"></canvas></div><div id="controls"><button id="idle">Idle</button><button id="fire">Fire beam</button>
 <button id="transform">Switch form</button><button id="reset">Reset</button><button id="aim">Pointer IK: OFF</button></div>
 <p id="asset-error" role="status" aria-live="polite" hidden></p><p id="status"></p></div></div><script>window.__MOTIONPACK__=""" + payload + ";</script><script>" + rig + "</script><script>" + evaluator + "</script><script>" + player_controller + "</script><script>" + viewport_adapter + "</script><script>" + pointer_ik_adapter + "</script><script>" + hit_test + "</script><script>" + interaction_adapter + "</script><script>" + viewer + "</script></body></html>"
     return page
