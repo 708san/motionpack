@@ -48,6 +48,6 @@ assert.deepEqual(first,second);
 assert.equal(JSON.stringify(robot),original,'manifest unchanged');
 assert.throws(()=>Headless.sampleFrame(robot,{clip:'__proto__'}),/unknown clip/);
 assert.throws(()=>Headless.sampleFrame(robot,{timeMs:-1}),/negative/);
-const cycle=JSON.parse(JSON.stringify(robot));cycle.nodes.find(n=>n.id==='mech').parent='head';
+const cycle=read('layered_plant_demo');cycle.nodes.find(n=>n.id==='foliage').parent='pot';cycle.nodes.find(n=>n.id==='pot').parent='foliage';
 assert.throws(()=>Headless.sampleFrame(cycle,{timeMs:0}),/cyclic/);
 console.log('OK: browser-equivalent headless pose frames across clips, variants, IK and effects');
