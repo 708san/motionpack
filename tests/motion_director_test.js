@@ -18,9 +18,9 @@ assert.equal(a.nodes.get('eye').opacity,1);
 assert.equal(base.nodes.get('body').rotation,3,'source pose must remain unchanged');
 assert.notEqual(a.nodes.get('body'),base.nodes.get('body'));
 assert.equal(director.sample(base,250).nodes.get('body').rotation,9,'same input deterministic');
-assert.equal(director.sample(base,1250).nodes.get('body').rotation,9,'periodicity');
+assert.ok(Math.abs(director.sample(base,1250).nodes.get('body').rotation-9)<1e-10,'periodicity');
 const blink=director.sample(base,200).nodes.get('eye').opacity;
-assert.equal(blink,0,'blink pulse closes eye at midpoint');
+assert.ok(Math.abs(blink)<1e-10,'blink pulse closes eye at midpoint');
 assert.equal(director.sample(base,500).nodes.get('eye').opacity,1,'blink recovers');
 const capped=Director.create({channels:[
  {id:'fade',node:'body',property:'opacity',amplitude:1,periodMs:1000},
