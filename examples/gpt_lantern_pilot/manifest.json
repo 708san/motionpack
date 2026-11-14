@@ -1,0 +1,179 @@
+{
+  "format": "motionpack",
+  "version": "0.3",
+  "id": "gpt-lantern-pilot",
+  "canvas": {
+    "width": 512,
+    "height": 512,
+    "background": "#101d38"
+  },
+  "assets": {
+    "sky": "assets/sky.svg",
+    "glow": "assets/glow.svg",
+    "lantern": "assets/lantern.svg"
+  },
+  "nodes": [
+    {
+      "id": "sky",
+      "asset": "sky",
+      "x": 256,
+      "y": 256,
+      "width": 512,
+      "height": 512,
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "z": 0
+    },
+    {
+      "id": "glow",
+      "asset": "glow",
+      "x": 256,
+      "y": 256,
+      "width": 512,
+      "height": 512,
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "z": 1,
+      "opacity": 0.7
+    },
+    {
+      "id": "lantern",
+      "asset": "lantern",
+      "x": 256,
+      "y": 256,
+      "width": 512,
+      "height": 512,
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "z": 2
+    }
+  ],
+  "clips": {
+    "float": {
+      "duration_ms": 3200,
+      "loop": true,
+      "tracks": [
+        {
+          "node": "lantern",
+          "property": "y",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 256
+            },
+            {
+              "time_ms": 800,
+              "value": 246
+            },
+            {
+              "time_ms": 1600,
+              "value": 240
+            },
+            {
+              "time_ms": 2400,
+              "value": 246
+            },
+            {
+              "time_ms": 3200,
+              "value": 256
+            }
+          ]
+        },
+        {
+          "node": "lantern",
+          "property": "rotation",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": -2.2
+            },
+            {
+              "time_ms": 800,
+              "value": 0
+            },
+            {
+              "time_ms": 1600,
+              "value": 2.2
+            },
+            {
+              "time_ms": 2400,
+              "value": 0
+            },
+            {
+              "time_ms": 3200,
+              "value": -2.2
+            }
+          ]
+        },
+        {
+          "node": "glow",
+          "property": "opacity",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 0.68
+            },
+            {
+              "time_ms": 800,
+              "value": 0.76
+            },
+            {
+              "time_ms": 1600,
+              "value": 0.88
+            },
+            {
+              "time_ms": 2400,
+              "value": 0.76
+            },
+            {
+              "time_ms": 3200,
+              "value": 0.68
+            }
+          ]
+        },
+        {
+          "node": "glow",
+          "property": "y",
+          "keys": [
+            {
+              "time_ms": 0,
+              "value": 256
+            },
+            {
+              "time_ms": 800,
+              "value": 246
+            },
+            {
+              "time_ms": 1600,
+              "value": 240
+            },
+            {
+              "time_ms": 2400,
+              "value": 246
+            },
+            {
+              "time_ms": 3200,
+              "value": 256
+            }
+          ]
+        }
+      ],
+      "effects": []
+    }
+  },
+  "variants": {
+    "default": {
+      "nodes": {}
+    }
+  },
+  "defaults": {
+    "clip": "float",
+    "variant": "default"
+  }
+}
