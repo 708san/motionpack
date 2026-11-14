@@ -113,7 +113,7 @@ test('GPT-authored archive exports to a playable single-file HTML', async ({ pag
     if (/^https?:/i.test(request.url())) requests.push(request.url());
   });
   page.on('pageerror', error => errors.push(error.message));
-  await page.route(/^https?:\\/\\//i, route => route.abort());
+  await page.route(/^https?:\/\//i, route => route.abort());
   await page.goto(pathToFileURL(standalone).href);
   await page.locator('#stage').waitFor({ state: 'visible' });
   await page.waitForFunction(() => !!window.MotionPackPlayer);
