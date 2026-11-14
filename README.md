@@ -26,6 +26,10 @@ node tests/runtime_ik_smoke.js
 python3 -m unittest discover -s tests -v
 ```
 
+## Experimental HTML-free pose sampling
+
+A new headless CLI reads a validated `.motionpack` and produces pose-frame JSON for native host integration, without starting a browser. This needs Python 3 and Node.js; it is **not** yet a native or Unity playback engine. See [Portable Runtime M1](docs/PORTABLE_RUNTIME_M1.md) for commands, Unity adapter proof of concept, security boundaries, and unimplemented platforms.
+
 ## Export an existing MotionPack as one offline HTML file
 
 To share an already built `.motionpack` archive without installing an editor or uploading it:
