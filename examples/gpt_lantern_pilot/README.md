@@ -18,7 +18,9 @@ python3 tools/package.py examples/gpt_lantern_pilot --out /tmp/motionpack-gpt-pi
 
 ## Evidence and open review
 
-- Status at authoring: GitHub files generated; **validator, package command, browser rendering, and visual review have not yet been executed**. Do not mark any of these as passed until actual results are collected.
+- Functional acceptance: GitHub Actions browser visual run #43595335306 and the functional unit-test job passed with this sample. Source-layer round-trip and offline Chromium rendering were exercised. A subsequent change adds exact clip-phase assertions; use the newest run for its result.
+- An actual 390x844 screenshot from run #43595335306 was inspected. The lantern silhouette is readable, but overall artwork is deliberately simple; no human artistic approval is recorded.
+- Security-negative-tests still reports pre-existing-style failures concerning symlinks and input snapshot mutation; the PR must remain a draft until required checks are resolved.
 - Functional: validate manifest and static SVG subset; package; check an offline preview and archive; inspect layer isolation; reload and amend the SVG paths.
 - Visual: record stills at 0/800/1600/2400/3200 ms plus a full-cycle WebM or equivalent, at desktop and 390×844 full viewport. Explicitly distinguish canvas crop versus full viewport. Check palette, silhouette, lighting, periodic continuity, any doubled edges, and clipping.
 - Human quality judgment: grade composition, originality, detail, layer editability and motion naturalness on an explicit 1–5 scale. Record failure reasons even if the validator passes; do not modify approved baseline assets.
