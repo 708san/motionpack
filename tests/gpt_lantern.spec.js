@@ -38,6 +38,10 @@ test('offline playback, cycle captures, and mobile viewport evidence', async ({ 
     [...document.images].every(img => img.complete && img.naturalWidth > 0));
   await page.clock.pauseAt(new Date('2026-01-01T00:01:00Z'));
   await page.clock.runFor(16);
+  // The virtual clock was positioned one minute ahead while assets loaded.
+  // Reset the player so evidence timestamps refer to the clip timeline.
+  await page.evaluate(() => document.querySelector('#reset').click());
+  await page.clock.runFor(16);
   expect(await page.evaluate(() => window.__MOTIONPACK__.defaults.clip)).toBe('float');
   const captures = [];
   for (const ms of [0, 800, 1600, 2400, 3200]) {
@@ -51,6 +55,15 @@ test('offline playback, cycle captures, and mobile viewport evidence', async ({ 
     await testInfo.attach(`gpt-lantern-viewport-${ms}ms`, {
       path: viewportPath, contentType: 'image/png'
     });
+    const observedStatus = await page.locator('#status').textContent();
+    const match = observedStatus.match(/\\| (\\d+) ms/);
+    expect(match, `missing clip time at label ${ms}: ${observedStatus}`).not.toBeNull();
+    const observed = Number(match[1]);
+    const expected = ms % 3200;
+    // Allow a single frame of scheduling slack around clip boundaries.
+    const cycleError = Math.min(Math.abs(observed - expected),
+      3200 - Math.abs(observed - expected));
+    expect(cycleError, `incorrect phase at ${ms}ms: ${observedStatus}`).toBeLessThan(40);
     captures.push(ms);
   }
   const status = await page.locator('#status').textContent();
