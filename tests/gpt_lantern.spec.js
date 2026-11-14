@@ -56,7 +56,7 @@ test('offline playback, cycle captures, and mobile viewport evidence', async ({ 
       path: viewportPath, contentType: 'image/png'
     });
     const observedStatus = await page.locator('#status').textContent();
-    const match = observedStatus.match(/\\| (\\d+) ms/);
+    const match = observedStatus.match(/[|] ([0-9]+) ms/);
     expect(match, `missing clip time at label ${ms}: ${observedStatus}`).not.toBeNull();
     const observed = Number(match[1]);
     const expected = ms % 3200;
