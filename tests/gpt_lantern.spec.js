@@ -43,12 +43,26 @@ test('offline playback, cycle captures, and mobile viewport evidence', async ({ 
   await page.evaluate(() => document.querySelector('#reset').click());
   await page.clock.runFor(16);
   expect(await page.evaluate(() => window.__MOTIONPACK__.defaults.clip)).toBe('float');
+  const manifest = await page.evaluate(() => window.__MOTIONPACK__);
+  const rotation = manifest.clips.float.tracks.find(
+    track => track.node === 'lantern' && track.property === 'rotation'
+  );
+  expect(rotation.keys.map(key => key.value)).toEqual([-2.2, 0, 2.2, 0, -2.2]);
+  const lanternY = manifest.clips.float.tracks.find(
+    track => track.node === 'lantern' && track.property === 'y'
+  );
+  const glowY = manifest.clips.float.tracks.find(
+    track => track.node === 'glow' && track.property === 'y'
+  );
+  expect(glowY.keys).toEqual(lanternY.keys);
+  const frameBytes = [];
   const captures = [];
   for (const ms of [0, 800, 1600, 2400, 3200]) {
     if (ms) await page.clock.runFor(ms - (captures.length ? captures[captures.length - 1] : 0));
     const canvasPath = path.join(screenshots, `gpt-lantern-canvas-${ms}ms.png`);
     const viewportPath = path.join(screenshots, `gpt-lantern-viewport-390x844-${ms}ms.png`);
     await canvas.screenshot({ path: canvasPath, animations: 'disabled' });
+    frameBytes.push(fs.readFileSync(canvasPath));
     await page.screenshot({ path: viewportPath, fullPage: false, animations: 'disabled' });
     const png = fs.readFileSync(viewportPath);
     expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([390, 844]);
@@ -66,6 +80,8 @@ test('offline playback, cycle captures, and mobile viewport evidence', async ({ 
     expect(cycleError, `incorrect phase at ${ms}ms: ${observedStatus}`).toBeLessThan(40);
     captures.push(ms);
   }
+  expect(Buffer.compare(frameBytes[0], frameBytes[2])).not.toBe(0);
+  expect(Buffer.compare(frameBytes[2], frameBytes[4])).not.toBe(0);
   const status = await page.locator('#status').textContent();
   expect(status).toContain('float');
   expect(requests).toEqual([]);
