@@ -1,20 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-<!-- Original layered lantern illustration. No filters, scripts, styles, or external references. -->
-<path d="M247 121 Q256 102 265 121" fill="none" stroke="#f7e1aa" stroke-width="4"/>
-<path d="M230 132 Q256 118 282 132 L286 148 Q256 157 226 148Z" fill="#523b4c" stroke="#f5cd7f" stroke-width="4"/>
-<path d="M221 150 Q256 136 291 150 C304 180 310 278 301 317 Q256 348 211 317 C202 275 208 180 221 150Z" fill="#a94637" stroke="#f6d184" stroke-width="6"/>
-<path d="M229 161 Q256 150 282 161 C291 203 297 282 288 305 Q256 326 224 305 C215 283 220 203 229 161Z" fill="#e9954c"/>
-<path d="M237 163 Q256 158 275 164 C284 206 287 276 279 297 Q256 313 233 297 C226 272 229 204 237 163Z" fill="#ffd48a"/>
-<path d="M248 185 Q220 217 242 259 Q232 234 252 214 Q264 230 253 250 Q278 240 263 201 Q271 208 276 231 Q293 266 259 293 Q232 282 234 257 Q215 224 248 185Z" fill="#ffe9ad"/>
-<path d="M255 216 Q245 234 257 247 Q249 231 263 224 Q276 247 256 267 Q267 252 255 216Z" fill="#fff8d5"/>
-<path d="M224 153 Q237 143 249 144 L234 312 Q217 304 216 270Z" fill="#7b3639" opacity=".35"/>
-<path d="M266 146 Q280 148 291 155 L298 273 Q300 306 283 311Z" fill="#883c3b" opacity=".32"/>
-<path d="M256 146 L256 317" fill="none" stroke="#e6aa69" stroke-width="2" opacity=".56"/>
-<path d="M231 155 Q219 227 227 310" fill="none" stroke="#f0b875" stroke-width="3" opacity=".75"/>
-<path d="M281 155 Q293 231 286 308" fill="none" stroke="#f0b875" stroke-width="3" opacity=".75"/>
-<path d="M215 312 Q256 334 297 312 L293 329 Q256 349 219 329Z" fill="#594455" stroke="#f5cf83" stroke-width="4"/>
-<path d="M224 326 Q256 339 287 326" fill="none" stroke="#d89c65" stroke-width="2"/>
-<path d="M256 343 L256 368" fill="none" stroke="#f6d188" stroke-width="4"/>
-<path d="M251 372 L261 372 L267 383 L256 392 L245 383Z" fill="#f8cf7e" stroke="#7c4c4b" stroke-width="2"/>
-<circle cx="256" cy="382" r="3" fill="#fff0bc"/>
+<!-- Original stylized flying sky lantern: a paper hot-air envelope with an open base. -->
+<!-- Warm paper envelope: softly rounded shoulders and a broad, recognizable paper-bag silhouette. -->
+<path d="M219 126 Q256 110 293 126 Q314 154 319 202 L316 292 Q313 323 303 331 Q256 345 209 331 Q199 322 196 292 L193 202 Q198 154 219 126Z" fill="#d7723d" stroke="#e5a66a" stroke-width="3"/>
+<!-- Warm translucent paper faces, darker at the creased outer folds. -->
+<path d="M220 130 Q256 118 291 130 Q308 169 309 214 L307 301 Q305 320 298 326 Q256 339 214 326 Q207 318 205 300 L202 214 Q204 169 220 130Z" fill="#f3a757"/>
+<path d="M224 136 Q257 125 287 137 Q303 180 300 263 Q299 299 293 319 Q258 330 221 320 Q213 294 213 254 Q209 175 224 136Z" fill="#ffd08a" opacity=".88"/>
+<path d="M228 137 Q243 132 256 132 L256 324 Q235 325 220 319 Q216 220 228 137Z" fill="#ffe0a3" opacity=".48"/>
+<path d="M287 136 Q306 174 310 216 L307 301 Q304 320 298 326 L288 321 Q299 228 287 136Z" fill="#b65c39" opacity=".3"/>
+<path d="M220 135 Q205 175 206 224 L209 307 Q211 317 216 325 L226 324 Q209 225 220 135Z" fill="#bd6a3e" opacity=".26"/>
+<!-- Faint seams and crumples in the rice paper. -->
+<path d="M221 134 Q216 191 220 253 Q219 295 222 319" fill="none" stroke="#a85c3a" stroke-width="1.5" opacity=".33"/>
+<path d="M290 135 Q300 203 294 272 L290 321" fill="none" stroke="#a85c3a" stroke-width="1.5" opacity=".28"/>
+<path d="M233 142 Q237 162 231 180 M278 154 Q272 174 278 192 M230 277 Q239 286 235 300" fill="none" stroke="#fff0b9" stroke-width="1.5" opacity=".4"/>
+<!-- Bottom opening of the hollow lantern, visibly darker than the lit paper. -->
+<path d="M209 327 Q256 308 303 327 Q294 348 256 352 Q218 348 209 327Z" fill="#9a4731"/>
+<path d="M211 326 Q256 309 301 326 Q280 319 256 321 Q231 319 211 326Z" fill="#ffe4a9" opacity=".68"/>
+<path d="M211 327 Q256 346 301 327" fill="none" stroke="#ffce87" stroke-width="3"/>
+<path d="M213 331 Q256 351 299 331" fill="none" stroke="#e99f62" stroke-width="1.4" opacity=".7"/>
+<!-- Thin cross-bars and tiny suspended fuel burner (no decorative tassel). -->
+<path d="M219 331 L293 331 M256 324 L256 345" fill="none" stroke="#70402f" stroke-width="1.6" opacity=".75"/>
+<path d="M249 340 L263 340 L265 345 Q256 350 247 345Z" fill="#563a32"/>
+<!-- Small flame emerging from the center of the base, not covering the paper face. -->
+<path d="M256 341 Q246 333 251 322 Q248 315 258 306 Q254 318 262 323 Q270 334 258 342Z" fill="#ff9f3e"/>
+<path d="M256 340 Q250 333 255 326 Q254 322 259 319 Q257 328 261 332 Q263 337 256 340Z" fill="#fff3bf"/>
 </svg>
