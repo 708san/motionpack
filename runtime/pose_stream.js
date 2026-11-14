@@ -7,10 +7,11 @@
 const readline=require('node:readline');
 const Core=require('./headless_pose.js');
 const Behavior=require('./behavior_engine.js');
+const Director=require('./motion_director.js');
 const MAX_INIT_BYTES=2*1024*1024;
 const MAX_COMMAND_BYTES=8192;
 const MAX_FRAMES=100000;
-let manifest=null,count=0,initialized=false,behavior=null;
+let manifest=null,count=0,initialized=false,behavior=null,director=null;
 const send=data=>{process.stdout.write(JSON.stringify(data)+'\n');};
 const error=code=>send({type:'error',code});
 const lines=readline.createInterface({input:process.stdin,crlfDelay:Infinity,terminal:false});
@@ -22,12 +23,20 @@ function handle(command){
  if(++count>MAX_FRAMES){error('SESSION_LIMIT');lines.close();return;}
  switch(command.type){
   case 'sample': {
-   exactKeys(command,['type','timeMs','clip','variant','ikTargets']);
+   exactKeys(command,['type','timeMs','clip','variant','ikTargets','motionTimeMs']);
    const frame=Core.sampleFrame(manifest,{
     timeMs:command.timeMs,clip:command.clip,variant:command.variant,
-    ikTargets:command.ikTargets
+    ikTargets:command.ikTargets,director,motionTimeMs:command.motionTimeMs
    });
    send({type:'frame',frame});
+   break;
+  }
+  case 'configureMotion': {
+   exactKeys(command,['type','profile']);
+   // This is a trusted host preference, never an archive-provided script.
+   const next=command.profile===null?null:Director.create(command.profile,manifest);
+   director=next;
+   send({type:'motionConfigured',enabled:!!director});
    break;
   }
   case 'configureBehavior': {
