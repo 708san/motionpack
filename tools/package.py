@@ -130,8 +130,8 @@ def _encode_rgba_png(decoded, *, max_output_bytes):
 
 def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=False):
     try:
-        root = Path(folder).resolve()
-    except RuntimeError as exc:
+        root = Path(folder).resolve(strict=True)
+    except (RuntimeError, OSError) as exc:
         raise ValueError("unable to resolve project root") from exc
     out = Path(out).resolve()
     asset_data_by_manifest_path = {}

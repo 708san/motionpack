@@ -126,7 +126,7 @@ def _snapshot_archive(source, destination, limits):
             raise ArchiveError("archive file size exceeds isolated reader limit")
         total = 0
         copied_digest = hashlib.sha256()
-        with os.fdopen(descriptor, "rb", closefd=False) as source_file:
+        with os.fdopen(descriptor, "rb", buffering=0, closefd=False) as source_file:
             with open(destination, "wb") as snapshot:
                 while True:
                     chunk = source_file.read(min(64 * 1024, ceiling - total + 1))

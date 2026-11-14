@@ -622,8 +622,8 @@ def validate(folder, *, asset_data_sink=None, max_png_dimension=MAX_PNG_DIMENSIO
                                   (max_svg_pixels, MAX_SVG_PIXELS))):
         raise ValueError("SVG limits must be positive and cannot exceed v0.3 maxima")
     try:
-        root = pathlib.Path(folder).resolve()
-    except RuntimeError as exc:
+        root = pathlib.Path(folder).resolve(strict=True)
+    except (RuntimeError, OSError) as exc:
         raise ValueError("unable to resolve project root") from exc
     errors = []
     def check(ok, message):

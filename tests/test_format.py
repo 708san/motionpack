@@ -1200,7 +1200,7 @@ class FormatTests(unittest.TestCase):
             m['assets']['loop']='assets/loop.svg'
             (d/'manifest.json').write_text(json.dumps(m))
             errors,_=validate(d)
-            self.assertTrue(any('unable to resolve asset' in x for x in errors),errors)
+            self.assertTrue(any('symlink in asset path' in x for x in errors),errors)
             result=subprocess.run(
                 [sys.executable,str(ROOT/'tools'/'validate.py'),str(d)],
                 capture_output=True,text=True,check=False,
