@@ -1,7 +1,7 @@
 /* MotionPack experimental offline Canvas2D renderer, animation player and visual effects */
 (function(){
 'use strict';
-const S=window.__MOTIONPACK__,Rig=window.MotionPackRig,Controller=window.MotionPackPlayerController,Director=window.MotionPackMotionDirector,PointerIKAdapter=window.MotionPackPointerIKAdapter,HitTest=window.MotionPackHitTest,InteractionAdapter=window.MotionPackInteractionAdapter,ViewportAdapter=window.MotionPackViewportAdapter;
+const S=window.__MOTIONPACK__,Rig=window.MotionPackRig,Controller=window.MotionPackPlayerController,Director=window.MotionPackMotionDirector,Behavior=window.MotionPackBehavior,PointerIKAdapter=window.MotionPackPointerIKAdapter,HitTest=window.MotionPackHitTest,InteractionAdapter=window.MotionPackInteractionAdapter,ViewportAdapter=window.MotionPackViewportAdapter;
 if(!S){document.body.textContent='Missing MotionPack asset';return;}
 const canvas=document.getElementById('stage'),ctx=canvas.getContext('2d');canvas.width=S.canvas.width;canvas.height=S.canvas.height;
 const viewportElement=document.getElementById('viewport');if(viewportElement?.style)viewportElement.style.aspectRatio=S.canvas.width+' / '+S.canvas.height;
@@ -20,7 +20,7 @@ const interactionAdapter=S.version==='0.4'?InteractionAdapter.create({target:can
  hitTest:HitTest,emit:event=>window.dispatchEvent(new CustomEvent('motionpack:interaction',{detail:event}))}):null;
 if(interactionAdapter)window.MotionPackInteractions=Object.freeze({activate:nodeId=>interactionAdapter.activate(nodeId),dispose:()=>interactionAdapter.dispose()});
 window.MotionPackViewport=Object.freeze({configure:options=>viewport.configure(options),getState:()=>viewport.getState()});
-let transition=null,pointerIK=false,previousFrameTime=performance.now(),motionDirector=null,motionTimeMs=0;
+let transition=null,pointerIK=false,previousFrameTime=performance.now(),motionDirector=null,motionTimeMs=0,behavior=null;
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),mix=(a,b,t)=>a+(b-a)*t,identity={a:1,b:0,c:0,d:1,e:0,f:0};
 function mm(a,b){return {a:a.a*b.a+a.c*b.b,b:a.b*b.a+a.d*b.b,c:a.a*b.c+a.c*b.d,d:a.b*b.c+a.d*b.d,e:a.a*b.e+a.c*b.f+a.e,f:a.b*b.e+a.d*b.f+a.f};}
 function matrix(n){const r=(n.rotation||0)*Math.PI/180,s=n.scale??1;return {a:Math.cos(r)*s,b:Math.sin(r)*s,c:-Math.sin(r)*s,d:Math.cos(r)*s,e:n.x||0,f:n.y||0};}
@@ -43,6 +43,15 @@ function frame(time){
   }
   state=player.getState();t=pose.timeMs;
  }catch(_){playbackFailed=true;document.getElementById('status').textContent='Playback stopped: invalid animation data';return;}
+ if(behavior){
+  const suggested=behavior.advance(delta);
+  if(suggested.length && player.getState().clip===S.defaults.clip){
+   const chosen=suggested[0];
+   if(chosen.variant!==null)player.setVariant(chosen.variant);
+   pose=player.play(chosen.clip);
+   state=player.getState();t=pose.timeMs;
+  }
+ }
  if(motionDirector)pose=motionDirector.sample(pose,motionTimeMs);
  currentPose=pose;
  drawableNodeIds=new Set([...pose.nodes.values()].filter(n=>n.asset&&images[n.asset]?.complete&&images[n.asset]?.naturalWidth>0).map(n=>n.id));
@@ -115,7 +124,20 @@ if(multiVariant && controls && typeof document.createElement==='function'){
 const showControls=multiClip||multiVariant||hasIK;
 if(controls)controls.hidden=!showControls;
 if(!showControls && typeof document.querySelector==='function')document.querySelector('.panel')?.classList.add('immersive');
-window.MotionPackPlayer=Object.freeze({playClip,configureMotion:profile=>{
+window.MotionPackPlayer=Object.freeze({playClip,configureBehavior:profile=>{
+ if(profile===null){behavior=null;return;}
+ if(!Behavior)throw new Error('Behavior engine is unavailable');
+ behavior=Behavior.create(profile,S);
+},act:name=>{
+ if(!behavior)return false;
+ const action=behavior.resolve(name);
+ if(!action)return false;
+ if(action.variant!==null)player.setVariant(action.variant);
+ playClip(action.clip);
+ return true;
+},setAutonomy:enabled=>{
+ if(behavior)behavior.setAutonomy(enabled);
+},configureMotion:profile=>{
  if(profile===null){motionDirector=null;return;}
  if(!Director)throw new Error('Motion Director is unavailable');
  motionDirector=Director.create(profile,S);
