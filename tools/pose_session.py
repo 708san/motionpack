@@ -62,7 +62,9 @@ def serve(archive, *, input_stream=None, output_stream=None, node_executable="no
             # archive. Never infer executable actions from .motionpack metadata.
             kind = request.get("type", "sample")
             fields = {
-                "sample": {"type", "timeMs", "clip", "variant", "ikTargets"},
+                "sample": {"type", "timeMs", "clip", "variant", "ikTargets",
+                           "motionTimeMs"},
+                "configureMotion": {"type", "profile"},
                 "configureBehavior": {"type", "profile"},
                 "act": {"type", "action"},
                 "advanceBehavior": {"type", "deltaMs"},
@@ -93,6 +95,9 @@ def serve(archive, *, input_stream=None, output_stream=None, node_executable="no
             elif response_type == "behaviorEvents":
                 if set(reply) != {"type", "events"} or not isinstance(reply["events"], list):
                     raise ValueError("unexpected ambient events")
+            elif response_type == "motionConfigured":
+                if set(reply) != {"type", "enabled"} or type(reply["enabled"]) is not bool:
+                    raise ValueError("unexpected motion configuration")
             elif response_type == "behaviorConfigured":
                 if set(reply) != {"type", "enabled"} or type(reply["enabled"]) is not bool:
                     raise ValueError("unexpected behavior configuration")
