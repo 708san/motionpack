@@ -68,12 +68,41 @@ function frame(time){
  document.getElementById('status').textContent=clip+' | '+variant+' | '+Math.round(t)+' ms';requestAnimationFrame(frame);
 }
 function playClip(name,next){if(!Object.prototype.hasOwnProperty.call(S.clips,name))return;player.play(name);previousFrameTime=performance.now();transition=next||null;}
-document.getElementById('idle').onclick=()=>playClip('idle');
-document.getElementById('fire').onclick=()=>playClip('fire');
-document.getElementById('transform').onclick=()=>playClip('transform',player.getState().variant==='form_a'?'form_b':'form_a');
-document.getElementById('reset').onclick=()=>{player.setVariant(S.defaults.variant);playClip(S.defaults.clip);};
+// UI is driven by the validated manifest, never by the particular demo artwork.
+const clips=Object.keys(S.clips),variants=Object.keys(S.variants);
+const multiClip=clips.length>1,multiVariant=variants.length>1,hasIK=!!S.iks?.length;
+const controls=document.getElementById('controls');
+const idle=document.getElementById('idle'),fire=document.getElementById('fire');
+const transform=document.getElementById('transform'),reset=document.getElementById('reset');
+const aim=document.getElementById('aim');
+idle.hidden=!multiClip||!Object.prototype.hasOwnProperty.call(S.clips,'idle');
+fire.hidden=!multiClip||!Object.prototype.hasOwnProperty.call(S.clips,'fire');
+transform.hidden=!multiClip||!Object.prototype.hasOwnProperty.call(S.clips,'transform');
+reset.hidden=!multiClip&&!multiVariant&&!hasIK;
+aim.hidden=!hasIK;
+idle.onclick=()=>playClip('idle');
+fire.onclick=()=>playClip('fire');
+transform.onclick=()=>playClip('transform',multiVariant&&
+ Object.prototype.hasOwnProperty.call(S.variants,'form_a')&&
+ Object.prototype.hasOwnProperty.call(S.variants,'form_b')
+ ?(player.getState().variant==='form_a'?'form_b':'form_a'):null);
+reset.onclick=()=>{player.setVariant(S.defaults.variant);playClip(S.defaults.clip);};
 const setPointerIK=value=>{pointerIK=!!value;if(pointerAdapter){if(pointerIK)pointerAdapter.enable();else pointerAdapter.disable();}};
-const aim=document.getElementById('aim');if(aim&&S.iks?.length)aim.onclick=()=>{setPointerIK(!pointerIK);aim.textContent=pointerIK?'Pointer IK: ON':'Pointer IK: OFF';};
+if(hasIK)aim.onclick=()=>{setPointerIK(!pointerIK);aim.textContent=pointerIK?'Pointer IK: ON':'Pointer IK: OFF';};
+// All other authored clips receive plain text-only buttons (no HTML injection).
+for(const name of clips){
+ if(['idle','fire','transform'].includes(name))continue;
+ if(!multiClip)continue;
+ const button=document.createElement('button');
+ button.type='button';
+ button.textContent=name;
+ button.onclick=()=>playClip(name);
+ controls.insertBefore(button,reset);
+}
+// A single looping scene is an animation, not a robot-control dashboard.
+const showControls=multiClip||multiVariant||hasIK;
+if(controls)controls.hidden=!showControls;
+if(!showControls)document.querySelector('.panel')?.classList.add('immersive');
 window.MotionPackPlayer=Object.freeze({playClip,setVariant:name=>{if(Object.prototype.hasOwnProperty.call(S.variants,name))player.setVariant(name);},playTransition:playClip,setPointerIK,getState:()=>{const state=player.getState();return {clip:state.clip,variant:state.variant,pointerIK};}});
 requestAnimationFrame(frame);
 })();
