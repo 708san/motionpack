@@ -30,6 +30,10 @@ python3 -m unittest discover -s tests -v
 
 A new headless CLI reads a validated `.motionpack` and produces pose-frame JSON for native host integration, without starting a browser. This needs Python 3 and Node.js; it is **not** yet a native or Unity playback engine. See [Portable Runtime M1](docs/PORTABLE_RUNTIME_M1.md) for commands, Unity adapter proof of concept, security boundaries, and unimplemented platforms.
 
+## Optional procedural motion overlays
+
+Hosts can opt into deterministic procedural motion (breathing, blinking and sway) through `window.MotionPackPlayer.configureMotion(profile)` in the offline preview; `configureMotion(null)` disables it. Standard clips continue unchanged unless explicitly configured. See [Motion Director MVP](docs/MOTION_DIRECTOR_MVP.md). This does **not** yet implement a semantic action scheduler or archive-defined autonomous behaviour.
+
 ## Export an existing MotionPack as one offline HTML file
 
 To share an already built `.motionpack` archive without installing an editor or uploading it:

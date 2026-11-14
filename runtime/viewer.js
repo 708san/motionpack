@@ -1,7 +1,7 @@
 /* MotionPack experimental offline Canvas2D renderer, animation player and visual effects */
 (function(){
 'use strict';
-const S=window.__MOTIONPACK__,Rig=window.MotionPackRig,Controller=window.MotionPackPlayerController,PointerIKAdapter=window.MotionPackPointerIKAdapter,HitTest=window.MotionPackHitTest,InteractionAdapter=window.MotionPackInteractionAdapter,ViewportAdapter=window.MotionPackViewportAdapter;
+const S=window.__MOTIONPACK__,Rig=window.MotionPackRig,Controller=window.MotionPackPlayerController,Director=window.MotionPackMotionDirector,PointerIKAdapter=window.MotionPackPointerIKAdapter,HitTest=window.MotionPackHitTest,InteractionAdapter=window.MotionPackInteractionAdapter,ViewportAdapter=window.MotionPackViewportAdapter;
 if(!S){document.body.textContent='Missing MotionPack asset';return;}
 const canvas=document.getElementById('stage'),ctx=canvas.getContext('2d');canvas.width=S.canvas.width;canvas.height=S.canvas.height;
 const viewportElement=document.getElementById('viewport');if(viewportElement?.style)viewportElement.style.aspectRatio=S.canvas.width+' / '+S.canvas.height;
@@ -20,7 +20,7 @@ const interactionAdapter=S.version==='0.4'?InteractionAdapter.create({target:can
  hitTest:HitTest,emit:event=>window.dispatchEvent(new CustomEvent('motionpack:interaction',{detail:event}))}):null;
 if(interactionAdapter)window.MotionPackInteractions=Object.freeze({activate:nodeId=>interactionAdapter.activate(nodeId),dispose:()=>interactionAdapter.dispose()});
 window.MotionPackViewport=Object.freeze({configure:options=>viewport.configure(options),getState:()=>viewport.getState()});
-let transition=null,pointerIK=false,previousFrameTime=performance.now();
+let transition=null,pointerIK=false,previousFrameTime=performance.now(),motionDirector=null,motionTimeMs=0;
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),mix=(a,b,t)=>a+(b-a)*t,identity={a:1,b:0,c:0,d:1,e:0,f:0};
 function mm(a,b){return {a:a.a*b.a+a.c*b.b,b:a.b*b.a+a.d*b.b,c:a.a*b.c+a.c*b.d,d:a.b*b.c+a.d*b.d,e:a.a*b.e+a.c*b.f+a.e,f:a.b*b.e+a.d*b.f+a.f};}
 function matrix(n){const r=(n.rotation||0)*Math.PI/180,s=n.scale??1;return {a:Math.cos(r)*s,b:Math.sin(r)*s,c:-Math.sin(r)*s,d:Math.cos(r)*s,e:n.x||0,f:n.y||0};}
@@ -28,6 +28,7 @@ function frame(time){
  if(playbackFailed)return;
  let pose,state,t;
  const delta=time<previousFrameTime?0:time-previousFrameTime;previousFrameTime=time;
+ motionTimeMs+=delta;
  try{
   const before=player.getState();
   pose=player.advance(delta);
@@ -42,6 +43,7 @@ function frame(time){
   }
   state=player.getState();t=pose.timeMs;
  }catch(_){playbackFailed=true;document.getElementById('status').textContent='Playback stopped: invalid animation data';return;}
+ if(motionDirector)pose=motionDirector.sample(pose,motionTimeMs);
  currentPose=pose;
  drawableNodeIds=new Set([...pose.nodes.values()].filter(n=>n.asset&&images[n.asset]?.complete&&images[n.asset]?.naturalWidth>0).map(n=>n.id));
  for(const [id,image] of Object.entries(images))if(image.complete&&image.naturalWidth>0)assetSizes[id]={width:image.naturalWidth,height:image.naturalHeight};
@@ -113,6 +115,10 @@ if(multiVariant && controls && typeof document.createElement==='function'){
 const showControls=multiClip||multiVariant||hasIK;
 if(controls)controls.hidden=!showControls;
 if(!showControls && typeof document.querySelector==='function')document.querySelector('.panel')?.classList.add('immersive');
-window.MotionPackPlayer=Object.freeze({playClip,setVariant:name=>{if(Object.prototype.hasOwnProperty.call(S.variants,name))player.setVariant(name);},playTransition:playClip,setPointerIK,getState:()=>{const state=player.getState();return {clip:state.clip,variant:state.variant,pointerIK};}});
+window.MotionPackPlayer=Object.freeze({playClip,configureMotion:profile=>{
+ if(profile===null){motionDirector=null;return;}
+ if(!Director)throw new Error('Motion Director is unavailable');
+ motionDirector=Director.create(profile,S);
+},setVariant:name=>{if(Object.prototype.hasOwnProperty.call(S.variants,name))player.setVariant(name);},playTransition:playClip,setPointerIK,getState:()=>{const state=player.getState();return {clip:state.clip,variant:state.variant,pointerIK};}});
 requestAnimationFrame(frame);
 })();

@@ -134,6 +134,7 @@ def render_preview_html(embedded):
     rig = (runtime / "rig.js").read_text(encoding="utf-8")
     evaluator = (runtime / "evaluator.js").read_text(encoding="utf-8")
     player_controller = (runtime / "player_controller.js").read_text(encoding="utf-8")
+    motion_director = (runtime / "motion_director.js").read_text(encoding="utf-8")
     viewport_adapter = (runtime / "viewport_adapter.js").read_text(encoding="utf-8")
     pointer_ik_adapter = (runtime / "pointer_ik_adapter.js").read_text(encoding="utf-8")
     hit_test = (runtime / "hit_test.js").read_text(encoding="utf-8")
@@ -153,7 +154,7 @@ button{padding:10px;background:#345f8e;color:white;border:1px solid #78a2c9;bord
 </style></head><body><div class="shell"><h2>MotionPack experimental preview</h2><div class="panel">
 <div class="viewport" id="viewport"><canvas id="stage"></canvas></div><div id="controls"><button id="idle">Idle</button><button id="fire">Fire beam</button>
 <button id="transform">Switch form</button><button id="reset">Reset</button><button id="aim">Pointer IK: OFF</button></div>
-<p id="asset-error" role="status" aria-live="polite" hidden></p><p id="status"></p></div></div><script>window.__MOTIONPACK__=""" + payload + ";</script><script>" + rig + "</script><script>" + evaluator + "</script><script>" + player_controller + "</script><script>" + viewport_adapter + "</script><script>" + pointer_ik_adapter + "</script><script>" + hit_test + "</script><script>" + interaction_adapter + "</script><script>" + viewer + "</script></body></html>"
+<p id="asset-error" role="status" aria-live="polite" hidden></p><p id="status"></p></div></div><script>window.__MOTIONPACK__=""" + payload + ";</script><script>" + rig + "</script><script>" + evaluator + "</script><script>" + player_controller + "</script><script>" + motion_director + "</script><script>" + viewport_adapter + "</script><script>" + pointer_ik_adapter + "</script><script>" + hit_test + "</script><script>" + interaction_adapter + "</script><script>" + viewer + "</script></body></html>"
     return page
 
 
