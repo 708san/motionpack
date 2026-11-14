@@ -57,3 +57,25 @@ The protocol uses newline-delimited JSON (one request/response per line). The fi
 
 Cross-platform functional CI uses real packaged archives to compare multiple streamed frames against independently sampled reference frames. This does **not** validate 60 fps rendering, low-latency performance, C# integration, production process isolation or Unity Editor support.
 
+
+
+## Opt-in semantic behavior in the persistent session
+
+The same persistent headless engine can now evaluate the trusted host's semantic actions and seeded, non-periodic ambient scheduling, independently of any HTML/Canvas renderer. **Behavior profiles are supplied only by the host**, not loaded from untrusted `.motionpack` manifest fields.
+
+After the `ready` line, send newline-delimited JSON requests:
+
+```json
+{"type":"configureBehavior","profile":{"seed":71,"actions":{"greet":{"clip":"fire"}},"ambient":{"minIntervalMs":1500,"maxIntervalMs":3000,"choices":[{"action":"greet"}]}}}
+{"type":"act","action":"greet"}
+{"type":"advanceBehavior","deltaMs":1600}
+{"type":"setAutonomy","enabled":false}
+{"type":"sample","clip":"fire","timeMs":590}
+{"type":"configureBehavior","profile":null}
+```
+
+The host receives `behaviorConfigured`, `action`, `behaviorEvents`, `autonomy`, or `frame` responses. The `act` response contains a chosen **clip/variant description**; the host decides when to play it. `advanceBehavior` returns suggested actions with their scheduled times. Neither operation executes application callbacks or automatically replaces a normal clip. A failed new configuration preserves the previous validated behavior profile. Ordinary pose requests and output remain backward compatible.
+
+All behavior profiles are data only and are size-limited on the bridge (8 KiB command line). The seeded scheduler has bounded minimum event intervals and a per-call event budget. Host applications must apply their own scene priorities and blending policy; this is not yet a self-contained native or Unity runtime.
+
+Run the cross-platform integration test via `python -m unittest tests.test_headless_behavior -v`.
