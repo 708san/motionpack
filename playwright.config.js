@@ -2,7 +2,7 @@ const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: './tests',
-  testMatch: ['visual.spec.js', 'interactive_seal.spec.js'],
+  testMatch: ['visual.spec.js', 'interactive_seal.spec.js', 'standalone_export.spec.js'],
   fullyParallel: false,
   workers: 1,
   timeout: 30_000,

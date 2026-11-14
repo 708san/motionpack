@@ -128,6 +128,34 @@ def _encode_rgba_png(decoded, *, max_output_bytes):
 
 
 
+def render_preview_html(embedded):
+    """Render the existing offline reference player from pre-validated embedded asset URLs."""
+    runtime = Path(__file__).resolve().parent.parent / "runtime"
+    rig = (runtime / "rig.js").read_text(encoding="utf-8")
+    evaluator = (runtime / "evaluator.js").read_text(encoding="utf-8")
+    player_controller = (runtime / "player_controller.js").read_text(encoding="utf-8")
+    viewport_adapter = (runtime / "viewport_adapter.js").read_text(encoding="utf-8")
+    pointer_ik_adapter = (runtime / "pointer_ik_adapter.js").read_text(encoding="utf-8")
+    hit_test = (runtime / "hit_test.js").read_text(encoding="utf-8")
+    interaction_adapter = (runtime / "interaction_adapter.js").read_text(encoding="utf-8")
+    viewer = (runtime / "viewer.js").read_text(encoding="utf-8")
+    payload = json.dumps(embedded, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    # No untrusted source code or arbitrary scripts are allowed inside the bundle.
+    page = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MotionPack Preview</title><style>
+*{box-sizing:border-box}body{margin:0;background:#111c2d;color:#edf6ff;font:15px system-ui;display:flex;justify-content:center}
+.shell{width:min(100%,750px);padding:20px}.panel{background:#1b2940;border:1px solid #3b597c;border-radius:12px;padding:12px}
+.viewport{width:100%;aspect-ratio:1 / 1;max-height:75vh;overflow:hidden;background:#081324}
+canvas{display:block;width:100%;height:100%;background:#081324}
+button{padding:10px;background:#345f8e;color:white;border:1px solid #78a2c9;border-radius:8px;margin:4px;cursor:pointer}
+</style></head><body><div class="shell"><h2>MotionPack experimental preview</h2><div class="panel">
+<div class="viewport" id="viewport"><canvas id="stage"></canvas></div><div><button id="idle">Idle</button><button id="fire">Fire beam</button>
+<button id="transform">Switch form</button><button id="reset">Reset</button><button id="aim">Pointer IK: OFF</button></div>
+<p id="asset-error" role="status" aria-live="polite" hidden></p><p id="status"></p></div></div><script>window.__MOTIONPACK__=""" + payload + ";</script><script>" + rig + "</script><script>" + evaluator + "</script><script>" + player_controller + "</script><script>" + viewport_adapter + "</script><script>" + pointer_ik_adapter + "</script><script>" + hit_test + "</script><script>" + interaction_adapter + "</script><script>" + viewer + "</script></body></html>"
+    return page
+
+
 def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=False):
     try:
         root = Path(folder).resolve(strict=True)
@@ -220,29 +248,7 @@ def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=Fals
                 data = preview_png_by_path[rel]
                 mime = "image/png"
             embedded["assets"][key] = "data:" + mime + ";base64," + base64.b64encode(data).decode("ascii")
-        runtime = Path(__file__).resolve().parent.parent / "runtime"
-        rig = (runtime / "rig.js").read_text(encoding="utf-8")
-        evaluator = (runtime / "evaluator.js").read_text(encoding="utf-8")
-        player_controller = (runtime / "player_controller.js").read_text(encoding="utf-8")
-        viewport_adapter = (runtime / "viewport_adapter.js").read_text(encoding="utf-8")
-        pointer_ik_adapter = (runtime / "pointer_ik_adapter.js").read_text(encoding="utf-8")
-        hit_test = (runtime / "hit_test.js").read_text(encoding="utf-8")
-        interaction_adapter = (runtime / "interaction_adapter.js").read_text(encoding="utf-8")
-        viewer = (runtime / "viewer.js").read_text(encoding="utf-8")
-        payload = json.dumps(embedded, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
-        # No untrusted source code or arbitrary scripts are allowed inside the bundle.
-        page = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MotionPack Preview</title><style>
-*{box-sizing:border-box}body{margin:0;background:#111c2d;color:#edf6ff;font:15px system-ui;display:flex;justify-content:center}
-.shell{width:min(100%,750px);padding:20px}.panel{background:#1b2940;border:1px solid #3b597c;border-radius:12px;padding:12px}
-.viewport{width:100%;aspect-ratio:1 / 1;max-height:75vh;overflow:hidden;background:#081324}
-canvas{display:block;width:100%;height:100%;background:#081324}
-button{padding:10px;background:#345f8e;color:white;border:1px solid #78a2c9;border-radius:8px;margin:4px;cursor:pointer}
-</style></head><body><div class="shell"><h2>MotionPack experimental preview</h2><div class="panel">
-<div class="viewport" id="viewport"><canvas id="stage"></canvas></div><div><button id="idle">Idle</button><button id="fire">Fire beam</button>
-<button id="transform">Switch form</button><button id="reset">Reset</button><button id="aim">Pointer IK: OFF</button></div>
-<p id="asset-error" role="status" aria-live="polite" hidden></p><p id="status"></p></div></div><script>window.__MOTIONPACK__=""" + payload + ";</script><script>" + rig + "</script><script>" + evaluator + "</script><script>" + player_controller + "</script><script>" + viewport_adapter + "</script><script>" + pointer_ik_adapter + "</script><script>" + hit_test + "</script><script>" + interaction_adapter + "</script><script>" + viewer + "</script></body></html>"
+        page = render_preview_html(embedded)
         preview = out / "preview.html"
         preview.write_text(page, encoding="utf-8")
     return package, preview
