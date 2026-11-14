@@ -90,7 +90,7 @@ reset.onclick=()=>{player.setVariant(S.defaults.variant);playClip(S.defaults.cli
 const setPointerIK=value=>{pointerIK=!!value;if(pointerAdapter){if(pointerIK)pointerAdapter.enable();else pointerAdapter.disable();}};
 if(hasIK)aim.onclick=()=>{setPointerIK(!pointerIK);aim.textContent=pointerIK?'Pointer IK: ON':'Pointer IK: OFF';};
 // All other authored clips receive plain text-only buttons (no HTML injection).
-for(const name of clips){
+if(controls && typeof document.createElement==='function')for(const name of clips){
  if(['idle','fire','transform'].includes(name))continue;
  if(!multiClip)continue;
  const button=document.createElement('button');
@@ -100,7 +100,7 @@ for(const name of clips){
  controls.insertBefore(button,reset);
 }
 // Sparse visual variants can be selected independently of animation clips.
-if(multiVariant){
+if(multiVariant && controls && typeof document.createElement==='function'){
  for(const name of variants){
   const button=document.createElement('button');
   button.type='button';
@@ -112,7 +112,7 @@ if(multiVariant){
 // A single looping scene is an animation, not a robot-control dashboard.
 const showControls=multiClip||multiVariant||hasIK;
 if(controls)controls.hidden=!showControls;
-if(!showControls)document.querySelector('.panel')?.classList.add('immersive');
+if(!showControls && typeof document.querySelector==='function')document.querySelector('.panel')?.classList.add('immersive');
 window.MotionPackPlayer=Object.freeze({playClip,setVariant:name=>{if(Object.prototype.hasOwnProperty.call(S.variants,name))player.setVariant(name);},playTransition:playClip,setPointerIK,getState:()=>{const state=player.getState();return {clip:state.clip,variant:state.variant,pointerIK};}});
 requestAnimationFrame(frame);
 })();
