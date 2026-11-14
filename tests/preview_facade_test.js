@@ -104,8 +104,9 @@ basic.frame(0);
 const legacy = basic.sandbox.window.MotionPackPlayer;
 assert(Object.isFrozen(legacy));
 assert.deepStrictEqual(Object.keys(legacy).sort(),
-  ['getState', 'playClip', 'playTransition', 'setPointerIK', 'setVariant'].sort());
+  ['configureMotion', 'getState', 'playClip', 'playTransition', 'setPointerIK', 'setVariant'].sort());
 assert.deepStrictEqual(Object.keys(legacy.getState()), ['clip', 'variant', 'pointerIK']);
+legacy.configureMotion(null); // clearing remains safe even in a minimal host without director loaded
 assert(basic.controls.status.textContent.startsWith(`${basic.manifest.defaults.clip} |`));
 const beforeUnknownClip = JSON.stringify(legacy.getState());
 legacy.playClip('missing');
