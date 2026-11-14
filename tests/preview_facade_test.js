@@ -104,8 +104,11 @@ basic.frame(0);
 const legacy = basic.sandbox.window.MotionPackPlayer;
 assert(Object.isFrozen(legacy));
 assert.deepStrictEqual(Object.keys(legacy).sort(),
-  ['configureMotion', 'getState', 'playClip', 'playTransition', 'setPointerIK', 'setVariant'].sort());
+  ['act', 'configureBehavior', 'configureMotion', 'getState', 'setAutonomy', 'playClip', 'playTransition', 'setPointerIK', 'setVariant'].sort());
 legacy.configureMotion(null);
+assert.strictEqual(legacy.act('greet'), false, 'actions are optional without profile');
+legacy.configureBehavior(null);
+legacy.setAutonomy(false);
 assert.deepStrictEqual(Object.keys(legacy.getState()), ['clip', 'variant', 'pointerIK']);
 assert(basic.controls.status.textContent.startsWith(`${basic.manifest.defaults.clip} |`));
 const beforeUnknownClip = JSON.stringify(legacy.getState());
