@@ -24,6 +24,7 @@ jobs:
         run: |
           node tests/ik_test.js
           node tests/evaluator_test.js
+          node tests/motion_director_test.js
           node tests/headless_pose_test.js
           node tests/player_controller_test.js
           node tests/hit_test_test.js
