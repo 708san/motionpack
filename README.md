@@ -26,6 +26,18 @@ node tests/runtime_ik_smoke.js
 python3 -m unittest discover -s tests -v
 ```
 
+## Export an existing MotionPack as one offline HTML file
+
+To share an already built `.motionpack` archive without installing an editor or uploading it:
+
+```sh
+python3 tools/export_html.py dist/robot_ik_demo.motionpack --out dist/robot-playable.html
+```
+
+Open `dist/robot-playable.html` directly in a browser. The file contains the existing Canvas2D reference player and all manifest-referenced visual assets. It makes no runtime network requests; playback does not require an AI service. The command only supports experimentally validated **v0.1–v0.4 archives** and uses the bounded isolated ZIP reader by default. It does not extract ZIP members, include optional `source/` files, modify the input package, implement a v1 migration, or certify untrusted inputs as safe. Existing output HTML is never overwritten.
+
+This is a **playback/distribution export**: retain the original `.motionpack` archive for editable layers and source provenance. The emitted HTML uses the same reference runtime as the existing `preview.html`; it does not claim production browser support, fully sandboxed SVG decoding, or human-approved artistic quality.
+
 Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam firing, form switching and optional pointer aiming. The optional `--isolated-raster-decode` mode accepts only projects whose referenced runtime assets are static PNG/JPEG/WebP, decodes them in the resource-limited Pillow worker, and embeds canonical PNG data in the preview. The `.motionpack` archive keeps original asset bytes. Assets are decoded one at a time under the shared 64 MP pixel budget and a shared 300-second package-wide deadline; each worker call also has a 30-second deadline. Total canonical PNG bytes embedded across asset-ID data URLs are capped at 64 MiB, including repeated references to one path. SVG, animated and unsupported assets fail closed. The default packaging path does not require Pillow and is unchanged.
 
 ## Project layout
