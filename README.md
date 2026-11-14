@@ -40,6 +40,15 @@ This is a **playback/distribution export**: retain the original `.motionpack` ar
 
 Open `dist/preview.html` in a browser. Buttons demonstrate idle motion, beam firing, form switching and optional pointer aiming. The optional `--isolated-raster-decode` mode accepts only projects whose referenced runtime assets are static PNG/JPEG/WebP, decodes them in the resource-limited Pillow worker, and embeds canonical PNG data in the preview. The `.motionpack` archive keeps original asset bytes. Assets are decoded one at a time under the shared 64 MP pixel budget and a shared 300-second package-wide deadline; each worker call also has a 30-second deadline. Total canonical PNG bytes embedded across asset-ID data URLs are capped at 64 MiB, including repeated references to one path. SVG, animated and unsupported assets fail closed. The default packaging path does not require Pillow and is unchanged.
 
+## Experimental Motion Director (host-configured)
+
+A bounded, deterministic host-side motion overlay can combine breathing,
+secondary sway, and periodic eyelid motion **on top of an authored clip**.
+Pass a data-only profile to `MotionPackPlayer.configureMotion(profile)` in the
+offline preview; pass `null` to clear it. Profiles are not part of the
+current v0.1–v0.4 manifest or a v1 commitment. See
+[Motion Director MVP](docs/MOTION_DIRECTOR_MVP.md).
+
 ## Project layout
 
 - `runtime/`: experimental Canvas2D preview, stateless pose evaluator, host-driven player controller, hit-test and node-interaction helpers, pointer-to-IK adapter and IK solver
