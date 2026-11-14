@@ -27,8 +27,13 @@ function sampleFrame(manifest,options={}){
    throw new TypeError('validated manifest required');
  const timeMs=finite(options.timeMs??0,'timeMs');
  if(timeMs<0)throw new RangeError('negative timeMs');
- const pose=Evaluator.sample(manifest,{clip:options.clip,variant:options.variant,
+ const originalPose=Evaluator.sample(manifest,{clip:options.clip,variant:options.variant,
    timeMs,ikTargets:options.ikTargets},Rig);
+ // Optional host-owned Motion Director is applied before parent/world transforms.
+ // Without it the frame stays byte-compatible with the legacy protocol.
+ const pose=options.director
+   ? options.director.sample(originalPose,finite(options.motionTimeMs??timeMs,'motionTimeMs'))
+   : originalPose;
  const world=new Map(),visiting=new Set();
  function resolve(id){
   if(world.has(id))return world.get(id);

@@ -79,3 +79,19 @@ The host receives `behaviorConfigured`, `action`, `behaviorEvents`, `autonomy`, 
 All behavior profiles are data only and are size-limited on the bridge (8 KiB command line). The seeded scheduler has bounded minimum event intervals and a per-call event budget. Host applications must apply their own scene priorities and blending policy; this is not yet a self-contained native or Unity runtime.
 
 Run the cross-platform integration test via `python -m unittest tests.test_headless_behavior -v`.
+
+
+## Optional procedural overlays across headless and browser runtimes
+
+The persistent, browser-independent pose session can accept the **same trusted host-side Motion Director profile** used by the Canvas preview. This applies bounded sine/pulse transformations to authored clip poses before the host-neutral world matrices are constructed, so a Unity or desktop renderer can use the transformed pose directly.
+
+```json
+{"type":"configureMotion","profile":{"channels":[{"id":"sway","node":"mech","property":"y","amplitude":10,"periodMs":1000}]}}
+{"type":"sample","clip":"idle","timeMs":250,"motionTimeMs":250}
+{"type":"configureMotion","profile":null}
+{"type":"sample","clip":"idle","timeMs":250}
+```
+
+The response to `configureMotion` is `{"type":"motionConfigured","enabled":true/false}`. `motionTimeMs` is separate from the clip's `timeMs`, allowing ambient motion to continue across clip transitions; when omitted it defaults to the normal sample time. Profiles are **trusted host data only**, never executable scripts read from archives. Invalid profiles produce generic errors without changing the last accepted profile. Clearing the profile restores identical legacy frames.
+
+This is a deterministic pose overlay (breathing/sway/blink waveform), not gesture synthesis or a replacement for ordinary keyframe animation. Browser preview, native applications and Unity still require their own renderers; semantic animation selection and motion overlay blending are independent opt-in features. The new integration test `tests.test_headless_motion_director` checks transform changes, determinism, legacy parity, and failure behavior across Windows/macOS/Linux CI.
