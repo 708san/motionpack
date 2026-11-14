@@ -158,8 +158,8 @@ button{padding:10px;background:#345f8e;color:white;border:1px solid #78a2c9;bord
 
 def build(folder, out, *, fail_on_secret_like=False, isolated_raster_decode=False):
     try:
-        root = Path(folder).resolve()
-    except RuntimeError as exc:
+        root = Path(folder).resolve(strict=True)
+    except (RuntimeError, OSError) as exc:
         raise ValueError("unable to resolve project root") from exc
     out = Path(out).resolve()
     asset_data_by_manifest_path = {}
