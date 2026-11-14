@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-<defs><radialGradient id="halo"><stop offset="0" stop-color="#ffd77c"/><stop offset="0.42" stop-color="#f1ae56"/><stop offset="1" stop-color="#182847"/></radialGradient></defs>
-<ellipse cx="256" cy="249" rx="170" ry="190" fill="url(#halo)" opacity=".35"/>
-<ellipse cx="256" cy="252" rx="113" ry="147" fill="url(#halo)" opacity=".28"/>
-<ellipse cx="256" cy="252" rx="77" ry="112" fill="#ffb75f" opacity=".11"/>
-<circle cx="164" cy="214" r="2.5" fill="#ffdb8f" opacity=".52"/>
-<circle cx="355" cy="286" r="1.7" fill="#ffdd8f" opacity=".53"/>
+<defs><radialGradient id="halo"><stop offset="0" stop-color="#ffdb89"/><stop offset="0.45" stop-color="#e9b16b"/><stop offset="1" stop-color="#ad7655"/></radialGradient></defs>
+<ellipse cx="256" cy="252" rx="184" ry="201" fill="url(#halo)" opacity=".13"/>
+<ellipse cx="256" cy="252" rx="123" ry="149" fill="url(#halo)" opacity=".23"/>
+<ellipse cx="256" cy="252" rx="74" ry="104" fill="#ffc675" opacity=".10"/>
+<circle cx="164" cy="214" r="2.5" fill="#ffdb8f" opacity=".43"/>
+<circle cx="355" cy="286" r="1.7" fill="#ffdd8f" opacity=".47"/>
 <circle cx="311" cy="159" r="1.5" fill="#ffe4a2" opacity=".41"/>
 </svg>
