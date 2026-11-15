@@ -1,6 +1,7 @@
 //! Developer-only native executable to compare Rust and JavaScript math.
 use motionpack_core::{mp_point_x, mp_point_y, mp_sample_segment};
 use motionpack_core::timeline::{clip_time, sample_track, Keyframe};
+use motionpack_core::ik::solve_two_bone;
 use std::env;
 
 fn parse(raw: &str) -> f64 {
@@ -31,6 +32,15 @@ fn main() {
             match result {
                 Ok(value) => println!("{value:.17}"),
                 Err(err) => { eprintln!("invalid track: {err:?}"); std::process::exit(2); }
+            }
+        }
+        Some("ik") if args.len() == 8 => {
+            let n: Vec<f64> = args[1..].iter().map(|v| parse(v)).collect();
+            match solve_two_bone((n[0],n[1]),(n[2],n[3]),n[4],n[5],n[6]) {
+                Ok(s) => println!("{:.17} {:.17} {:.17} {:.17} {:.17} {:.17} {:.17} {}",
+                    s.upper_deg, s.lower_deg, s.elbow.0, s.elbow.1,
+                    s.hand.0, s.hand.1, s.clamped_distance, if s.reached {1} else {0}),
+                Err(e) => { eprintln!("invalid IK: {e:?}"); std::process::exit(2); }
             }
         }
         Some("point") if args.len() == 7 => {

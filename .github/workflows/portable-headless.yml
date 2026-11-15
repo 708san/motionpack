@@ -29,6 +29,7 @@ jobs:
           cargo build --manifest-path core/Cargo.toml --locked --bin motionpack_core_probe
           node tests/rust_core_parity_test.js native
           node tests/rust_timeline_parity_test.js
+          node tests/rust_ik_parity_test.js native
       - name: Install stable Rust WebAssembly target (Linux)
         if: runner.os == 'Linux'
         run: rustup target add wasm32-unknown-unknown
@@ -37,6 +38,7 @@ jobs:
         run: |
           cargo build --manifest-path core/Cargo.toml --locked --release --lib --target wasm32-unknown-unknown
           node tests/rust_core_parity_test.js wasm
+          node tests/rust_ik_parity_test.js wasm
       - name: Compare portable pose protocol with reference evaluator
         run: node tests/headless_pose_test.js
       - name: Evaluate packaged archives without HTML
