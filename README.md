@@ -26,6 +26,10 @@ node tests/runtime_ik_smoke.js
 python3 -m unittest discover -s tests -v
 ```
 
+## Experimental Rust native / WebAssembly mathematical core
+
+A dependency-free Rust crate in `core/` now implements the initial keyframe interpolation and 2D affine transform primitives for both native and WebAssembly (Wasm) targets. It is **not yet** a full animation runtime. Numerical tests compare native/Wasm results with the JavaScript reference evaluator. See [Rust Shared Core M0](docs/RUST_SHARED_CORE_M0.md).
+
 ## Experimental HTML-free pose sampling
 
 A new headless CLI reads a validated `.motionpack` and produces pose-frame JSON for native host integration, without starting a browser. This needs Python 3 and Node.js; it is **not** yet a native or Unity playback engine. See [Portable Runtime M1](docs/PORTABLE_RUNTIME_M1.md) for commands, Unity adapter proof of concept, security boundaries, and unimplemented platforms.
