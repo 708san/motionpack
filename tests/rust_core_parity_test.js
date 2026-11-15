@@ -34,6 +34,15 @@ async function main(){
   exports=built.instance.exports;
   assert.equal(typeof exports.mp_sample_segment,'function');
   assert.equal(typeof exports.mp_point_x,'function');
+  assert.equal(typeof exports.mp_clip_time,'function');
+  for(const time of [0,1,250,1200,2400,2401,4800,5000]){
+   const observed=exports.mp_clip_time(2400,1,time);
+   compare(observed,time%2400,'Wasm looping clip time');
+   const clamped=exports.mp_clip_time(2400,0,time);
+   compare(clamped,Math.min(time,2400),'Wasm non-loop clip time');
+  }
+  assert(Number.isNaN(exports.mp_clip_time(2400,2,0)),'invalid loop flag rejected');
+  assert(Number.isNaN(exports.mp_clip_time(0,1,0)),'invalid duration rejected');
  }
  const segment=(...args)=>mode==='native'?runNative('segment',args)[0]:exports.mp_sample_segment(...args);
  const point=(...args)=>mode==='native'
