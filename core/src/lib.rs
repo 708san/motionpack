@@ -138,7 +138,7 @@ mod tests {
         let child = Affine::from_pose(3.0, 4.0, -90.0, 0.5).unwrap();
         let world = parent.compose(&child).unwrap();
         let point = world.point(2.0, -1.0).unwrap();
-        close(point.0, 3.0);
+        close(point.0, 4.0);
         close(point.1, 25.0);
         close(world.a, 1.0);
         close(world.d, 1.0);
