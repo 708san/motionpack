@@ -55,9 +55,9 @@ class NativeSceneAbiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.library = c.CDLL(str(LIB))
-        cls.run = cls.library.mp_scene_sample_v1
-        cls.run.restype = c.c_int32
-        cls.run.argtypes = [
+        cls.sample_fn = cls.library.mp_scene_sample_v1
+        cls.sample_fn.restype = c.c_int32
+        cls.sample_fn.argtypes = [
             c.POINTER(Node), c.c_size_t,
             c.POINTER(Variant), c.c_size_t,
             c.POINTER(Track), c.c_size_t,
@@ -78,7 +78,7 @@ class NativeSceneAbiTests(unittest.TestCase):
         sampled = c.c_double(-1)
 
         def call(flag=1, count=2, capacity=2):
-            return self.run(nodes, count, variant, 1, tracks, 1, keys, 2,
+            return self.sample_fn(nodes, count, variant, 1, tracks, 1, keys, 2,
                             None, 0, None, 0, None, 0,
                             1000, flag, 500, output, capacity, c.byref(sampled))
 
@@ -102,7 +102,7 @@ class NativeSceneAbiTests(unittest.TestCase):
         chain = (Chain * 1)(Chain(1, 2, 100, 80, 100, 50, -1, 1))
         output = (Output * 3)()
         sampled = c.c_double()
-        result = self.run(nodes, 3, None, 0, None, 0, None, 0,
+        result = self.sample_fn(nodes, 3, None, 0, None, 0, None, 0,
                           chain, 1, None, 0, None, 0,
                           1000, 0, 250, output, 3, c.byref(sampled))
         self.assertEqual(result, 0)
