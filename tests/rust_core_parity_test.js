@@ -7,6 +7,7 @@ const path = require('node:path');
 const {spawnSync} = require('node:child_process');
 const Evaluator = require('../runtime/evaluator.js');
 const Rig = require('../runtime/rig.js');
+const Headless = require('../runtime/headless_pose.js');
 
 const root=path.resolve(__dirname,'..');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'examples/robot_ik_demo/manifest.json'),'utf8'));
@@ -74,8 +75,15 @@ async function main(){
   [-40,10,-22.5,0.3,15,12],[2,-5,180,1,-99,17],
   [500,620,155,1,90,-88]
  ]){
-  const m=Rig.matrix({x,y,rotation:deg,scale});
-  const expected=[m.a*px+m.c*py+m.e,m.b*px+m.d*py+m.f];
+  const independent = {
+   canvas: {width: 512,height: 512},
+   nodes: [{id:'test-root',x,y,rotation:deg,scale,z:0}],
+   clips: {idle: {duration_ms:1000,loop:true,tracks:[]}},
+   variants: {default: {nodes:{}}},
+   defaults: {clip:'idle',variant:'default'}
+  };
+  const m=Headless.sampleFrame(independent,{timeMs:250}).nodes[0].world;
+  const expected=[m[0]*px+m[2]*py+m[4],m[1]*px+m[3]*py+m[5]];
   const observed=point(x,y,deg,scale,px,py);
   compare(observed[0],expected[0],'affine x');
   compare(observed[1],expected[1],'affine y');
