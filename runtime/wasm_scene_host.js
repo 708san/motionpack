@@ -86,7 +86,10 @@ function createWasmSceneSampler(exports){
    }).sort((a,b)=>a.z-b.z);
    const effects=(spec.clip.effects||[]).filter(f=>
       sampled>=f.start_ms && sampled<=f.start_ms+f.duration_ms
-    ).map(f=>({...f,age_ms:sampled-f.start_ms,
+    ).map(f=>({...f,
+      offset:f.offset?[...f.offset]:f.offset,
+      target:f.target?[...f.target]:f.target,
+      age_ms:sampled-f.start_ms,
       progress:(sampled-f.start_ms)/f.duration_ms}));
    return {protocol:'motionpack-pose',version:1,clip:clipName,variant:variantName,
      time_ms:sampled,canvas:{width:manifest.canvas.width,
