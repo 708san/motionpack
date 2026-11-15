@@ -66,7 +66,7 @@ fn key_slice(keys:&[MpKey],first:u32,count:u32)->Result<Vec<Keyframe>,()>{
 }
 
 #[allow(clippy::too_many_arguments)]
-fn evaluate(nodes:&[MpNode],variants:&[MpVariant],tracks:&[MpTrack],
+pub(crate) fn evaluate(nodes:&[MpNode],variants:&[MpVariant],tracks:&[MpTrack],
     keys:&[MpKey],chains:&[MpChain],ik_tracks:&[MpIkTrack],targets:&[MpTarget],
     duration:f64,loop_flag:u32,time:f64)->Result<(f64,Vec<MpOutput>),i32>{
     if loop_flag>1 {return Err(MP_INVALID_INPUT);}

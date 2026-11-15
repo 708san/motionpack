@@ -9,6 +9,8 @@ pub mod timeline;
 pub mod ik;
 pub mod pose;
 pub mod ffi;
+#[cfg(target_arch = "wasm32")]
+pub mod wasm_scene;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
