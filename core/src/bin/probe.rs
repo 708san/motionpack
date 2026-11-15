@@ -16,7 +16,7 @@ fn main() {
                 parse(&args[4]), parse(&args[5])
             ));
         }
-        Some("track") if args.len() >= 7 && args.len() % 2 == 1 => {
+        Some("track") if args.len() >= 6 && args.len() % 2 == 0 => {
             // track timeMs durationMs loop(0|1) t0 v0 [t1 v1 ...]
             let looping = match args[3].as_str() {
                 "0" => false, "1" => true,
