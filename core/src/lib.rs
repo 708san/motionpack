@@ -5,6 +5,8 @@
 //! No platform graphics APIs, timers, dynamic scripting or dependencies.
 use core::f64::consts::PI;
 
+pub mod timeline;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Affine {
