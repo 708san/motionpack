@@ -30,6 +30,8 @@ jobs:
           node tests/rust_core_parity_test.js native
           node tests/rust_timeline_parity_test.js
           node tests/rust_ik_parity_test.js native
+          cargo build --manifest-path core/Cargo.toml --locked --bin scene_probe
+          node tests/rust_scene_parity_test.js
       - name: Install stable Rust WebAssembly target (Linux)
         if: runner.os == 'Linux'
         run: rustup target add wasm32-unknown-unknown
