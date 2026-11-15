@@ -7,6 +7,7 @@ use core::f64::consts::PI;
 
 pub mod timeline;
 pub mod ik;
+pub mod pose;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
