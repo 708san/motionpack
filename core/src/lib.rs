@@ -8,6 +8,7 @@ use core::f64::consts::PI;
 pub mod timeline;
 pub mod ik;
 pub mod pose;
+pub mod ffi;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
