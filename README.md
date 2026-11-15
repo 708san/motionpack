@@ -4,6 +4,10 @@
 
 MotionPack is intentionally **not** a card-game format. The runtime does not require AI services or network access. The current preview is a reference demo, not a production SDK.
 
+## Distribution formats and security goals
+
+MotionPack uses **one editable `.motionpack` data-only asset**, with optional **single offline HTML** playback export and **OS-specific standalone app** exports as the three user-facing distribution modes. WebAssembly (Wasm) is a shared engine component, not an executable animation file by itself. The current HTML exporter uses the existing JavaScript reference engine; embedding the Rust Wasm engine, and browserless standalone apps, are future milestones. Read the [portable distribution and security contract](docs/PORTABLE_DISTRIBUTION_SECURITY.md) before adding new format extensions, runtime scripting, or executable package content.
+
 ## Quick start
 
 ```sh
