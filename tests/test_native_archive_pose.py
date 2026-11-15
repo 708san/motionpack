@@ -45,7 +45,10 @@ def compare_frames(testcase, actual, expected, context):
                 testcase.assertEqual(a[key], b[key])
 
 
-@unittest.skipUnless(shutil.which("node") and\n    (ROOT / "core" / "target" / "debug" /\n     NATIVE_FILENAME.get(platform.system(), "unsupported-platform")).exists(),\n    "native Rust library and Node.js are required")
+@unittest.skipUnless(shutil.which("node") and
+    (ROOT / "core" / "target" / "debug" /
+     NATIVE_FILENAME.get(platform.system(), "unsupported-platform")).exists(),
+    "native Rust library and Node.js are required")
 class NativeArchivePoseTests(unittest.TestCase):
     def test_packaged_archive_native_matches_js_and_reuses_one_session(self):
         # Build all archives using the real packager, not hand-assembled JSON.
