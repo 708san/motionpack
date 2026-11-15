@@ -1,0 +1,16 @@
+[package]
+name = "motionpack-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+
+[lib]
+name = "motionpack_core"
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "motionpack_core_probe"
+path = "src/bin/probe.rs"
+
+[dependencies]
